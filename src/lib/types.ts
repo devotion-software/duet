@@ -1,0 +1,91 @@
+export type Role = 'owner' | 'editor' | 'viewer';
+export type Urgency = 'low' | 'medium' | 'high' | 'urgent';
+export type Size = 'xs' | 's' | 'm' | 'l' | 'xl';
+export type ProjectStyle = 'soft' | 'solid' | 'outline' | 'glass';
+
+export const URGENCIES: Urgency[] = ['low', 'medium', 'high', 'urgent'];
+export const SIZES: Size[] = ['xs', 's', 'm', 'l', 'xl'];
+
+export const ROLE_LABELS: Record<Role, string> = {
+	owner: 'Owner',
+	editor: 'Editor',
+	viewer: 'Viewer'
+};
+export const ROLE_DESCRIPTIONS: Record<Role, string> = {
+	owner: 'Full control — manage members, settings and delete the project.',
+	editor: 'Add, edit and complete tasks.',
+	viewer: 'View tasks only.'
+};
+
+export interface Tag {
+	id: string;
+	name: string;
+	color: string;
+}
+export interface Category {
+	id: string;
+	name: string;
+	color: string;
+}
+export interface Member {
+	userId: string;
+	name: string;
+	email: string;
+	image: string | null;
+	role: Role;
+}
+export interface Attachment {
+	id: string;
+	name: string | null;
+	mime: string | null;
+	size: number | null;
+	url: string;
+}
+
+export interface Todo {
+	id: string;
+	projectId: string;
+	title: string;
+	description: string | null;
+	completed: boolean;
+	completedAt: Date | null;
+	deadline: Date | null;
+	urgency: Urgency | null;
+	size: Size | null;
+	sortOrder: number;
+	categoryId: string | null;
+	category: Category | null;
+	assigneeId: string | null;
+	assignee: { id: string; name: string; image: string | null } | null;
+	createdAt: Date;
+	updatedAt: Date;
+	tags: Tag[];
+	attachments: Attachment[];
+}
+
+/** Normalise a todo coming from JSON (string dates) into Date objects. */
+export function hydrateTodo(raw: Record<string, unknown>): Todo {
+	const d = (v: unknown): Date | null => (v ? new Date(v as string) : null);
+	return {
+		...(raw as unknown as Todo),
+		completedAt: d(raw.completedAt),
+		deadline: d(raw.deadline),
+		createdAt: d(raw.createdAt) ?? new Date(),
+		updatedAt: d(raw.updatedAt) ?? new Date()
+	};
+}
+
+export const URGENCY_META: Record<Urgency, { label: string; color: string; rank: number }> = {
+	low: { label: 'Low', color: '#64748b', rank: 1 },
+	medium: { label: 'Medium', color: '#0ea5e9', rank: 2 },
+	high: { label: 'High', color: '#f59e0b', rank: 3 },
+	urgent: { label: 'Urgent', color: '#ef4444', rank: 4 }
+};
+
+export const SIZE_META: Record<Size, { label: string; full: string }> = {
+	xs: { label: 'XS', full: 'Extra small' },
+	s: { label: 'S', full: 'Small' },
+	m: { label: 'M', full: 'Medium' },
+	l: { label: 'L', full: 'Large' },
+	xl: { label: 'XL', full: 'Extra large' }
+};

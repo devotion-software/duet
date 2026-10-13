@@ -1,0 +1,34 @@
+services:
+  mariadb:
+    image: mariadb:11.4
+    container_name: duet-mariadb
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpass}
+      MARIADB_DATABASE: ${DB_NAME:-duet}
+      MARIADB_USER: ${DB_USER:-duet}
+      MARIADB_PASSWORD: ${DB_PASSWORD:-duetpass}
+    ports:
+      - '${DB_PORT:-3306}:3306'
+    volumes:
+      - duet-db-data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'healthcheck.sh', '--connect', '--innodb_initialized']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Catches all outgoing dev email — view it at http://localhost:8026
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: duet-mailpit
+    restart: unless-stopped
+    ports:
+      - '${MAILPIT_SMTP_PORT:-1026}:1025'
+      - '${MAILPIT_UI_PORT:-8026}:8025'
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+
+volumes:
+  duet-db-data:

@@ -1,0 +1,230 @@
+/* ============================================================================
+   Duet design tokens
+   Every colour, space, shadow, radius, font and motion value lives here as a
+   CSS custom property. Themes override the semantic layer; components only ever
+   reference semantic tokens so re-theming is a matter of swapping variables.
+   ============================================================================ */
+
+:root {
+	/* ── Typography ─────────────────────────────────────────────────────── */
+	--font-sans:
+		'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial,
+		sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+	--font-mono:
+		'JetBrains Mono', ui-monospace, 'SF Mono', 'SFMono-Regular', Menlo, Monaco, Consolas,
+		'Liberation Mono', monospace;
+
+	--text-xs: 0.75rem; /* 12 */
+	--text-sm: 0.8125rem; /* 13 */
+	--text-base: 0.9375rem; /* 15 */
+	--text-md: 1rem; /* 16 */
+	--text-lg: 1.125rem; /* 18 */
+	--text-xl: 1.375rem; /* 22 */
+	--text-2xl: 1.75rem; /* 28 */
+	--text-3xl: 2.25rem; /* 36 */
+
+	--leading-tight: 1.2;
+	--leading-snug: 1.4;
+	--leading-normal: 1.6;
+
+	--weight-normal: 400;
+	--weight-medium: 500;
+	--weight-semibold: 600;
+	--weight-bold: 700;
+
+	--tracking-tight: -0.014em;
+	--tracking-normal: 0;
+	--tracking-wide: 0.04em;
+
+	/* ── Spacing scale (4px base) ───────────────────────────────────────── */
+	--space-0: 0;
+	--space-1: 0.25rem;
+	--space-2: 0.5rem;
+	--space-3: 0.75rem;
+	--space-4: 1rem;
+	--space-5: 1.25rem;
+	--space-6: 1.5rem;
+	--space-8: 2rem;
+	--space-10: 2.5rem;
+	--space-12: 3rem;
+	--space-16: 4rem;
+	--space-20: 5rem;
+
+	/* ── Radii ──────────────────────────────────────────────────────────── */
+	--radius-xs: 4px;
+	--radius-sm: 7px;
+	--radius-md: 10px;
+	--radius-lg: 14px;
+	--radius-xl: 20px;
+	--radius-2xl: 28px;
+	--radius-full: 999px;
+
+	/* ── Motion ─────────────────────────────────────────────────────────── */
+	--ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+	--ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+	--transition-fast: 110ms var(--ease-out);
+	--transition-base: 180ms var(--ease-out);
+	--transition-slow: 320ms var(--ease-out);
+
+	/* ── Z-index ────────────────────────────────────────────────────────── */
+	--z-base: 1;
+	--z-sticky: 100;
+	--z-dropdown: 400;
+	--z-overlay: 800;
+	--z-modal: 900;
+	--z-toast: 1000;
+
+	/* ── Accent (project colour) ────────────────────────────────────────────
+	   A single --accent drives a whole palette through color-mix(). Override
+	   --accent anywhere (e.g. per-project) to re-theme that subtree. */
+	--accent: #6366f1;
+	--accent-contrast: #ffffff;
+	--accent-hover: color-mix(in oklab, var(--accent), black 14%);
+	--accent-active: color-mix(in oklab, var(--accent), black 24%);
+	--accent-soft: color-mix(in oklab, var(--accent) 14%, var(--surface));
+	--accent-softer: color-mix(in oklab, var(--accent) 7%, var(--surface));
+	--accent-border: color-mix(in oklab, var(--accent) 40%, var(--border));
+	--accent-ring: color-mix(in oklab, var(--accent), transparent 68%);
+	--accent-text: color-mix(in oklab, var(--accent), var(--text) 18%);
+}
+
+/* ── Light theme (default) ─────────────────────────────────────────────── */
+:root,
+:root[data-theme='light'] {
+	color-scheme: light;
+
+	--bg: #f6f7f9;
+	--bg-gradient: radial-gradient(
+		1200px 800px at 100% -10%,
+		color-mix(in oklab, var(--accent) 8%, transparent),
+		transparent 60%
+	);
+	--surface: #ffffff;
+	--surface-2: #fbfbfd;
+	--surface-raised: #ffffff;
+	--surface-hover: #f1f2f5;
+	--surface-active: #e9ebf0;
+	--surface-inset: #f3f4f7;
+
+	--border: #e6e8ec;
+	--border-strong: #d4d7de;
+	--border-subtle: #eef0f3;
+
+	--text: #16181d;
+	--text-muted: #5b6270;
+	--text-subtle: #878e9c;
+	--text-faint: #aab0bc;
+	--text-inverted: #ffffff;
+
+	--success: #16a34a;
+	--success-soft: color-mix(in oklab, #16a34a 12%, var(--surface));
+	--warning: #d97706;
+	--warning-soft: color-mix(in oklab, #d97706 13%, var(--surface));
+	--danger: #e11d48;
+	--danger-soft: color-mix(in oklab, #e11d48 11%, var(--surface));
+	--info: #0ea5e9;
+	--info-soft: color-mix(in oklab, #0ea5e9 12%, var(--surface));
+
+	--shadow-xs: 0 1px 2px rgba(18, 21, 30, 0.05);
+	--shadow-sm: 0 1px 3px rgba(18, 21, 30, 0.07), 0 1px 2px rgba(18, 21, 30, 0.04);
+	--shadow-md: 0 4px 12px rgba(18, 21, 30, 0.08), 0 2px 4px rgba(18, 21, 30, 0.05);
+	--shadow-lg: 0 12px 32px rgba(18, 21, 30, 0.12), 0 4px 10px rgba(18, 21, 30, 0.06);
+	--shadow-xl: 0 24px 56px rgba(18, 21, 30, 0.16), 0 8px 20px rgba(18, 21, 30, 0.08);
+	--shadow-accent: 0 6px 20px color-mix(in oklab, var(--accent), transparent 72%);
+
+	--overlay-bg: rgba(20, 23, 33, 0.38);
+}
+
+/* ── Dark theme ────────────────────────────────────────────────────────── */
+:root[data-theme='dark'] {
+	color-scheme: dark;
+
+	--bg: #0c0d10;
+	--bg-gradient: radial-gradient(
+		1200px 800px at 100% -10%,
+		color-mix(in oklab, var(--accent) 16%, transparent),
+		transparent 55%
+	);
+	--surface: #17191f;
+	--surface-2: #141519;
+	--surface-raised: #1d2027;
+	--surface-hover: #22252d;
+	--surface-active: #2a2e38;
+	--surface-inset: #101114;
+
+	--border: #292c34;
+	--border-strong: #3a3e48;
+	--border-subtle: #212329;
+
+	--text: #f3f4f6;
+	--text-muted: #a4acbb;
+	--text-subtle: #7b8291;
+	--text-faint: #565c68;
+	--text-inverted: #0c0d10;
+
+	--success: #34d399;
+	--success-soft: color-mix(in oklab, #34d399 16%, var(--surface));
+	--warning: #fbbf24;
+	--warning-soft: color-mix(in oklab, #fbbf24 15%, var(--surface));
+	--danger: #fb7185;
+	--danger-soft: color-mix(in oklab, #fb7185 15%, var(--surface));
+	--info: #38bdf8;
+	--info-soft: color-mix(in oklab, #38bdf8 15%, var(--surface));
+
+	--shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+	--shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+	--shadow-md: 0 4px 14px rgba(0, 0, 0, 0.5), 0 2px 5px rgba(0, 0, 0, 0.4);
+	--shadow-lg: 0 14px 38px rgba(0, 0, 0, 0.6), 0 5px 12px rgba(0, 0, 0, 0.45);
+	--shadow-xl: 0 26px 64px rgba(0, 0, 0, 0.7), 0 10px 24px rgba(0, 0, 0, 0.5);
+	--shadow-accent: 0 8px 26px color-mix(in oklab, var(--accent), transparent 60%);
+
+	--overlay-bg: rgba(0, 0, 0, 0.6);
+}
+
+/* Follow the OS when the user hasn't explicitly chosen a theme. */
+@media (prefers-color-scheme: dark) {
+	:root[data-theme='system'] {
+		color-scheme: dark;
+
+		--bg: #0c0d10;
+		--bg-gradient: radial-gradient(
+			1200px 800px at 100% -10%,
+			color-mix(in oklab, var(--accent) 16%, transparent),
+			transparent 55%
+		);
+		--surface: #17191f;
+		--surface-2: #141519;
+		--surface-raised: #1d2027;
+		--surface-hover: #22252d;
+		--surface-active: #2a2e38;
+		--surface-inset: #101114;
+
+		--border: #292c34;
+		--border-strong: #3a3e48;
+		--border-subtle: #212329;
+
+		--text: #f3f4f6;
+		--text-muted: #a4acbb;
+		--text-subtle: #7b8291;
+		--text-faint: #565c68;
+		--text-inverted: #0c0d10;
+
+		--success: #34d399;
+		--success-soft: color-mix(in oklab, #34d399 16%, var(--surface));
+		--warning: #fbbf24;
+		--warning-soft: color-mix(in oklab, #fbbf24 15%, var(--surface));
+		--danger: #fb7185;
+		--danger-soft: color-mix(in oklab, #fb7185 15%, var(--surface));
+		--info: #38bdf8;
+		--info-soft: color-mix(in oklab, #38bdf8 15%, var(--surface));
+
+		--shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.4);
+		--shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+		--shadow-md: 0 4px 14px rgba(0, 0, 0, 0.5), 0 2px 5px rgba(0, 0, 0, 0.4);
+		--shadow-lg: 0 14px 38px rgba(0, 0, 0, 0.6), 0 5px 12px rgba(0, 0, 0, 0.45);
+		--shadow-xl: 0 26px 64px rgba(0, 0, 0, 0.7), 0 10px 24px rgba(0, 0, 0, 0.5);
+		--shadow-accent: 0 8px 26px color-mix(in oklab, var(--accent), transparent 60%);
+
+		--overlay-bg: rgba(0, 0, 0, 0.6);
+	}
+}
