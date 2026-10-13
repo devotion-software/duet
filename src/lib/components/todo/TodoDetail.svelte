@@ -16,12 +16,16 @@
 		type Todo,
 		type Tag,
 		type Category,
-		type Member
+		type Member,
+		type ProjectStyle
 	} from '#lib/types';
 	import type { NewTodoInput } from '#lib/stores/todos.svelte';
 
 	interface Props {
 		todo: Todo;
+		/** Project colour and card style, so the panel matches its project. */
+		accent: string;
+		projectStyle: ProjectStyle;
 		canEdit: boolean;
 		members: Member[];
 		categories: Category[];
@@ -47,6 +51,8 @@
 	}
 	let {
 		todo,
+		accent,
+		projectStyle,
 		canEdit,
 		members,
 		categories,
@@ -170,7 +176,7 @@
 
 <svelte:window on:keydown={onkeydown} />
 
-<div class="panel-overlay" transition:fade={{ duration: 150 }}>
+<div class="panel-overlay" style="--accent: {accent}" transition:fade={{ duration: 150 }}>
 	<button class="panel-scrim" aria-label="Close" onclick={onClose}></button>
 	<aside
 		class="panel"
@@ -178,7 +184,7 @@
 		aria-label="Task details"
 		onpaste={onPaste}
 	>
-		<header class="panel-head">
+		<header class="panel-head style-{projectStyle}">
 			<div class="status">
 				<button
 					class="check"
@@ -534,6 +540,45 @@
 		padding: var(--space-4) var(--space-4);
 		border-bottom: 1px solid var(--border-subtle);
 	}
+	/* Project card style, matching the project page header. */
+	.panel-head.style-soft {
+		background: var(--accent-softer);
+		border-bottom-color: var(--accent-border);
+	}
+	.panel-head.style-solid {
+		background: var(--accent);
+		border-bottom-color: transparent;
+	}
+	.panel-head.style-solid .check,
+	.panel-head.style-solid .icon-act {
+		color: var(--accent-contrast);
+		border-color: color-mix(in oklab, var(--accent-contrast) 45%, transparent);
+	}
+	.panel-head.style-solid .icon-act:hover,
+	.panel-head.style-solid .check.progress.on {
+		background: color-mix(in oklab, var(--accent-contrast) 18%, transparent);
+		color: var(--accent-contrast);
+	}
+	.panel-head.style-solid .check.on:not(.progress) {
+		background: var(--accent-contrast);
+		border-color: var(--accent-contrast);
+		color: var(--accent);
+	}
+	.panel-head.style-outline {
+		border-bottom: 2px solid var(--accent);
+	}
+	.panel-head.style-glass {
+		background:
+			linear-gradient(
+				135deg,
+				color-mix(in oklab, var(--accent) 20%, transparent),
+				color-mix(in oklab, var(--accent) 4%, transparent) 70%
+			),
+			var(--surface);
+		border-bottom-color: var(--accent-border);
+		box-shadow: inset 0 1px 0 color-mix(in oklab, white 35%, transparent);
+	}
+
 	.check {
 		display: inline-flex;
 		align-items: center;

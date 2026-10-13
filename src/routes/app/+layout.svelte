@@ -97,7 +97,7 @@
 					{@const openCount = liveCounts[p.id] ?? p.openCount}
 					<a
 						href="/app/{p.slug}"
-						class="p-link"
+						class="p-link style-{p.style}"
 						class:active={p.slug === activeSlug}
 						style="--accent: {p.color}"
 					>
@@ -253,6 +253,58 @@
 	}
 	.p-name {
 		flex: 1;
+	}
+
+	/* Project card style, matching the preview in ProjectDialog: the icon tile always shows it,
+	   and the active row takes on the full treatment. */
+	.p-icon {
+		border-radius: var(--radius-sm);
+		border: 1px solid transparent;
+	}
+	.style-soft .p-icon {
+		background: var(--accent-soft);
+		border-color: var(--accent-border);
+	}
+	.style-solid .p-icon {
+		background: var(--accent);
+	}
+	.style-outline .p-icon {
+		background: var(--surface);
+		border: 1.5px solid var(--accent);
+	}
+	.style-glass .p-icon {
+		background: linear-gradient(
+			135deg,
+			color-mix(in oklab, var(--accent) 32%, var(--surface)),
+			color-mix(in oklab, var(--accent) 6%, var(--surface))
+		);
+		border-color: var(--accent-border);
+		box-shadow: inset 0 1px 0 color-mix(in oklab, white 45%, transparent);
+	}
+	.p-link.active.style-solid {
+		background: var(--accent);
+		color: var(--accent-contrast);
+	}
+	.p-link.active.style-solid .p-icon {
+		background: color-mix(in oklab, var(--accent-contrast) 22%, transparent);
+	}
+	.p-link.active.style-solid .p-count {
+		background: color-mix(in oklab, var(--accent-contrast) 22%, transparent);
+		color: var(--accent-contrast);
+	}
+	.p-link.active.style-outline {
+		background: var(--surface);
+		box-shadow: inset 0 0 0 1.5px var(--accent);
+	}
+	.p-link.active.style-glass {
+		background: linear-gradient(
+			135deg,
+			color-mix(in oklab, var(--accent) 22%, var(--surface)),
+			color-mix(in oklab, var(--accent) 5%, var(--surface))
+		);
+		box-shadow:
+			inset 0 0 0 1px var(--accent-border),
+			inset 0 1px 0 color-mix(in oklab, white 40%, transparent);
 	}
 	.p-count {
 		font-size: var(--text-xs);
