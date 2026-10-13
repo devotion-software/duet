@@ -59,6 +59,8 @@
 	// Changes made in one request are shown together under one actor + time.
 	const FIELD_ORDER: TodoField[] = [
 		'created',
+		'deleted',
+		'restored',
 		'status',
 		'title',
 		'description',
@@ -113,6 +115,10 @@
 		switch (e.field) {
 			case 'created':
 				return { verb: 'created this task' };
+			case 'deleted':
+				return { verb: 'deleted this task' };
+			case 'restored':
+				return { verb: 'restored this task' };
 			case 'status':
 				if (e.to === 'done') return { verb: 'completed this task' };
 				if (e.to === 'not_doing') return { verb: 'closed as not doing' };

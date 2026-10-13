@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { db } from './db';
 import { todos, todoTags, tags, categories, todoEvents } from './db/app.schema';
 import { user } from './db/auth.schema';
@@ -58,13 +58,13 @@ async function snapshot(conn: Conn, projectId: string): Promise<Map<string, Snap
 		.from(todos)
 		.leftJoin(categories, eq(categories.id, todos.categoryId))
 		.leftJoin(user, eq(user.id, todos.assigneeId))
-		.where(eq(todos.projectId, projectId));
+		.where(and(eq(todos.projectId, projectId), isNull(todos.deletedAt)));
 	const tagRows = await conn
 		.select({ todoId: todoTags.todoId, id: tags.id, name: tags.name })
 		.from(todoTags)
 		.innerJoin(tags, eq(tags.id, todoTags.tagId))
 		.innerJoin(todos, eq(todos.id, todoTags.todoId))
-		.where(eq(todos.projectId, projectId));
+		.where(and(eq(todos.projectId, projectId), isNull(todos.deletedAt)));
 
 	const out = new Map<string, Snapshot>();
 	for (const r of rows) {

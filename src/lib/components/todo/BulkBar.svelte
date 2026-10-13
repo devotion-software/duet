@@ -64,7 +64,7 @@
 
 	async function deleteSelected() {
 		const n = selected.length;
-		if (!confirm(`Delete ${n} task${n === 1 ? '' : 's'}? This cannot be undone.`)) return;
+		if (!confirm(`Delete ${n} task${n === 1 ? '' : 's'}? You can restore them from project settings.`)) return;
 		busy = true;
 		if (await onDelete()) onClear();
 		busy = false;

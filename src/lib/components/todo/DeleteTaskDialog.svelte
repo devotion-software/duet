@@ -31,10 +31,11 @@
 	<p class="msg">
 		<strong>{todo?.title}</strong>
 		{#if subtasks}
-			and its {subtasks} subtask{subtasks === 1 ? '' : 's'} will be permanently deleted.
+			and its {subtasks} subtask{subtasks === 1 ? '' : 's'} will be deleted.
 		{:else}
-			will be permanently deleted.
+			will be deleted.
 		{/if}
+		You can restore it from project settings.
 	</p>
 	{#snippet footer()}
 		<label class="dont-ask">

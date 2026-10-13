@@ -9,6 +9,8 @@
 	import Icon from './ui/Icon.svelte';
 	import ProjectIcon from './ProjectIcon.svelte';
 	import ListWidthField from './ListWidthField.svelte';
+	import Spinner from './ui/Spinner.svelte';
+	import { timeAgo } from '#lib/date';
 	import {
 		PROJECT_STATUSES,
 		ROW_FIELDS,
@@ -38,13 +40,27 @@
 		project?: ProjectLike;
 		/** The user's account defaults, shown against the "Default" options in edit mode. */
 		defaults?: { listWidth: number; countSubtasks: boolean };
+		/** Called with the tasks brought back (and any reopened ancestors) after a restore. */
+		onrestore?: (todos: Record<string, unknown>[]) => void;
 	}
 	let {
 		open = $bindable(),
 		mode = 'create',
 		project = {},
-		defaults = { listWidth: LIST_WIDTH.default, countSubtasks: true }
+		defaults = { listWidth: LIST_WIDTH.default, countSubtasks: true },
+		onrestore
 	}: Props = $props();
+
+	interface DeletedTodo {
+		id: string;
+		title: string;
+		deletedAt: Date;
+		deletedBy: { id: string; name: string } | null;
+		subtasks: number;
+	}
+	let deleted = $state<DeletedTodo[] | null>(null);
+	// Ids with a restore or permanent delete in flight.
+	let busy = $state<string[]>([]);
 
 	let name = $state(project.name ?? '');
 	let description = $state(project.description ?? '');
@@ -77,8 +93,69 @@
 			hidden = [...(project.hiddenFields ?? [])];
 			listWidth = project.listWidthSetting ?? null;
 			countSubtasks = project.countSubtasksSetting ?? null;
+			deleted = null;
+			if (mode === 'edit' && project.id) untrack(() => loadDeleted(project.id!));
 		}
 	});
+
+	async function deletedApi(url: string, init?: RequestInit) {
+		const res = await fetch(url, init);
+		if (!res.ok) {
+			let message = 'Something went wrong';
+			try {
+				message = (await res.json()).message ?? message;
+			} catch {
+				/* ignore */
+			}
+			throw new Error(message);
+		}
+		return res.json();
+	}
+
+	async function loadDeleted(projectId: string) {
+		try {
+			const { todos } = await deletedApi(`/api/projects/${projectId}/todos/deleted`);
+			deleted = (todos as (DeletedTodo & { deletedAt: string })[]).map((t) => ({
+				...t,
+				deletedAt: new Date(t.deletedAt)
+			}));
+		} catch (e) {
+			deleted = [];
+			toasts.error((e as Error).message);
+		}
+	}
+
+	async function restore(t: DeletedTodo) {
+		busy = [...busy, t.id];
+		try {
+			const { todos } = await deletedApi(`/api/projects/${project.id}/todos/deleted/${t.id}`, {
+				method: 'POST'
+			});
+			deleted = deleted?.filter((d) => d.id !== t.id) ?? null;
+			onrestore?.(todos);
+			toasts.success(`Restored “${t.title}”`);
+		} catch (e) {
+			toasts.error((e as Error).message);
+		} finally {
+			busy = busy.filter((id) => id !== t.id);
+		}
+	}
+
+	async function purge(t: DeletedTodo) {
+		const what = t.subtasks
+			? `“${t.title}” and its ${t.subtasks} subtask${t.subtasks === 1 ? '' : 's'}`
+			: `“${t.title}”`;
+		if (!confirm(`Permanently delete ${what}? This cannot be undone.`)) return;
+		busy = [...busy, t.id];
+		try {
+			await deletedApi(`/api/projects/${project.id}/todos/deleted/${t.id}`, { method: 'DELETE' });
+			deleted = deleted?.filter((d) => d.id !== t.id) ?? null;
+		} catch (e) {
+			toasts.error((e as Error).message);
+		} finally {
+			busy = busy.filter((id) => id !== t.id);
+		}
+	}
 
 	function setIconFile(file: File | null) {
 		if (iconFile && iconUrl) URL.revokeObjectURL(iconUrl);
@@ -309,6 +386,51 @@
 						</button>
 					{/each}
 				</div>
+			</div>
+
+			<div class="field">
+				<span class="flabel">Deleted tasks</span>
+				{#if deleted === null}
+					<div class="deleted-empty"><Spinner /></div>
+				{:else if !deleted.length}
+					<p class="deleted-empty">No deleted tasks.</p>
+				{:else}
+					<ul class="deleted">
+						{#each deleted as t (t.id)}
+							{@const working = busy.includes(t.id)}
+							<li>
+								<div class="deleted-text">
+									<span class="deleted-title">{t.title}</span>
+									<small>
+										Deleted {timeAgo(t.deletedAt)}{t.deletedBy ? ` by ${t.deletedBy.name}` : ''}{t.subtasks
+											? ` · ${t.subtasks} subtask${t.subtasks === 1 ? '' : 's'}`
+											: ''}
+									</small>
+								</div>
+								<Button
+									type="button"
+									variant="secondary"
+									size="sm"
+									icon="corner-up-left"
+									disabled={working}
+									onclick={() => restore(t)}
+								>
+									Restore
+								</Button>
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									icon="trash"
+									aria-label="Delete permanently"
+									title="Delete permanently"
+									disabled={working}
+									onclick={() => purge(t)}
+								/>
+							</li>
+						{/each}
+					</ul>
+				{/if}
 			</div>
 		{/if}
 
@@ -555,6 +677,45 @@
 		color: var(--accent-text);
 		background: var(--accent-soft);
 		border: 1px solid var(--accent-border);
+	}
+	.deleted {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		max-height: 240px;
+		overflow-y: auto;
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+	}
+	.deleted li {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		padding: var(--space-2) var(--space-3);
+	}
+	.deleted li + li {
+		border-top: 1px solid var(--border);
+	}
+	.deleted-text {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		flex-direction: column;
+	}
+	.deleted-title {
+		font-size: var(--text-sm);
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.deleted-text small {
+		color: var(--text-subtle);
+		font-size: var(--text-xs);
+	}
+	.deleted-empty {
+		margin: 0;
+		font-size: var(--text-sm);
+		color: var(--text-subtle);
 	}
 	.actions {
 		display: flex;

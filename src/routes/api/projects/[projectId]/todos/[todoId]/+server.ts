@@ -74,12 +74,12 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 };
 
 export const DELETE: RequestHandler = async ({ params, request, locals }) => {
-	await requireMember(locals, params.projectId, { edit: true });
+	const { userId } = await requireMember(locals, params.projectId, { edit: true });
 	if (!(await todoBelongsToProject(params.todoId, params.projectId)))
 		throw error(404, 'Todo not found');
 
-	// Subtasks go with their parent.
-	const ids = await deleteTodo(params.projectId, params.todoId);
+	// Subtasks go with their parent. Soft delete: restorable from project settings.
+	const ids = await deleteTodo(params.projectId, params.todoId, userId);
 	publish(params.projectId, {
 		type: 'todos.deleted',
 		origin: request.headers.get('x-client-id') ?? undefined,

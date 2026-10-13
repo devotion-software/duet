@@ -88,7 +88,7 @@ export async function listUserProjects(
 					total: sql<number>`count(*)`
 				})
 				.from(todos)
-				.where(inArray(todos.projectId, ids))
+				.where(and(inArray(todos.projectId, ids), isNull(todos.deletedAt)))
 				.groupBy(todos.projectId)
 		: [];
 

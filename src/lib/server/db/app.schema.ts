@@ -215,11 +215,19 @@ export const todos = mysqlTable(
 		createdById: varchar('created_by_id', { length: 36 }).references(() => user.id, {
 			onDelete: 'set null'
 		}),
+		// Soft delete: set on a task and the subtree deleted with it (sharing one
+		// stamp, so a restore brings back exactly that batch). Deleted tasks are
+		// hidden everywhere except the project's deleted-task list.
+		deletedAt: timestamp('deleted_at', { fsp: 3 }),
+		deletedById: varchar('deleted_by_id', { length: 36 }).references(() => user.id, {
+			onDelete: 'set null'
+		}),
 		createdAt: createdAt(),
 		updatedAt: updatedAt()
 	},
 	(t) => [
 		index('todos_project_idx').on(t.projectId),
+		index('todos_project_deleted_idx').on(t.projectId, t.deletedAt),
 		index('todos_project_completed_idx').on(t.projectId, t.completed),
 		index('todos_assignee_idx').on(t.assigneeId),
 		index('todos_parent_idx').on(t.parentId)

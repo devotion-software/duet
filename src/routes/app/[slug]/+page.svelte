@@ -910,6 +910,7 @@
 	mode="edit"
 	project={data.project}
 	defaults={data.projectDefaults}
+	onrestore={(todos) => controller.merge(todos)}
 />
 {#if canEdit}
 	<SecretsDialog bind:open={secretsOpen} projectId={data.project.id} />

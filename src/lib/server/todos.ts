@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { db } from './db';
 import {
 	todos,
@@ -18,13 +18,16 @@ import type { ImportItem, ImportRef } from '#lib/parseImport';
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type Conn = typeof db | Tx;
 
+/** Live (not deleted) todos in the project. */
+const liveIn = (projectId: string) => and(eq(todos.projectId, projectId), isNull(todos.deletedAt));
+
 // ─── Task tree ──────────────────────────────────────────────────────────────
-/** id → parentId for every todo in the project. */
+/** id → parentId for every live todo in the project. */
 async function loadTree(conn: Conn, projectId: string): Promise<Map<string, string | null>> {
 	const rows = await conn
 		.select({ id: todos.id, parentId: todos.parentId })
 		.from(todos)
-		.where(eq(todos.projectId, projectId));
+		.where(liveIn(projectId));
 	return new Map(rows.map((r) => [r.id, r.parentId]));
 }
 
@@ -120,14 +123,23 @@ async function setCompleted(
 	return targets;
 }
 
-/** Delete tasks and all their descendants; returns every deleted id. */
-async function deleteSubtrees(conn: Conn, projectId: string, ids: string[]) {
-	const levels = subtreeLevels(await loadTree(conn, projectId), ids);
-	// Deepest first, so the FK cascade never has to recurse (InnoDB stops at 15).
-	for (const level of [...levels].reverse()) {
-		await conn.delete(todos).where(inArray(todos.id, level));
-	}
-	return levels.flat();
+/**
+ * Soft-delete tasks and all their descendants; returns every deleted id. The
+ * whole batch shares one stamp so it can be restored together.
+ */
+async function deleteSubtrees(conn: Conn, projectId: string, ids: string[], actorId: string) {
+	const deleted = subtreeLevels(await loadTree(conn, projectId), ids).flat();
+	if (!deleted.length) return [];
+	await conn
+		.update(todos)
+		.set({ deletedAt: new Date(), deletedById: actorId })
+		.where(inArray(todos.id, deleted));
+	await recordEvents(
+		conn,
+		actorId,
+		deleted.map((todoId) => ({ todoId, field: 'deleted' }))
+	);
+	return deleted;
 }
 
 /** sortOrder for a task joining `parentId`: top of the list, or last subtask. */
@@ -136,13 +148,13 @@ async function siblingSortOrder(conn: Conn, projectId: string, parentId: string 
 		const [row] = await conn
 			.select({ max: sql<number>`coalesce(max(${todos.sortOrder}), 0)` })
 			.from(todos)
-			.where(eq(todos.projectId, projectId));
+			.where(liveIn(projectId));
 		return Number(row?.max ?? 0) + 1;
 	}
 	const [row] = await conn
 		.select({ min: sql<number>`coalesce(min(${todos.sortOrder}), 1)` })
 		.from(todos)
-		.where(and(eq(todos.projectId, projectId), eq(todos.parentId, parentId)));
+		.where(and(liveIn(projectId), eq(todos.parentId, parentId)));
 	return Number(row?.min ?? 1) - 1;
 }
 
@@ -236,7 +248,7 @@ export async function listTodos(projectId: string): Promise<TodoItem[]> {
 		.from(todos)
 		.leftJoin(categories, eq(categories.id, todos.categoryId))
 		.leftJoin(user, eq(user.id, todos.assigneeId))
-		.where(eq(todos.projectId, projectId))
+		.where(liveIn(projectId))
 		.orderBy(asc(todos.completed), desc(todos.sortOrder), desc(todos.createdAt));
 
 	const tagRows = await db
@@ -249,7 +261,7 @@ export async function listTodos(projectId: string): Promise<TodoItem[]> {
 		.from(todoTags)
 		.innerJoin(tags, eq(tags.id, todoTags.tagId))
 		.innerJoin(todos, eq(todos.id, todoTags.todoId))
-		.where(eq(todos.projectId, projectId));
+		.where(liveIn(projectId));
 
 	const tagsByTodo = new Map<string, TodoTag[]>();
 	for (const t of tagRows) {
@@ -268,7 +280,7 @@ export async function listTodos(projectId: string): Promise<TodoItem[]> {
 		})
 		.from(attachments)
 		.innerJoin(todos, eq(todos.id, attachments.todoId))
-		.where(eq(todos.projectId, projectId))
+		.where(liveIn(projectId))
 		.orderBy(asc(attachments.createdAt));
 
 	const attByTodo = new Map<string, AttachmentRef[]>();
@@ -438,7 +450,7 @@ export async function bulkUpdateTodos(
 				await tx
 					.select({ id: todos.id })
 					.from(todos)
-					.where(and(eq(todos.projectId, projectId), inArray(todos.id, todoIds)))
+					.where(and(liveIn(projectId), inArray(todos.id, todoIds)))
 			).map((r) => r.id);
 			if (!ids.length) return [];
 			const touched = new Set(ids);
@@ -482,8 +494,8 @@ export async function bulkUpdateTodos(
 }
 
 /** Delete many todos and their subtasks; ids outside the project are ignored. */
-export async function bulkDeleteTodos(projectId: string, todoIds: string[]) {
-	return db.transaction((tx) => deleteSubtrees(tx, projectId, todoIds));
+export async function bulkDeleteTodos(projectId: string, todoIds: string[], actorId: string) {
+	return db.transaction((tx) => deleteSubtrees(tx, projectId, todoIds, actorId));
 }
 
 /** Returns every id whose completion may have changed (subtree or ancestors). */
@@ -500,18 +512,160 @@ export async function toggleTodo(
 }
 
 /** Delete a todo and its subtasks; returns every deleted id. */
-export async function deleteTodo(projectId: string, todoId: string) {
-	return db.transaction((tx) => deleteSubtrees(tx, projectId, [todoId]));
+export async function deleteTodo(projectId: string, todoId: string, actorId: string) {
+	return db.transaction((tx) => deleteSubtrees(tx, projectId, [todoId], actorId));
 }
 
-/** Verify a todo belongs to a project (authorization guard for mutations). */
+/** Verify a live todo belongs to a project (authorization guard for mutations). */
 export async function todoBelongsToProject(todoId: string, projectId: string): Promise<boolean> {
 	const [row] = await db
 		.select({ id: todos.id })
 		.from(todos)
-		.where(and(eq(todos.id, todoId), eq(todos.projectId, projectId)))
+		.where(and(eq(todos.id, todoId), liveIn(projectId)))
 		.limit(1);
 	return !!row;
+}
+
+// ─── Deleted tasks ──────────────────────────────────────────────────────────
+export interface DeletedTodo {
+	id: string;
+	title: string;
+	completed: boolean;
+	deletedAt: Date;
+	deletedBy: { id: string; name: string } | null;
+	/** Subtasks deleted along with it, which come back with it. */
+	subtasks: number;
+}
+
+interface TreeRow {
+	id: string;
+	parentId: string | null;
+	title: string;
+	completed: boolean;
+	deletedAt: Date | null;
+}
+
+/** Every todo in the project, deleted or not. */
+async function loadAll(conn: Conn, projectId: string): Promise<Map<string, TreeRow>> {
+	const rows = await conn
+		.select({
+			id: todos.id,
+			parentId: todos.parentId,
+			title: todos.title,
+			completed: todos.completed,
+			deletedAt: todos.deletedAt
+		})
+		.from(todos)
+		.where(eq(todos.projectId, projectId));
+	return new Map(rows.map((r) => [r.id, r]));
+}
+
+const sameStamp = (a: Date | null, b: Date | null) => !!a && !!b && a.getTime() === b.getTime();
+
+/** A deleted task plus the descendants deleted along with it (same stamp), parents first. */
+function deletedBatch(rows: Map<string, TreeRow>, id: string): string[] {
+	const root = rows.get(id);
+	if (!root?.deletedAt) return [];
+	const kids = childrenIndex(new Map([...rows].map(([k, r]) => [k, r.parentId])));
+	const out: string[] = [];
+	const seen = new Set<string>();
+	let level = [id];
+	while (level.length) {
+		for (const k of level) seen.add(k);
+		out.push(...level);
+		level = level
+			.flatMap((k) => kids.get(k) ?? [])
+			.filter((k) => !seen.has(k) && sameStamp(rows.get(k)!.deletedAt, root.deletedAt));
+	}
+	return out;
+}
+
+/**
+ * Deleted tasks that can be restored, newest first. Subtasks deleted with their
+ * parent are folded into it rather than listed separately.
+ */
+export async function listDeletedTodos(projectId: string): Promise<DeletedTodo[]> {
+	const rows = await loadAll(db, projectId);
+	const deleted = await db
+		.select({
+			id: todos.id,
+			parentId: todos.parentId,
+			title: todos.title,
+			completed: todos.completed,
+			deletedAt: todos.deletedAt,
+			byId: user.id,
+			byName: user.name
+		})
+		.from(todos)
+		.leftJoin(user, eq(user.id, todos.deletedById))
+		.where(and(eq(todos.projectId, projectId), sql`${todos.deletedAt} is not null`))
+		.orderBy(desc(todos.deletedAt));
+	return deleted
+		.filter((r) => {
+			const parent = r.parentId ? rows.get(r.parentId) : undefined;
+			return !sameStamp(parent?.deletedAt ?? null, r.deletedAt);
+		})
+		.map((r) => ({
+			id: r.id,
+			title: r.title,
+			completed: r.completed,
+			deletedAt: r.deletedAt!,
+			deletedBy: r.byId ? { id: r.byId, name: r.byName! } : null,
+			subtasks: deletedBatch(rows, r.id).length - 1
+		}));
+}
+
+/**
+ * Bring back a deleted task and the subtasks deleted with it. If its parent is
+ * still deleted it returns at the top level; restoring an open task under a
+ * done parent reopens the parent. Returns null if the task isn't deleted.
+ */
+export async function restoreTodo(projectId: string, todoId: string, actorId: string) {
+	return db.transaction(async (tx) => {
+		const rows = await loadAll(tx, projectId);
+		const restored = deletedBatch(rows, todoId);
+		if (!restored.length) return null;
+		const root = rows.get(todoId)!;
+		const parent = root.parentId ? rows.get(root.parentId) : undefined;
+
+		await tx
+			.update(todos)
+			.set({ deletedAt: null, deletedById: null })
+			.where(inArray(todos.id, restored));
+		await recordEvents(
+			tx,
+			actorId,
+			restored.map((id) => ({ todoId: id, field: 'restored' }))
+		);
+
+		let affected: string[] = [];
+		if (parent?.deletedAt) {
+			await tx
+				.update(todos)
+				.set({ parentId: null, sortOrder: await siblingSortOrder(tx, projectId, null) })
+				.where(eq(todos.id, todoId));
+			await recordEvents(tx, actorId, [{ todoId, field: 'parent', from: parent.title }]);
+		} else if (parent && !root.completed) {
+			affected = await tracked(tx, projectId, actorId, () =>
+				setCompleted(tx, projectId, [parent.id], false)
+			);
+		}
+		return { restored, affected };
+	});
+}
+
+/** Permanently remove a deleted task and its subtasks; returns the ids, or null if it isn't deleted. */
+export async function purgeTodo(projectId: string, todoId: string) {
+	return db.transaction(async (tx) => {
+		const rows = await loadAll(tx, projectId);
+		if (!rows.get(todoId)?.deletedAt) return null;
+		const levels = subtreeLevels(new Map([...rows].map(([k, r]) => [k, r.parentId])), [todoId]);
+		// Deepest first, so the FK cascade never has to recurse (InnoDB stops at 15).
+		for (const level of [...levels].reverse()) {
+			await tx.delete(todos).where(inArray(todos.id, level));
+		}
+		return levels.flat();
+	});
 }
 
 export async function setTodoTags(todoId: string, tagIds: string[]) {
@@ -653,7 +807,7 @@ export async function reorderTodos(projectId: string, orderedIds: string[]) {
 			db
 				.update(todos)
 				.set({ sortOrder: n - i })
-				.where(and(eq(todos.id, todoId), eq(todos.projectId, projectId)))
+				.where(and(eq(todos.id, todoId), liveIn(projectId)))
 		)
 	);
 }
@@ -737,7 +891,7 @@ export async function getAttachment(projectId: string, attachmentId: string) {
 		})
 		.from(attachments)
 		.innerJoin(todos, eq(todos.id, attachments.todoId))
-		.where(and(eq(attachments.id, attachmentId), eq(todos.projectId, projectId)))
+		.where(and(eq(attachments.id, attachmentId), liveIn(projectId)))
 		.limit(1);
 	return row ?? null;
 }

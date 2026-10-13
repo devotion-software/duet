@@ -120,7 +120,9 @@ export type TodoField =
 	| 'urgency'
 	| 'size'
 	| 'tag'
-	| 'image';
+	| 'image'
+	| 'deleted'
+	| 'restored';
 
 /** One recorded change. Values are display text; null means unset (or, for tag/image, absent). */
 export interface TodoEvent {

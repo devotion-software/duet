@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/mysql-core';
 import { db } from './db';
 import { todos } from './db/app.schema';
@@ -39,7 +39,7 @@ export async function getHomeOverview(projects: ProjectSummary[]) {
 				urgent: sql<number>`sum(case when ${todos.completed} = false and ${todos.urgency} = 'urgent' then 1 else 0 end)`
 			})
 			.from(todos)
-			.where(inArray(todos.projectId, ids))
+			.where(and(inArray(todos.projectId, ids), isNull(todos.deletedAt)))
 			.groupBy(todos.projectId),
 		db
 			.select({
@@ -53,7 +53,12 @@ export async function getHomeOverview(projects: ProjectSummary[]) {
 			.from(todos)
 			.leftJoin(parent, eq(parent.id, todos.parentId))
 			.where(
-				and(inArray(todos.projectId, ids), eq(todos.completed, false), eq(todos.urgency, 'urgent'))
+				and(
+					inArray(todos.projectId, ids),
+					isNull(todos.deletedAt),
+					eq(todos.completed, false),
+					eq(todos.urgency, 'urgent')
+				)
 			)
 			// Soonest deadline first, undated ones last.
 			.orderBy(sql`${todos.deadline} is null`, asc(todos.deadline), asc(todos.createdAt))

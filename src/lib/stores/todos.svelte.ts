@@ -351,6 +351,11 @@ export class TodosController {
 		}
 	}
 
+	/** Merge in tasks changed elsewhere (e.g. restored from project settings). */
+	merge(todos: Record<string, unknown>[]) {
+		for (const t of todos) this.#replace(hydrateTodo(t));
+	}
+
 	async addAttachment(todoId: string, file: File): Promise<void> {
 		const todo = this.items.find((t) => t.id === todoId);
 		if (!todo) return;

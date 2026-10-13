@@ -62,13 +62,13 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 };
 
 export const DELETE: RequestHandler = async ({ params, request, locals }) => {
-	await requireMember(locals, params.projectId, { edit: true });
+	const { userId } = await requireMember(locals, params.projectId, { edit: true });
 
 	const body = await request.json().catch(() => null);
 	const ids = asIds(body?.ids);
 	if (!ids.length) throw error(400, 'ids array required');
 
-	const deleted = await bulkDeleteTodos(params.projectId, ids);
+	const deleted = await bulkDeleteTodos(params.projectId, ids, userId);
 	publish(params.projectId, {
 		type: 'todos.deleted',
 		origin: request.headers.get('x-client-id') ?? undefined,

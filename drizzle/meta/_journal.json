@@ -92,6 +92,13 @@
       "when": 1791931307790,
       "tag": "0012_task_history",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "5",
+      "when": 1791933176917,
+      "tag": "0013_task_soft_delete",
+      "breakpoints": true
     }
   ]
 }
