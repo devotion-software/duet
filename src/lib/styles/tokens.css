@@ -79,6 +79,12 @@
 	   --accent anywhere (e.g. per-project) to re-theme that subtree. */
 	--accent: #6366f1;
 	--accent-contrast: #ffffff;
+}
+
+/* Derived accent tokens resolve var(--accent) where they're declared and inherit as
+   finished colours, so they must be re-declared wherever --accent is overridden. */
+:root,
+[style*='--accent:'] {
 	--accent-hover: color-mix(in oklab, var(--accent), black 14%);
 	--accent-active: color-mix(in oklab, var(--accent), black 24%);
 	--accent-soft: color-mix(in oklab, var(--accent) 14%, var(--surface));

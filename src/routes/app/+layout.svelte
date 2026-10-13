@@ -48,6 +48,14 @@
 
 	const activeSlug = $derived(page.params.slug);
 	const activeProject = $derived(data.projects.find((p) => p.slug === activeSlug));
+	// The open project's colour themes the whole document, so the page background glow and
+	// anything rendered outside the project subtree (dialogs, bulk bar) match it. Only plain
+	// hex is let through since it's injected into a <style> tag.
+	const rootAccentStyle = $derived(
+		activeProject && /^#[0-9a-f]{3,8}$/i.test(activeProject.color)
+			? `<style>html:root { --accent: ${activeProject.color}; }</style>`
+			: ''
+	);
 	const projectById = $derived(new Map(data.projects.map((p) => [p.id, p])));
 	const archivedProjects = $derived(data.projects.filter((p) => p.status === 'archived'));
 	// Archived projects stay collapsed unless you're viewing one.
@@ -253,6 +261,10 @@
 </script>
 
 <svelte:window {onkeydown} />
+
+<svelte:head>
+	{@html rootAccentStyle}
+</svelte:head>
 
 {#snippet projectLink(p: (typeof data.projects)[number], folderId: string | null = null)}
 	{@const openCount = liveCounts[p.id] ?? p.openCount}
