@@ -36,6 +36,22 @@ function statusFrom(form: FormData): ProjectStatus | undefined {
 	return PROJECT_STATUSES.includes(status) ? status : undefined;
 }
 
+/** The submitted list width: px, 0 for full width, '' for the account default; undefined if absent/invalid. */
+function listWidthFrom(form: FormData): number | null | undefined {
+	const raw = form.get('listWidth');
+	if (raw === null) return undefined;
+	if (raw === '') return null;
+	const px = Number(raw);
+	return Number.isFinite(px) ? clampListWidth(px) : undefined;
+}
+
+/** The submitted sidebar count setting: 'true'/'false', or 'default' for the account default. */
+function countSubtasksFrom(form: FormData): boolean | null | undefined {
+	const raw = form.get('countSubtasks');
+	if (raw === null) return undefined;
+	return raw === 'default' ? null : raw === 'true';
+}
+
 /** An uploaded image icon from the project form, if one was chosen. */
 function iconFileFrom(form: FormData): File | null {
 	const file = form.get('iconFile');
@@ -78,7 +94,6 @@ export const actions: Actions = {
 		if (iconError) return fail(400, { message: iconError });
 
 		const style = String(form.get('style') ?? 'soft') as ProjectStyle;
-		const listWidth = Number(form.get('listWidth') ?? NaN);
 		await updateProject(id, {
 			name: String(form.get('name') ?? '').trim(),
 			description: String(form.get('description') ?? ''),
@@ -87,8 +102,8 @@ export const actions: Actions = {
 			style: STYLES.includes(style) ? style : 'soft',
 			status: statusFrom(form),
 			hiddenFields: parseHiddenFields(form.getAll('hidden').join(',')),
-			listWidth: Number.isFinite(listWidth) ? clampListWidth(listWidth) : undefined,
-			countSubtasks: form.has('countSubtasks') ? form.get('countSubtasks') === 'true' : undefined
+			listWidth: listWidthFrom(form),
+			countSubtasks: countSubtasksFrom(form)
 		});
 		if (iconFile) await setProjectIcon(id, iconFile);
 		else if (form.get('iconClear') === 'true') await setProjectIcon(id, null);

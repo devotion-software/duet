@@ -774,7 +774,12 @@
 	{canManage}
 	onChanged={() => invalidateAll()}
 />
-<ProjectDialog bind:open={settingsOpen} mode="edit" project={data.project} />
+<ProjectDialog
+	bind:open={settingsOpen}
+	mode="edit"
+	project={data.project}
+	defaults={data.projectDefaults}
+/>
 {#if canEdit}
 	<SecretsDialog bind:open={secretsOpen} projectId={data.project.id} />
 {/if}

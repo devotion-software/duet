@@ -5,7 +5,7 @@ import { todos } from './db/app.schema';
 import type { ProjectSummary } from './projects';
 
 export interface ProjectStats {
-	/** Open and done tasks, counting subtasks only if the project's `countSubtasks` is set. */
+	/** Open and done tasks, counting subtasks only if the project summary's `countSubtasks` is set. */
 	open: number;
 	done: number;
 	/** Open urgent tasks at any depth, matching the urgent list. */

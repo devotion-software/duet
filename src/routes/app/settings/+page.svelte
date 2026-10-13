@@ -1,17 +1,26 @@
 <script lang="ts">
 	import { invalidateAll, goto } from '$app/navigation';
+	import { enhance } from '$app/forms';
 	import { authClient } from '#lib/auth-client';
 	import { theme, THEMES, type Theme } from '#lib/theme.svelte';
 	import { toasts } from '#lib/components/ui/toast.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Avatar from '#lib/components/ui/Avatar.svelte';
 	import Icon, { type IconName } from '#lib/components/ui/Icon.svelte';
+	import ListWidthField from '#lib/components/ListWidthField.svelte';
 
 	let { data } = $props();
 
 	let name = $state(data.user.name ?? '');
 	let savingName = $state(false);
 	let addingPasskey = $state(false);
+	let listWidth = $state<number | null>(data.projectDefaults.listWidth);
+	let countSubtasks = $state(data.projectDefaults.countSubtasks);
+	let savingDefaults = $state(false);
+	const defaultsChanged = $derived(
+		listWidth !== data.projectDefaults.listWidth ||
+			countSubtasks !== data.projectDefaults.countSubtasks
+	);
 
 	const THEME_META: Record<Theme, { label: string; icon: IconName }> = {
 		system: { label: 'System', icon: 'monitor' },
@@ -128,6 +137,62 @@
 				</button>
 			{/each}
 		</div>
+	</section>
+
+	<!-- Project defaults -->
+	<section class="card">
+		<div class="card-head">
+			<h2>Projects</h2>
+			<p>Defaults for projects whose settings are left on Default.</p>
+		</div>
+		<form
+			method="POST"
+			action="?/saveProjectDefaults"
+			class="pdefaults"
+			use:enhance={() => {
+				savingDefaults = true;
+				return async ({ result, update }) => {
+					savingDefaults = false;
+					if (result.type === 'success') toasts.success('Project defaults saved');
+					else if (result.type === 'failure')
+						toasts.error((result.data?.message as string) ?? 'Could not save');
+					await update({ reset: false });
+				};
+			}}
+		>
+			<input type="hidden" name="listWidth" value={listWidth ?? 0} />
+			<input type="hidden" name="countSubtasks" value={countSubtasks} />
+			<div class="field">
+				<label for="default-width">List width</label>
+				<ListWidthField id="default-width" bind:value={listWidth} />
+			</div>
+			<div class="field">
+				<span>Sidebar task count</span>
+				<div class="segmented">
+					{#each [{ value: false, label: 'Top-level tasks' }, { value: true, label: 'All tasks' }] as opt (opt.label)}
+						<button
+							type="button"
+							class="seg"
+							class:sel={countSubtasks === opt.value}
+							onclick={() => (countSubtasks = opt.value)}
+						>
+							{opt.label}
+						</button>
+					{/each}
+				</div>
+			</div>
+			<div>
+				<Button
+					variant="secondary"
+					size="sm"
+					type="submit"
+					loading={savingDefaults}
+					disabled={!defaultsChanged}
+				>
+					Save
+				</Button>
+			</div>
+		</form>
 	</section>
 
 	<!-- Passkeys -->
@@ -259,7 +324,8 @@
 		flex-direction: column;
 		gap: var(--space-2);
 	}
-	.field > span {
+	.field > span,
+	.field > label {
 		font-size: var(--text-sm);
 		font-weight: var(--weight-medium);
 		color: var(--text-muted);
@@ -286,6 +352,35 @@
 	.readonly {
 		color: var(--text-muted);
 		background: var(--surface-inset) !important;
+	}
+	.pdefaults {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-4);
+	}
+	.segmented {
+		display: inline-flex;
+		width: fit-content;
+		background: var(--surface-inset);
+		border-radius: var(--radius-md);
+		padding: 3px;
+		gap: 2px;
+	}
+	.seg {
+		padding: var(--space-2) var(--space-4);
+		font-size: var(--text-sm);
+		font-weight: var(--weight-medium);
+		color: var(--text-muted);
+		border-radius: var(--radius-sm);
+		transition: all var(--transition-fast);
+	}
+	.seg:hover {
+		color: var(--text);
+	}
+	.seg.sel {
+		background: var(--surface-raised);
+		color: var(--text);
+		box-shadow: var(--shadow-xs);
 	}
 	.theme-grid {
 		display: grid;

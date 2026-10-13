@@ -70,10 +70,12 @@ export const projects = mysqlTable(
 		style: mysqlEnum('style', PROJECT_STYLES).notNull().default('soft'),
 		// Comma-separated RowFields hidden from task rows; stored as hidden so new fields show by default.
 		hiddenFields: varchar('hidden_fields', { length: 255 }).notNull().default(''),
-		// Max width of the task list in px; 0 lets it fill the window.
-		listWidth: int('list_width').notNull().default(820),
-		// Whether the sidebar's open-task count includes subtasks, or only top-level tasks.
-		countSubtasks: boolean('count_subtasks').notNull().default(true),
+		// Max width of the task list in px; 0 lets it fill the window, null uses each
+		// viewer's account default (user.defaultListWidth).
+		listWidth: int('list_width'),
+		// Whether the sidebar's open-task count includes subtasks, or only top-level tasks;
+		// null uses each viewer's account default (user.defaultCountSubtasks).
+		countSubtasks: boolean('count_subtasks'),
 		ownerId: varchar('owner_id', { length: 36 })
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),

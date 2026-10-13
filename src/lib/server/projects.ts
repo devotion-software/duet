@@ -16,6 +16,7 @@ import { user } from './db/auth.schema';
 import { newId, newToken, slugify } from './ids';
 import { putObject, deleteObject } from './storage';
 import { buildSidebar, type ProjectFolder, type SidebarItem } from '../sidebar';
+import { LIST_WIDTH } from '../palette';
 
 export interface ProjectSummary {
 	id: string;
@@ -32,10 +33,27 @@ export interface ProjectSummary {
 	/** The user's sidebar folder for the project, if any. */
 	folderId: string | null;
 	sortOrder: number;
+	/** The project's setting, or the user's default when the project leaves it unset. */
 	countSubtasks: boolean;
-	/** Open tasks, counting subtasks only if the project's `countSubtasks` is set. */
+	/** Open tasks, counting subtasks only if `countSubtasks` is set. */
 	openCount: number;
 	totalCount: number;
+}
+
+/** A user's account-wide settings for projects that leave their own unset. */
+export interface ProjectDefaults {
+	listWidth: number;
+	countSubtasks: boolean;
+}
+
+export function projectDefaultsFor(u: {
+	defaultListWidth?: number | null;
+	defaultCountSubtasks?: boolean | null;
+}): ProjectDefaults {
+	return {
+		listWidth: u.defaultListWidth ?? LIST_WIDTH.default,
+		countSubtasks: u.defaultCountSubtasks ?? true
+	};
 }
 
 /** Parse the stored comma-separated list, dropping fields that no longer exist. */
@@ -44,7 +62,10 @@ export function parseHiddenFields(raw: string | null | undefined): RowField[] {
 }
 
 /** All projects the user belongs to, with their role and task counts. */
-export async function listUserProjects(userId: string): Promise<ProjectSummary[]> {
+export async function listUserProjects(
+	userId: string,
+	defaults: ProjectDefaults
+): Promise<ProjectSummary[]> {
 	const rows = await db
 		.select({
 			project: projects,
@@ -75,6 +96,7 @@ export async function listUserProjects(userId: string): Promise<ProjectSummary[]
 
 	return rows.map((r) => {
 		const c = countMap.get(r.project.id);
+		const countSubtasks = r.project.countSubtasks ?? defaults.countSubtasks;
 		return {
 			id: r.project.id,
 			slug: r.project.slug,
@@ -88,8 +110,8 @@ export async function listUserProjects(userId: string): Promise<ProjectSummary[]
 			role: r.role,
 			folderId: r.folderId,
 			sortOrder: r.sortOrder,
-			countSubtasks: r.project.countSubtasks,
-			openCount: Number((r.project.countSubtasks ? c?.open : c?.openRoots) ?? 0),
+			countSubtasks,
+			openCount: Number((countSubtasks ? c?.open : c?.openRoots) ?? 0),
 			totalCount: Number(c?.total ?? 0)
 		};
 	});
@@ -105,7 +127,15 @@ export async function getMembership(userId: string, projectId: string): Promise<
 	return row?.role ?? null;
 }
 
-export async function getProjectBySlugForUser(userId: string, slug: string) {
+/**
+ * The project as the user sees it: `listWidth` and `countSubtasks` fall back to their
+ * defaults, while `*Setting` hold the project's own values (null = use the default).
+ */
+export async function getProjectBySlugForUser(
+	userId: string,
+	slug: string,
+	defaults: ProjectDefaults
+) {
 	const [row] = await db
 		.select({ project: projects, role: projectMembers.role })
 		.from(projects)
@@ -120,6 +150,10 @@ export async function getProjectBySlugForUser(userId: string, slug: string) {
 				...row.project,
 				iconUrl: projectIconUrl(row.project),
 				hiddenFields: parseHiddenFields(row.project.hiddenFields),
+				listWidth: row.project.listWidth ?? defaults.listWidth,
+				listWidthSetting: row.project.listWidth,
+				countSubtasks: row.project.countSubtasks ?? defaults.countSubtasks,
+				countSubtasksSetting: row.project.countSubtasks,
 				role: row.role
 			}
 		: null;
@@ -166,8 +200,9 @@ export async function updateProject(
 	projectId: string,
 	patch: Partial<Pick<CreateProjectInput, 'name' | 'description' | 'color' | 'icon' | 'style' | 'status'>> & {
 		hiddenFields?: RowField[];
-		listWidth?: number;
-		countSubtasks?: boolean;
+		/** null resets these to the account default. */
+		listWidth?: number | null;
+		countSubtasks?: boolean | null;
 	}
 ) {
 	const values: Record<string, unknown> = {};

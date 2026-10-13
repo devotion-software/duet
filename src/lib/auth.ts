@@ -42,6 +42,20 @@ export const auth = betterAuth({
 				required: false,
 				defaultValue: 'system',
 				input: true
+			},
+			// Account-wide fallbacks for projects whose own setting is left on "Default".
+			// Saved through the settings page action, which validates them.
+			defaultListWidth: {
+				type: 'number',
+				required: false,
+				defaultValue: 820,
+				input: false
+			},
+			defaultCountSubtasks: {
+				type: 'boolean',
+				required: false,
+				defaultValue: true,
+				input: false
 			}
 		}
 	},

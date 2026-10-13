@@ -4,10 +4,11 @@
 	import Modal from './ui/Modal.svelte';
 	import Button from './ui/Button.svelte';
 	import TextField from './ui/TextField.svelte';
-	import { LIST_WIDTH, clampListWidth, PROJECT_COLORS, PROJECT_EMOJI, PROJECT_STYLES } from '#lib/palette';
+	import { LIST_WIDTH, PROJECT_COLORS, PROJECT_EMOJI, PROJECT_STYLES } from '#lib/palette';
 	import { toasts } from './ui/toast.svelte';
 	import Icon from './ui/Icon.svelte';
 	import ProjectIcon from './ProjectIcon.svelte';
+	import ListWidthField from './ListWidthField.svelte';
 	import {
 		PROJECT_STATUSES,
 		ROW_FIELDS,
@@ -26,16 +27,24 @@
 		style?: string;
 		status?: ProjectStatus;
 		hiddenFields?: RowField[];
-		listWidth?: number;
-		countSubtasks?: boolean;
+		/** The project's own settings; null follows the user's account defaults. */
+		listWidthSetting?: number | null;
+		countSubtasksSetting?: boolean | null;
 	}
 
 	interface Props {
 		open: boolean;
 		mode?: 'create' | 'edit';
 		project?: ProjectLike;
+		/** The user's account defaults, shown against the "Default" options in edit mode. */
+		defaults?: { listWidth: number; countSubtasks: boolean };
 	}
-	let { open = $bindable(), mode = 'create', project = {} }: Props = $props();
+	let {
+		open = $bindable(),
+		mode = 'create',
+		project = {},
+		defaults = { listWidth: LIST_WIDTH.default, countSubtasks: true }
+	}: Props = $props();
 
 	let name = $state(project.name ?? '');
 	let description = $state(project.description ?? '');
@@ -49,10 +58,8 @@
 	let style = $state(project.style ?? 'soft');
 	let status = $state<ProjectStatus>(project.status ?? 'not_started');
 	let hidden = $state<RowField[]>(project.hiddenFields ?? []);
-	// Kept separately from `fullWidth` so toggling back restores the last width.
-	let listWidth = $state(project.listWidth || LIST_WIDTH.default);
-	let fullWidth = $state(project.listWidth === 0);
-	let countSubtasks = $state(project.countSubtasks ?? true);
+	let listWidth = $state<number | null>(project.listWidthSetting ?? null);
+	let countSubtasks = $state<boolean | null>(project.countSubtasksSetting ?? null);
 	let submitting = $state(false);
 
 	// Reset form each time it opens.
@@ -68,9 +75,8 @@
 			style = project.style ?? 'soft';
 			status = project.status ?? 'not_started';
 			hidden = [...(project.hiddenFields ?? [])];
-			listWidth = project.listWidth || LIST_WIDTH.default;
-			fullWidth = project.listWidth === 0;
-			countSubtasks = project.countSubtasks ?? true;
+			listWidth = project.listWidthSetting ?? null;
+			countSubtasks = project.countSubtasksSetting ?? null;
 		}
 	});
 
@@ -137,8 +143,8 @@
 		<input type="hidden" name="style" value={style} />
 		<input type="hidden" name="status" value={status} />
 		{#if mode === 'edit'}
-			<input type="hidden" name="listWidth" value={fullWidth ? 0 : listWidth} />
-			<input type="hidden" name="countSubtasks" value={countSubtasks} />
+			<input type="hidden" name="listWidth" value={listWidth ?? ''} />
+			<input type="hidden" name="countSubtasks" value={countSubtasks ?? 'default'} />
 		{/if}
 		{#each hidden as f (f)}
 			<input type="hidden" name="hidden" value={f} />
@@ -263,39 +269,7 @@
 		{#if mode === 'edit'}
 			<div class="field">
 				<label for="pd-width">List width</label>
-				<div class="width-row">
-					<input
-						type="range"
-						class="width-slider"
-						aria-label="List width"
-						min={LIST_WIDTH.min}
-						max={LIST_WIDTH.max}
-						step={LIST_WIDTH.step}
-						bind:value={listWidth}
-						disabled={fullWidth}
-					/>
-					<div class="width-input" class:disabled={fullWidth}>
-						<input
-							id="pd-width"
-							type="number"
-							min={LIST_WIDTH.min}
-							max={LIST_WIDTH.max}
-							bind:value={listWidth}
-							onchange={() => (listWidth = clampListWidth(listWidth || LIST_WIDTH.default))}
-							disabled={fullWidth}
-						/>
-						<span>px</span>
-					</div>
-					<button
-						type="button"
-						class="field-toggle"
-						class:on={fullWidth}
-						aria-pressed={fullWidth}
-						onclick={() => (fullWidth = !fullWidth)}
-					>
-						<Icon name={fullWidth ? 'check' : 'plus'} size={12} strokeWidth={2.5} />Full width
-					</button>
-				</div>
+				<ListWidthField id="pd-width" bind:value={listWidth} defaultWidth={defaults.listWidth} />
 			</div>
 
 			<div class="field">
@@ -319,13 +293,16 @@
 			<div class="field">
 				<span class="flabel">Sidebar task count</span>
 				<div class="fields">
-					{#each [{ value: false, label: 'Top-level tasks' }, { value: true, label: 'All tasks' }] as opt (opt.label)}
+					{#each [{ value: null, label: 'Default' }, { value: false, label: 'Top-level tasks' }, { value: true, label: 'All tasks' }] as opt (opt.label)}
 						{@const on = countSubtasks === opt.value}
 						<button
 							type="button"
 							class="field-toggle"
 							class:on
 							aria-pressed={on}
+							title={opt.value === null
+								? `Your account default: ${defaults.countSubtasks ? 'all tasks' : 'top-level tasks'}`
+								: undefined}
 							onclick={() => (countSubtasks = opt.value)}
 						>
 							{#if on}<Icon name="check" size={12} strokeWidth={2.5} />{/if}{opt.label}
@@ -552,54 +529,6 @@
 		vertical-align: 1px;
 		border-radius: var(--radius-full);
 		background: var(--status-color);
-	}
-	.width-row {
-		display: flex;
-		align-items: center;
-		gap: var(--space-3);
-	}
-	.width-slider {
-		flex: 1;
-		min-width: 0;
-		accent-color: var(--accent);
-	}
-	.width-slider:disabled {
-		opacity: 0.4;
-	}
-	.width-input {
-		display: flex;
-		align-items: center;
-		gap: var(--space-1);
-		padding: var(--space-1) var(--space-2);
-		background: var(--surface);
-		border: 1px solid var(--border-strong);
-		border-radius: var(--radius-md);
-		box-shadow: var(--shadow-xs);
-		font-size: var(--text-sm);
-		color: var(--text-subtle);
-	}
-	.width-input:focus-within {
-		border-color: var(--accent);
-		box-shadow: 0 0 0 3px var(--accent-ring);
-	}
-	.width-input.disabled {
-		opacity: 0.4;
-	}
-	.width-input input {
-		width: 4.5ch;
-		border: none;
-		background: none;
-		outline: none;
-		color: var(--text);
-		font: inherit;
-		text-align: right;
-		appearance: textfield;
-		-moz-appearance: textfield;
-	}
-	.width-input input::-webkit-inner-spin-button,
-	.width-input input::-webkit-outer-spin-button {
-		-webkit-appearance: none;
-		margin: 0;
 	}
 	.fields {
 		display: flex;
