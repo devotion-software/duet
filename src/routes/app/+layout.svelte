@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { browser } from '$app/env';
 	import { page } from '$app/state';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { authClient } from '#lib/auth-client';
@@ -26,6 +27,17 @@
 	let menuOpen = $state(false);
 	let sidebarOpen = $state(false);
 	let shortcutsOpen = $state(false);
+
+	// Desktop sidebar collapsed to icons. app.html restores it onto <html> before first
+	// paint, and the CSS keys off that attribute so there's no flash on load.
+	let collapsed = $state(browser && document.documentElement.dataset.sidebar === 'collapsed');
+
+	function setCollapsed(value: boolean) {
+		collapsed = value;
+		if (value) document.documentElement.dataset.sidebar = 'collapsed';
+		else delete document.documentElement.dataset.sidebar;
+		localStorage.setItem('duet-sidebar', value ? 'collapsed' : 'expanded');
+	}
 
 	const activeSlug = $derived(page.params.slug);
 	const activeProject = $derived(data.projects.find((p) => p.slug === activeSlug));
@@ -90,6 +102,8 @@
 	let renamingId = $state<string | null>(null);
 
 	async function createFolder() {
+		// Naming the new folder needs the room.
+		if (collapsed) setCollapsed(false);
 		try {
 			const folder = await api('/api/folders', 'POST', { name: 'New folder' });
 			folders = [...folders, folder];
@@ -201,6 +215,10 @@
 			e.preventDefault();
 			shortcutsOpen = true;
 			return;
+		} else if (e.key === '\\') {
+			e.preventDefault();
+			setCollapsed(!collapsed);
+			return;
 		} else if (e.key === '[' || e.key === ']') {
 			if (!projects.length) return;
 			const step = e.key === ']' ? 1 : -1;
@@ -235,6 +253,7 @@
 		class:nested={!!folderId}
 		class:dragged={dragging?.id === p.id}
 		style="--accent: {p.color}"
+		title={collapsed ? (openCount > 0 ? `${p.name} (${openCount})` : p.name) : undefined}
 		draggable={movable}
 		data-drop-id={movable ? p.id : undefined}
 		data-drop-kind="project"
@@ -276,15 +295,33 @@
 	<aside class="sidebar" class:open={sidebarOpen}>
 		<div class="side-head">
 			<a href="/app" class="brand"><Logo size={26} /></a>
+			<button
+				class="collapse-btn"
+				title="{collapsed ? 'Expand' : 'Collapse'} sidebar (\)"
+				aria-label="{collapsed ? 'Expand' : 'Collapse'} sidebar"
+				aria-expanded={!collapsed}
+				onclick={() => setCollapsed(!collapsed)}
+			>
+				<Icon name="panel-left" size={17} />
+			</button>
 		</div>
 
-		<a href="/app" class="p-link home-link" class:active={page.url.pathname === '/app'}>
+		<a
+			href="/app"
+			class="p-link home-link"
+			class:active={page.url.pathname === '/app'}
+			title={collapsed ? 'Home' : undefined}
+		>
 			<span class="p-icon"><Icon name="inbox" size={15} /></span>
 			<span class="p-name">Home</span>
 		</a>
 
 		<div class="new-row">
-			<button class="new-project" onclick={() => (createOpen = true)}>
+			<button
+				class="new-project"
+				title={collapsed ? 'New project' : undefined}
+				onclick={() => (createOpen = true)}
+			>
 				<Icon name="plus" size={17} />
 				<span>New project</span>
 			</button>
@@ -340,8 +377,11 @@
 										<button
 											class="f-toggle"
 											aria-expanded={!folder.collapsed}
+											title={collapsed ? folder.name : undefined}
 											onclick={() => updateFolder(folder.id, { collapsed: !folder.collapsed })}
-											ondblclick={() => (renamingId = folder.id)}
+											ondblclick={() => {
+												if (!collapsed) renamingId = folder.id;
+											}}
 										>
 											<Icon name={folder.collapsed ? 'chevron-right' : 'chevron-down'} size={14} />
 											<span class="f-name truncate">{folder.name}</span>
@@ -386,10 +426,11 @@
 					<button
 						class="archived-toggle"
 						aria-expanded={showArchived}
+						title={collapsed ? `Archived (${archivedProjects.length})` : undefined}
 						onclick={() => (archivedOpen = !showArchived)}
 					>
 						<Icon name={showArchived ? 'chevron-down' : 'chevron-right'} size={14} />
-						Archived
+						<span class="archived-label">Archived</span>
 						<span class="archived-count">{archivedProjects.length}</span>
 					</button>
 					{#if showArchived}
@@ -429,7 +470,12 @@
 						</button>
 					</div>
 				{/if}
-				<button class="user" onclick={() => (menuOpen = !menuOpen)} aria-haspopup="menu">
+				<button
+					class="user"
+					title={collapsed ? data.user.name || data.user.email : undefined}
+					onclick={() => (menuOpen = !menuOpen)}
+					aria-haspopup="menu"
+				>
 					<Avatar name={data.user.name} email={data.user.email} image={data.user.image} size={30} />
 					<span class="user-name truncate">{data.user.name || data.user.email}</span>
 					<Icon name="chevrons-up-down" size={15} class="user-chev" />
@@ -475,6 +521,21 @@
 		justify-content: space-between;
 		padding: var(--space-2) var(--space-2) var(--space-3);
 	}
+	.collapse-btn {
+		display: grid;
+		place-items: center;
+		width: 30px;
+		height: 30px;
+		border-radius: var(--radius-md);
+		color: var(--text-faint);
+		transition:
+			background var(--transition-fast),
+			color var(--transition-fast);
+	}
+	.collapse-btn:hover {
+		background: var(--surface-hover);
+		color: var(--text);
+	}
 	.new-project {
 		display: flex;
 		align-items: center;
@@ -513,6 +574,7 @@
 		line-height: var(--leading-normal);
 	}
 	.p-link {
+		position: relative;
 		display: flex;
 		align-items: center;
 		gap: var(--space-3);
@@ -893,6 +955,82 @@
 		color: var(--text);
 	}
 
+	/* Collapsed to icons (desktop only; the mobile sidebar is a drawer) */
+	@media (min-width: 821px) {
+		:global(html[data-sidebar='collapsed']) .shell {
+			grid-template-columns: 68px 1fr;
+		}
+		:global(html[data-sidebar='collapsed']) .sidebar {
+			padding: var(--space-4) var(--space-3);
+		}
+		:global(html[data-sidebar='collapsed']) .side-head {
+			flex-direction: column;
+			gap: var(--space-2);
+			padding: var(--space-2) 0 var(--space-3);
+		}
+		:global(html[data-sidebar='collapsed']) .brand :global(.word),
+		:global(html[data-sidebar='collapsed']) .p-name,
+		:global(html[data-sidebar='collapsed']) .p-count,
+		:global(html[data-sidebar='collapsed']) .new-project span,
+		:global(html[data-sidebar='collapsed']) .f-name,
+		:global(html[data-sidebar='collapsed']) .f-actions,
+		:global(html[data-sidebar='collapsed']) .f-count,
+		:global(html[data-sidebar='collapsed']) .f-empty,
+		:global(html[data-sidebar='collapsed']) .archived-label,
+		:global(html[data-sidebar='collapsed']) .archived-count,
+		:global(html[data-sidebar='collapsed']) .no-projects,
+		:global(html[data-sidebar='collapsed']) .user-name,
+		:global(html[data-sidebar='collapsed'] .user .user-chev) {
+			display: none;
+		}
+		:global(html[data-sidebar='collapsed']) .p-link,
+		:global(html[data-sidebar='collapsed']) .p-link.nested {
+			justify-content: center;
+			padding: var(--space-2);
+		}
+		/* With no name beside it, the live dot sits on the icon's corner. */
+		:global(html[data-sidebar='collapsed']) .p-live {
+			position: absolute;
+			top: 4px;
+			right: 4px;
+			box-shadow: 0 0 0 2px var(--surface-2);
+		}
+		:global(html[data-sidebar='collapsed']) .new-row {
+			flex-direction: column;
+		}
+		:global(html[data-sidebar='collapsed']) .new-project {
+			justify-content: center;
+			padding: var(--space-2);
+		}
+		:global(html[data-sidebar='collapsed']) .new-folder {
+			width: 100%;
+			height: 36px;
+		}
+		/* Folders shrink to a divider with a chevron that still opens and closes them. */
+		:global(html[data-sidebar='collapsed']) .f-head {
+			min-height: 24px;
+			padding: 0;
+			border-top: 1px solid var(--border);
+			border-radius: 0;
+		}
+		:global(html[data-sidebar='collapsed']) .f-toggle,
+		:global(html[data-sidebar='collapsed']) .archived-toggle {
+			justify-content: center;
+			padding: var(--space-1);
+		}
+		:global(html[data-sidebar='collapsed']) .side-foot {
+			flex-direction: column;
+		}
+		:global(html[data-sidebar='collapsed']) .user {
+			justify-content: center;
+			padding: var(--space-1);
+		}
+		:global(html[data-sidebar='collapsed']) .menu {
+			right: auto;
+			width: 220px;
+		}
+	}
+
 	/* Mobile */
 	@media (max-width: 820px) {
 		.shell {
@@ -942,6 +1080,9 @@
 		}
 		.sidebar.open {
 			transform: translateX(0);
+		}
+		.collapse-btn {
+			display: none;
 		}
 	}
 </style>

@@ -36,6 +36,7 @@ export const SHORTCUTS: { title: string; items: { keys: string[]; label: string 
 			{ keys: ['['], label: 'Previous project' },
 			{ keys: [']'], label: 'Next project' },
 			{ keys: ['1–9'], label: 'Jump to project by position' },
+			{ keys: ['\\'], label: 'Collapse / expand sidebar' },
 			{ keys: ['n'], label: 'Add a task' },
 			{ keys: ['/'], label: 'Search tasks' },
 			{ keys: ['Esc'], label: 'Leave input, close panel or clear selection' }
