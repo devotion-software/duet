@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { enhance } from '$app/forms';
 	import Modal from './ui/Modal.svelte';
 	import Button from './ui/Button.svelte';
@@ -6,6 +7,7 @@
 	import { LIST_WIDTH, clampListWidth, PROJECT_COLORS, PROJECT_EMOJI, PROJECT_STYLES } from '#lib/palette';
 	import { toasts } from './ui/toast.svelte';
 	import Icon from './ui/Icon.svelte';
+	import ProjectIcon from './ProjectIcon.svelte';
 	import { ROW_FIELDS, ROW_FIELD_LABELS, type RowField } from '#lib/types';
 
 	interface ProjectLike {
@@ -14,6 +16,7 @@
 		description?: string | null;
 		color?: string;
 		icon?: string;
+		iconUrl?: string | null;
 		style?: string;
 		hiddenFields?: RowField[];
 		listWidth?: number;
@@ -31,6 +34,11 @@
 	let description = $state(project.description ?? '');
 	let color = $state(project.color ?? PROJECT_COLORS[0]);
 	let icon = $state(project.icon ?? '📋');
+	// An uploaded image overrides the emoji; `iconUrl` is what's shown (saved or a local preview).
+	let iconFile = $state<File | null>(null);
+	let iconUrl = $state<string | null>(project.iconUrl ?? null);
+	let iconPicker = $state<HTMLDetailsElement>();
+	let fileInput = $state<HTMLInputElement>();
 	let style = $state(project.style ?? 'soft');
 	let hidden = $state<RowField[]>(project.hiddenFields ?? []);
 	// Kept separately from `fullWidth` so toggling back restores the last width.
@@ -46,6 +54,9 @@
 			description = project.description ?? '';
 			color = project.color ?? PROJECT_COLORS[0];
 			icon = project.icon ?? '📋';
+			// Untracked so picking a file doesn't re-run this reset.
+			untrack(() => setIconFile(null));
+			iconUrl = project.iconUrl ?? null;
 			style = project.style ?? 'soft';
 			hidden = [...(project.hiddenFields ?? [])];
 			listWidth = project.listWidth || LIST_WIDTH.default;
@@ -53,6 +64,31 @@
 			countSubtasks = project.countSubtasks ?? true;
 		}
 	});
+
+	function setIconFile(file: File | null) {
+		if (iconFile && iconUrl) URL.revokeObjectURL(iconUrl);
+		iconFile = file;
+		iconUrl = file && URL.createObjectURL(file);
+	}
+
+	function pickEmoji(e: string) {
+		icon = e;
+		setIconFile(null);
+		if (iconPicker) iconPicker.open = false;
+	}
+
+	function onIconFile(e: Event) {
+		const input = e.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = '';
+		if (!file) return;
+		if (!file.type.startsWith('image/')) {
+			toasts.error('Choose an image or SVG file');
+			return;
+		}
+		setIconFile(file);
+		if (iconPicker) iconPicker.open = false;
+	}
 
 	const action = $derived(mode === 'create' ? '/app?/createProject' : '/app?/updateProject');
 </script>
@@ -62,8 +98,11 @@
 		method="POST"
 		{action}
 		class="pform"
+		enctype="multipart/form-data"
 		style="--accent: {color}"
-		use:enhance={() => {
+		use:enhance={({ formData }) => {
+			if (iconFile) formData.set('iconFile', iconFile);
+			else if (!iconUrl && project.iconUrl) formData.set('iconClear', 'true');
 			submitting = true;
 			return async ({ result, update }) => {
 				submitting = false;
@@ -97,7 +136,7 @@
 
 		<!-- Live preview -->
 		<div class="preview style-{style}">
-			<span class="prev-icon">{icon}</span>
+			<span class="prev-icon"><ProjectIcon {icon} {iconUrl} /></span>
 			<div class="prev-text">
 				<strong>{name || 'Project name'}</strong>
 				<small>{description || 'A short description'}</small>
@@ -107,15 +146,33 @@
 		<div class="icon-name">
 			<div class="emoji-field">
 				<span class="flabel">Icon</span>
-				<details class="emoji-picker">
-					<summary>{icon}</summary>
-					<div class="emoji-grid">
-						{#each PROJECT_EMOJI as e (e)}
-							<button type="button" class="emoji" class:sel={icon === e} onclick={() => (icon = e)}>
-								{e}
-							</button>
-						{/each}
+				<details class="emoji-picker" bind:this={iconPicker}>
+					<summary><ProjectIcon {icon} {iconUrl} /></summary>
+					<div class="emoji-menu">
+						<div class="emoji-grid">
+							{#each PROJECT_EMOJI as e (e)}
+								<button
+									type="button"
+									class="emoji"
+									class:sel={!iconUrl && icon === e}
+									onclick={() => pickEmoji(e)}
+								>
+									{e}
+								</button>
+							{/each}
+						</div>
+						<div class="emoji-actions">
+							<Button variant="ghost" size="sm" icon="upload" onclick={() => fileInput?.click()}>
+								Upload image or SVG…
+							</Button>
+							{#if iconUrl}
+								<Button variant="ghost" size="sm" onclick={() => setIconFile(null)}>
+									Remove
+								</Button>
+							{/if}
+						</div>
 					</div>
+					<input bind:this={fileInput} type="file" accept="image/*,.svg" hidden onchange={onIconFile} />
 				</details>
 			</div>
 			<TextField
@@ -363,20 +420,29 @@
 	.emoji-picker summary::-webkit-details-marker {
 		display: none;
 	}
-	.emoji-grid {
+	.emoji-menu {
 		position: absolute;
 		z-index: var(--z-dropdown);
 		top: calc(100% + 6px);
 		left: 0;
 		width: 268px;
-		display: grid;
-		grid-template-columns: repeat(7, 1fr);
-		gap: 2px;
 		padding: var(--space-2);
 		background: var(--surface-raised);
 		border: 1px solid var(--border);
 		border-radius: var(--radius-md);
 		box-shadow: var(--shadow-lg);
+	}
+	.emoji-grid {
+		display: grid;
+		grid-template-columns: repeat(7, 1fr);
+		gap: 2px;
+	}
+	.emoji-actions {
+		display: flex;
+		justify-content: space-between;
+		margin-top: var(--space-2);
+		padding-top: var(--space-2);
+		border-top: 1px solid var(--border);
 	}
 	.emoji {
 		height: 34px;

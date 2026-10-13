@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `icon_key` varchar(255);

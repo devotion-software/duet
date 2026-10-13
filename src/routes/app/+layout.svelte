@@ -7,6 +7,7 @@
 	import Avatar from '#lib/components/ui/Avatar.svelte';
 	import ThemeToggle from '#lib/components/ThemeToggle.svelte';
 	import ProjectDialog from '#lib/components/ProjectDialog.svelte';
+	import ProjectIcon from '#lib/components/ProjectIcon.svelte';
 	import ShortcutsDialog from '#lib/components/ShortcutsDialog.svelte';
 	import { shortcutAllowed } from '#lib/shortcuts';
 	import { liveCounts } from '#lib/stores/liveCounts.svelte';
@@ -67,7 +68,7 @@
 		</button>
 		<span class="topbar-title">
 			{#if activeProject}
-				<span class="tb-icon">{activeProject.icon}</span>{activeProject.name}
+				<span class="tb-icon"><ProjectIcon icon={activeProject.icon} iconUrl={activeProject.iconUrl} /></span>{activeProject.name}
 			{:else}
 				<Logo size={22} />
 			{/if}
@@ -101,7 +102,7 @@
 						class:active={p.slug === activeSlug}
 						style="--accent: {p.color}"
 					>
-						<span class="p-icon">{p.icon}</span>
+						<span class="p-icon"><ProjectIcon icon={p.icon} iconUrl={p.iconUrl} /></span>
 						<span class="p-name truncate">{p.name}</span>
 						{#if openCount > 0}
 							<span class="p-count">{openCount}</span>

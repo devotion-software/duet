@@ -12,6 +12,7 @@ import {
 } from './db/app.schema';
 import { user } from './db/auth.schema';
 import { newId, newToken, slugify } from './ids';
+import { putObject, deleteObject } from './storage';
 
 export interface ProjectSummary {
 	id: string;
@@ -20,6 +21,8 @@ export interface ProjectSummary {
 	description: string | null;
 	color: string;
 	icon: string;
+	/** Uploaded image icon, shown in place of the emoji `icon` when set. */
+	iconUrl: string | null;
 	style: ProjectStyle;
 	archived: boolean;
 	role: Role;
@@ -71,6 +74,7 @@ export async function listUserProjects(userId: string): Promise<ProjectSummary[]
 			description: r.project.description,
 			color: r.project.color,
 			icon: r.project.icon,
+			iconUrl: projectIconUrl(r.project),
 			style: r.project.style,
 			archived: r.project.archived,
 			role: r.role,
@@ -102,7 +106,12 @@ export async function getProjectBySlugForUser(userId: string, slug: string) {
 		.where(eq(projects.slug, slug))
 		.limit(1);
 	return row
-		? { ...row.project, hiddenFields: parseHiddenFields(row.project.hiddenFields), role: row.role }
+		? {
+				...row.project,
+				iconUrl: projectIconUrl(row.project),
+				hiddenFields: parseHiddenFields(row.project.hiddenFields),
+				role: row.role
+			}
 		: null;
 }
 
@@ -169,7 +178,53 @@ export async function updateProject(
 }
 
 export async function deleteProject(projectId: string) {
+	const iconKey = await getProjectIconKey(projectId);
 	await db.delete(projects).where(eq(projects.id, projectId));
+	if (iconKey) await deleteObject(iconKey);
+}
+
+// ─── Image icons ────────────────────────────────────────────────────────────
+const ICON_EXT: Record<string, string> = {
+	'image/svg+xml': 'svg',
+	'image/png': 'png',
+	'image/jpeg': 'jpg',
+	'image/gif': 'gif',
+	'image/webp': 'webp',
+	'image/avif': 'avif'
+};
+const ICON_MAX_MB = 2;
+
+/** The key's unique filename doubles as a cache-buster, so the URL changes with the image. */
+export function projectIconUrl(p: { id: string; iconKey: string | null }): string | null {
+	if (!p.iconKey) return null;
+	return `/api/projects/${p.id}/icon?v=${encodeURIComponent(p.iconKey.split('/').pop()!)}`;
+}
+
+/** Returns an error message if `file` can't be used as a project icon. */
+export function validateIconFile(file: File): string | null {
+	if (!ICON_EXT[file.type]) return 'Icons must be an SVG, PNG, JPEG, GIF, WebP or AVIF image';
+	if (file.size > ICON_MAX_MB * 1024 * 1024) return `Icons must be under ${ICON_MAX_MB}MB`;
+	return null;
+}
+
+/** Replace (or with `null`, remove) a project's image icon, cleaning up the old object. */
+export async function setProjectIcon(projectId: string, file: File | null) {
+	const oldKey = await getProjectIconKey(projectId);
+	let key: string | null = null;
+	if (file) {
+		key = `project-icons/${projectId}/${newId()}.${ICON_EXT[file.type]}`;
+		await putObject(key, new Uint8Array(await file.arrayBuffer()), file.type);
+	}
+	await db.update(projects).set({ iconKey: key }).where(eq(projects.id, projectId));
+	if (oldKey) await deleteObject(oldKey);
+}
+
+export async function getProjectIconKey(projectId: string): Promise<string | null> {
+	const [row] = await db
+		.select({ iconKey: projects.iconKey })
+		.from(projects)
+		.where(eq(projects.id, projectId));
+	return row?.iconKey ?? null;
 }
 
 /** Persist a user's custom ordering of their project list. */

@@ -61,6 +61,8 @@ export const projects = mysqlTable(
 		// Accent colour as a hex string, drives the project's CSS theme.
 		color: varchar('color', { length: 32 }).notNull().default('#6366f1'),
 		icon: varchar('icon', { length: 16 }).notNull().default('📋'),
+		// Storage key of an uploaded image/SVG icon; when set it's shown instead of `icon`.
+		iconKey: varchar('icon_key', { length: 255 }),
 		style: mysqlEnum('style', PROJECT_STYLES).notNull().default('soft'),
 		// Comma-separated RowFields hidden from task rows; stored as hidden so new fields show by default.
 		hiddenFields: varchar('hidden_fields', { length: 255 }).notNull().default(''),

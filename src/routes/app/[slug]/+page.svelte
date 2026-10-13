@@ -25,6 +25,7 @@
 	import ImportDialog from '#lib/components/todo/ImportDialog.svelte';
 	import MembersDialog from '#lib/components/todo/MembersDialog.svelte';
 	import ProjectDialog from '#lib/components/ProjectDialog.svelte';
+	import ProjectIcon from '#lib/components/ProjectIcon.svelte';
 	import { liveCounts } from '#lib/stores/liveCounts.svelte';
 
 	let { data } = $props();
@@ -527,7 +528,7 @@
 <div class="project" style="--accent: {data.project.color}">
 	<header class="proj-head style-{data.project.style}">
 		<div class="title-area">
-			<span class="proj-icon">{data.project.icon}</span>
+			<span class="proj-icon"><ProjectIcon icon={data.project.icon} iconUrl={data.project.iconUrl} /></span>
 			<div class="titles">
 				<h1>{data.project.name}</h1>
 				<p class="counts">
@@ -629,7 +630,7 @@
 
 		{#if openTodos.length === 0 && doneTodos.length === 0}
 			<div class="empty-state">
-				<span class="es-emoji">{data.project.icon}</span>
+				<span class="es-emoji"><ProjectIcon icon={data.project.icon} iconUrl={data.project.iconUrl} /></span>
 				<h2>{narrowed ? 'No matching tasks' : 'No tasks yet'}</h2>
 				<p>
 					{#if narrowed}

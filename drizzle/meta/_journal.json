@@ -43,6 +43,13 @@
       "when": 1791907710228,
       "tag": "0005_task_in_progress",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1791909620591,
+      "tag": "0006_project_icon_image",
+      "breakpoints": true
     }
   ]
 }

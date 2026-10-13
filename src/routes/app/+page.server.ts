@@ -4,7 +4,9 @@ import {
 	updateProject,
 	deleteProject,
 	getMembership,
-	parseHiddenFields
+	parseHiddenFields,
+	setProjectIcon,
+	validateIconFile
 } from '#lib/server/projects';
 import { publish } from '#lib/server/realtime';
 import { canManage } from '#lib/server/authz';
@@ -22,21 +24,31 @@ export const load: PageServerLoad = async ({ parent }) => {
 
 const STYLES: ProjectStyle[] = ['soft', 'solid', 'outline', 'glass'];
 
+/** An uploaded image icon from the project form, if one was chosen. */
+function iconFileFrom(form: FormData): File | null {
+	const file = form.get('iconFile');
+	return file instanceof File && file.size > 0 ? file : null;
+}
+
 export const actions: Actions = {
 	createProject: async ({ request, locals }) => {
 		if (!locals.user) return fail(401, { message: 'Not signed in' });
 		const form = await request.formData();
 		const name = String(form.get('name') ?? '').trim();
 		if (!name) return fail(400, { message: 'A project name is required' });
+		const iconFile = iconFileFrom(form);
+		const iconError = iconFile && validateIconFile(iconFile);
+		if (iconError) return fail(400, { message: iconError });
 
 		const style = String(form.get('style') ?? 'soft') as ProjectStyle;
-		const { slug } = await createProject(locals.user.id, {
+		const { id, slug } = await createProject(locals.user.id, {
 			name,
 			description: String(form.get('description') ?? ''),
 			color: String(form.get('color') ?? '#6366f1'),
 			icon: String(form.get('icon') ?? '📋'),
 			style: STYLES.includes(style) ? style : 'soft'
 		});
+		if (iconFile) await setProjectIcon(id, iconFile);
 		redirect(303, `/app/${slug}`);
 	},
 
@@ -48,6 +60,9 @@ export const actions: Actions = {
 
 		const role = await getMembership(locals.user.id, id);
 		if (!canManage(role)) return fail(403, { message: 'Only owners can edit the project' });
+		const iconFile = iconFileFrom(form);
+		const iconError = iconFile && validateIconFile(iconFile);
+		if (iconError) return fail(400, { message: iconError });
 
 		const style = String(form.get('style') ?? 'soft') as ProjectStyle;
 		const listWidth = Number(form.get('listWidth') ?? NaN);
@@ -61,6 +76,8 @@ export const actions: Actions = {
 			listWidth: Number.isFinite(listWidth) ? clampListWidth(listWidth) : undefined,
 			countSubtasks: form.has('countSubtasks') ? form.get('countSubtasks') === 'true' : undefined
 		});
+		if (iconFile) await setProjectIcon(id, iconFile);
+		else if (form.get('iconClear') === 'true') await setProjectIcon(id, null);
 		publish(id, { type: 'project.updated', payload: { id } });
 		return { success: true };
 	},
