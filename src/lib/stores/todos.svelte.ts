@@ -184,6 +184,12 @@ export class TodosController {
 		if (!todo) return;
 		const nextCompleted = !todo.completed;
 		const snapshot = this.#cascadeCompleted(id, nextCompleted).map((t) => ({ ...t }));
+		const toastId = nextCompleted
+			? toasts.success(`Completed “${todo.title}”`, 6000, {
+					label: 'Undo',
+					run: () => this.#undoComplete(snapshot)
+				})
+			: null;
 		try {
 			const res = await this.#fetch(`${this.#base()}/todos/${id}/toggle`, {
 				method: 'POST',
@@ -192,6 +198,7 @@ export class TodosController {
 			const { todos } = await res.json();
 			for (const t of (todos ?? []) as Record<string, unknown>[]) this.#replace(hydrateTodo(t));
 		} catch (e) {
+			if (toastId !== null) toasts.dismiss(toastId);
 			for (const t of snapshot) {
 				const cur = this.items.find((x) => x.id === t.id);
 				if (cur) {
@@ -201,6 +208,24 @@ export class TodosController {
 			}
 			toasts.error((e as Error).message);
 		}
+	}
+
+	/** Reopen the tasks a completion closed, restarting any that were in progress. */
+	async #undoComplete(closed: Pick<Todo, 'id' | 'startedAt'>[]) {
+		for (const prev of closed) {
+			const cur = this.items.find((t) => t.id === prev.id);
+			if (!cur) continue;
+			cur.completed = false;
+			cur.completedAt = null;
+			cur.startedAt = prev.startedAt;
+		}
+		const started = closed.filter((t) => t.startedAt).map((t) => t.id);
+		const idle = closed.filter((t) => !t.startedAt).map((t) => t.id);
+		const ok = await Promise.all([
+			idle.length ? this.bulkUpdate(idle, { completed: false }) : true,
+			started.length ? this.bulkUpdate(started, { inProgress: true }) : true
+		]);
+		if (ok.includes(false)) this.onRefetch?.();
 	}
 
 	/** Start or stop work on a task; starting a done task reopens it. */
@@ -256,6 +281,13 @@ export class TodosController {
 
 	/** Apply one change to many todos. Not optimistic: the server owns the tag merge. */
 	async bulkUpdate(ids: string[], patch: BulkPatchInput): Promise<boolean> {
+		// Completing closes whole subtrees; remember what was open so it can be undone.
+		const closing = patch.completed
+			? [...this.withDescendants(ids)]
+					.map((id) => this.items.find((t) => t.id === id))
+					.filter((t): t is Todo => !!t && !t.completed)
+					.map((t) => ({ id: t.id, startedAt: t.startedAt }))
+			: [];
 		try {
 			const res = await this.#fetch(`${this.#base()}/todos/bulk`, {
 				method: 'PATCH',
@@ -263,6 +295,13 @@ export class TodosController {
 			});
 			const { todos } = await res.json();
 			for (const t of todos as Record<string, unknown>[]) this.#replace(hydrateTodo(t));
+			if (closing.length) {
+				const n = ids.length;
+				toasts.success(`Completed ${n} task${n === 1 ? '' : 's'}`, 6000, {
+					label: 'Undo',
+					run: () => this.#undoComplete(closing)
+				});
+			}
 			return true;
 		} catch (e) {
 			toasts.error((e as Error).message);

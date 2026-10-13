@@ -1,10 +1,16 @@
 export type ToastKind = 'info' | 'success' | 'error' | 'warning';
 
+export interface ToastAction {
+	label: string;
+	run: () => void;
+}
+
 export interface Toast {
 	id: number;
 	kind: ToastKind;
 	message: string;
 	timeout: number;
+	action?: ToastAction;
 }
 
 let seq = 0;
@@ -12,9 +18,9 @@ let seq = 0;
 class ToastStore {
 	items = $state<Toast[]>([]);
 
-	push(message: string, kind: ToastKind = 'info', timeout = 4000) {
+	push(message: string, kind: ToastKind = 'info', timeout = 4000, action?: ToastAction) {
 		const id = ++seq;
-		this.items.push({ id, kind, message, timeout });
+		this.items.push({ id, kind, message, timeout, action });
 		if (timeout > 0) setTimeout(() => this.dismiss(id), timeout);
 		return id;
 	}
@@ -23,8 +29,8 @@ class ToastStore {
 		this.items = this.items.filter((t) => t.id !== id);
 	}
 
-	success(m: string, timeout?: number) {
-		return this.push(m, 'success', timeout);
+	success(m: string, timeout?: number, action?: ToastAction) {
+		return this.push(m, 'success', timeout, action);
 	}
 	error(m: string, timeout = 6000) {
 		return this.push(m, 'error', timeout);

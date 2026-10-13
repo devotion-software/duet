@@ -22,6 +22,18 @@
 		>
 			<Icon name={ICON[toast.kind]} size={17} />
 			<span class="msg">{toast.message}</span>
+			{#if toast.action}
+				{@const action = toast.action}
+				<button
+					class="action"
+					onclick={() => {
+						toasts.dismiss(toast.id);
+						action.run();
+					}}
+				>
+					{action.label}
+				</button>
+			{/if}
 			<button class="close" onclick={() => toasts.dismiss(toast.id)} aria-label="Dismiss">
 				<Icon name="x" size={14} />
 			</button>
@@ -80,6 +92,17 @@
 	.msg {
 		flex: 1;
 		line-height: var(--leading-snug);
+	}
+	.action {
+		flex-shrink: 0;
+		padding: 3px var(--space-2);
+		border-radius: var(--radius-sm);
+		color: var(--accent);
+		font-weight: 600;
+		transition: all var(--transition-fast);
+	}
+	.action:hover {
+		background: var(--surface-hover);
 	}
 	.close {
 		display: inline-flex;
