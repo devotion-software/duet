@@ -754,6 +754,7 @@
 		onSelectAll={() => visibleTodos.forEach((t) => selectedIds.add(t.id))}
 		onClear={clearSelection}
 		onCreateTag={createTag}
+		onCreateCategory={createCategory}
 	/>
 {/if}
 

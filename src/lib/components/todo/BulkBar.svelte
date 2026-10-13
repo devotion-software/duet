@@ -27,6 +27,7 @@
 		onSelectAll: () => void;
 		onClear: () => void;
 		onCreateTag: (name: string) => Promise<Tag | null>;
+		onCreateCategory: (name: string) => Promise<Category | null>;
 	}
 	let {
 		selected,
@@ -38,7 +39,8 @@
 		onDelete,
 		onSelectAll,
 		onClear,
-		onCreateTag
+		onCreateTag,
+		onCreateCategory
 	}: Props = $props();
 
 	// Sentinel for the "label" option of each select, so picking applies once
@@ -46,8 +48,9 @@
 	const KEEP = '__keep';
 
 	let busy = $state(false);
-	let popover = $state<'deadline' | 'tags' | null>(null);
+	let popover = $state<'category' | 'deadline' | 'tags' | null>(null);
 	let newTagName = $state('');
+	let newCatName = $state('');
 
 	async function apply(patch: BulkPatchInput) {
 		busy = true;
@@ -71,6 +74,23 @@
 		const value = e.currentTarget.value;
 		e.currentTarget.value = KEEP;
 		if (value !== KEEP) apply({ [key]: value || null });
+	}
+
+	// Shared category of the selection, if they all agree (null = none).
+	const commonCategoryId = $derived.by(() => {
+		const ids = new Set(selected.map((t) => t.categoryId ?? null));
+		return ids.size === 1 ? [...ids][0] : undefined;
+	});
+	function setCategory(categoryId: string | null) {
+		popover = null;
+		apply({ categoryId });
+	}
+	async function addNewCategory() {
+		const name = newCatName.trim();
+		if (!name) return;
+		newCatName = '';
+		const cat = await onCreateCategory(name);
+		if (cat) setCategory(cat.id);
 	}
 
 	function setDeadline(value: string | null) {
@@ -118,16 +138,44 @@
 	</div>
 
 	<div class="controls">
-		<label class="ctl">
-			<Icon name="folder" size={14} />
-			<select aria-label="Set category" disabled={busy} value={KEEP} onchange={(e) => fromSelect(e, 'categoryId')}>
-				<option value={KEEP} disabled>Category</option>
-				<option value="">No category</option>
-				{#each categories as c (c.id)}
-					<option value={c.id}>{c.name}</option>
-				{/each}
-			</select>
-		</label>
+		<div class="pop-host">
+			<button
+				class="ctl"
+				class:on={popover === 'category'}
+				disabled={busy}
+				onclick={() => (popover = popover === 'category' ? null : 'category')}
+			>
+				<Icon name="folder" size={14} /> Category
+			</button>
+			{#if popover === 'category'}
+				<button class="scrim" aria-label="Close" onclick={() => (popover = null)}></button>
+				<div class="pop">
+					{#each categories as c (c.id)}
+						<button class="pop-item" disabled={busy} onclick={() => setCategory(c.id)}>
+							<span class="swatch" style="--c: {c.color}"></span>
+							<span class="truncate">{c.name}</span>
+							{#if commonCategoryId === c.id}<span class="tick"><Icon name="check" size={13} /></span>{/if}
+						</button>
+					{:else}
+						<p class="pop-empty">No categories yet.</p>
+					{/each}
+					<form
+						onsubmit={(e) => {
+							e.preventDefault();
+							addNewCategory();
+						}}
+					>
+						<input bind:value={newCatName} placeholder="+ new category" maxlength="80" />
+					</form>
+					{#if categories.length}
+						<hr />
+						<button class="pop-item danger" disabled={busy} onclick={() => setCategory(null)}>
+							<Icon name="x" size={14} /> Clear category
+						</button>
+					{/if}
+				</div>
+			{/if}
+		</div>
 
 		<label class="ctl">
 			<Icon name="user" size={14} />
@@ -432,9 +480,14 @@
 		border-color: var(--accent);
 		box-shadow: 0 0 0 3px var(--accent-ring);
 	}
-	.pop.tags input {
+	.pop form input {
 		width: calc(100% - var(--space-4));
 		border-style: dashed;
+	}
+	.tick {
+		display: inline-flex;
+		margin-left: auto;
+		color: var(--accent-text);
 	}
 	.pop-empty {
 		padding: var(--space-2) var(--space-3);
