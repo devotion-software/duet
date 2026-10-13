@@ -125,6 +125,18 @@
 		{ key: 'tags', label: 'Tags', icon: 'tag' }
 	];
 
+	let menuHost = $state<HTMLElement>();
+	let menuEl = $state<HTMLElement>();
+	// Opens upward when there isn't room below; re-checked as submenus change its height.
+	let menuUp = $state(false);
+	$effect(() => {
+		if (!menuOpen || !menuEl || !menuHost) return;
+		void submenu;
+		const host = menuHost.getBoundingClientRect();
+		const below = window.innerHeight - host.bottom;
+		menuUp = menuEl.offsetHeight + 8 > below && host.top > below;
+	});
+
 	function toggleMenu() {
 		menuOpen = !menuOpen;
 		submenu = null;
@@ -348,7 +360,7 @@
 				<Icon name="copy" size={15} />
 			</button>
 			{#if canEdit}
-				<div class="menu-host">
+				<div class="menu-host" bind:this={menuHost}>
 					<button
 						class="act"
 						title="More"
@@ -360,7 +372,7 @@
 					</button>
 					{#if menuOpen}
 						<button class="menu-scrim" aria-label="Close" onclick={closeMenu}></button>
-						<div class="menu">
+						<div class="menu" class:up={menuUp} bind:this={menuEl}>
 							{#if submenu}
 								{@render fieldMenu(submenu)}
 							{:else}
@@ -699,6 +711,10 @@
 		border-radius: var(--radius-md);
 		box-shadow: var(--shadow-lg);
 		padding: var(--space-1);
+	}
+	.menu.up {
+		top: auto;
+		bottom: calc(100% + 4px);
 	}
 	.menu hr {
 		margin: var(--space-1) 0;
