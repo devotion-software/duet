@@ -30,3 +30,22 @@ export function formatTodoForCopy(todo: Todo, projectName?: string): string {
 	}
 	return lines.join('\n');
 }
+
+/** Format todos as a markdown checklist (round-trips through the import dialog). */
+export function formatTodosAsChecklist(todos: Todo[]): string {
+	return todos.map((t) => `- [${t.completed ? 'x' : ' '}] ${t.title}`).join('\n');
+}
+
+/** Serialise every field of the given todos as pretty-printed JSON. */
+export function formatTodosAsJson(todos: Todo[], project: { id: string; name: string }): string {
+	return JSON.stringify(
+		{
+			project: { id: project.id, name: project.name },
+			exportedAt: new Date().toISOString(),
+			count: todos.length,
+			todos
+		},
+		null,
+		2
+	);
+}

@@ -5,7 +5,7 @@
 	import { slide } from 'svelte/transition';
 	import { flip } from 'svelte/animate';
 	import { TodosController } from '#lib/stores/todos.svelte';
-	import { formatTodoForCopy } from '#lib/todoFormat';
+	import { formatTodoForCopy, formatTodosAsChecklist, formatTodosAsJson } from '#lib/todoFormat';
 	import { toasts } from '#lib/components/ui/toast.svelte';
 	import type { Todo, Tag, Category } from '#lib/types';
 
@@ -64,6 +64,7 @@
 	let membersOpen = $state(false);
 	let settingsOpen = $state(false);
 	let projectMenuOpen = $state(false);
+	let exportMenuOpen = $state(false);
 
 	const selected = $derived(selectedId ? controller.items.find((t) => t.id === selectedId) : null);
 
@@ -87,6 +88,25 @@
 			.writeText(text)
 			.then(() => toasts.success('Task copied to clipboard'))
 			.catch(() => toasts.error('Could not copy'));
+	}
+
+	function exportToClipboard() {
+		exportMenuOpen = false;
+		const all = [...controller.open, ...controller.done];
+		navigator.clipboard
+			.writeText(formatTodosAsChecklist(all))
+			.then(() => toasts.success(`Copied ${all.length} task${all.length === 1 ? '' : 's'} to clipboard`))
+			.catch(() => toasts.error('Could not copy'));
+	}
+	function exportToFile() {
+		exportMenuOpen = false;
+		const json = formatTodosAsJson([...controller.open, ...controller.done], data.project);
+		const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `${data.project.slug}-tasks-${new Date().toISOString().slice(0, 10)}.json`;
+		a.click();
+		URL.revokeObjectURL(url);
 	}
 
 	async function createTag(name: string): Promise<Tag | null> {
@@ -149,6 +169,24 @@
 			</div>
 			{#if canEdit}
 				<Button variant="ghost" size="sm" icon="clipboard" onclick={() => openImport()}>Import</Button>
+			{/if}
+			{#if controller.items.length}
+				<div class="menu-host">
+					<Button variant="ghost" size="sm" icon="download" onclick={() => (exportMenuOpen = !exportMenuOpen)}>
+						Export
+					</Button>
+					{#if exportMenuOpen}
+						<button class="menu-scrim" aria-label="Close" onclick={() => (exportMenuOpen = false)}></button>
+						<div class="menu">
+							<button class="menu-item" onclick={exportToClipboard}>
+								<Icon name="copy" size={15} /> Copy as checklist
+							</button>
+							<button class="menu-item" onclick={exportToFile}>
+								<Icon name="download" size={15} /> Download JSON file
+							</button>
+						</div>
+					{/if}
+				</div>
 			{/if}
 			<Button variant="ghost" size="sm" icon="users" onclick={() => (membersOpen = true)}>
 				{data.members.length}
