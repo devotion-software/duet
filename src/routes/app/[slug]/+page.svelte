@@ -70,6 +70,7 @@
 
 	let search = $state('');
 	let showCompleted = $state(true);
+	let showNotDoing = $state(true);
 	// Deep-link support: /app/slug?task=<id> opens that task's detail.
 	let selectedId = $state<string | null>(page.url.searchParams.get('task'));
 
@@ -130,6 +131,8 @@
 	const openTodos = $derived(sorted(shown(controller.openRoots)));
 	// Completed tasks keep most-recently-done first unless a sort is chosen.
 	const doneTodos = $derived(view.sort === 'manual' ? shown(controller.doneRoots) : sorted(shown(controller.doneRoots)));
+	const completedTodos = $derived(doneTodos.filter((t) => !t.notDoing));
+	const notDoingTodos = $derived(doneTodos.filter((t) => t.notDoing));
 	// Grouping applies to top-level open tasks; subtasks stay with their parent.
 	const openGroups = $derived(
 		groupTodos(openTodos, view.group, { categories: data.categories, tags: data.tags, members: data.members })
@@ -272,7 +275,8 @@
 		...new Set(
 			visibleRows([
 				...openGroups.flatMap((g) => (isGroupCollapsed(g.key) ? [] : g.todos)),
-				...(showCompleted ? doneTodos : [])
+				...(showCompleted ? completedTodos : []),
+				...(showNotDoing ? notDoingTodos : [])
 			])
 		)
 	]);
@@ -410,7 +414,11 @@
 			case 'h':
 				if (!doneTodos.length) return;
 				handled();
-				showCompleted = !showCompleted;
+				// Toggle both closed sections together.
+				showCompleted = showNotDoing = !(
+					(completedTodos.length && showCompleted) ||
+					(notDoingTodos.length && showNotDoing)
+				);
 				return;
 		}
 
@@ -799,15 +807,30 @@
 				{/if}
 			{/each}
 
-			{#if doneTodos.length}
+			{#if completedTodos.length}
 				<div class="done-section">
 					<button class="done-toggle" onclick={() => (showCompleted = !showCompleted)}>
 						<Icon name={showCompleted ? 'chevron-down' : 'chevron-right'} size={15} />
-						Completed <span class="done-count">{doneTodos.length}</span>
+						Completed <span class="done-count">{completedTodos.length}</span>
 					</button>
 					{#if showCompleted}
 						<section class="list done" transition:slide={{ duration: 180 }}>
-							{#each doneTodos as todo (todo.id)}
+							{#each completedTodos as todo (todo.id)}
+								<div animate:flip={{ duration: 200 }}>{@render node(todo, 0)}</div>
+							{/each}
+						</section>
+					{/if}
+				</div>
+			{/if}
+			{#if notDoingTodos.length}
+				<div class="done-section">
+					<button class="done-toggle" onclick={() => (showNotDoing = !showNotDoing)}>
+						<Icon name={showNotDoing ? 'chevron-down' : 'chevron-right'} size={15} />
+						Not doing <span class="done-count">{notDoingTodos.length}</span>
+					</button>
+					{#if showNotDoing}
+						<section class="list done" transition:slide={{ duration: 180 }}>
+							{#each notDoingTodos as todo (todo.id)}
 								<div animate:flip={{ duration: 200 }}>{@render node(todo, 0)}</div>
 							{/each}
 						</section>

@@ -66,7 +66,7 @@ export const SHORTCUTS: { title: string; items: { keys: string[]; label: string 
 			{ keys: ['x'], label: 'Select task for bulk edit' },
 			{ keys: ['Shift', '↑ ↓'], label: 'Extend selection' },
 			{ keys: ['Del'], label: 'Delete task' },
-			{ keys: ['h'], label: 'Show / hide completed' }
+			{ keys: ['h'], label: 'Show / hide completed & not doing' }
 		]
 	},
 	{
