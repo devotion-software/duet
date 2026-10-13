@@ -1080,23 +1080,16 @@
 		width: 100%;
 		margin: 0 auto;
 	}
-	/* Pinned while the list scrolls; it supplies .work's top padding so it sits flush when stuck,
-	   and repaints the page background so rows scroll out of sight beneath it. The document is
-	   the scroller, so no ancestor may set overflow or the sticky never engages. Kept at the base
-	   layer (not --z-sticky) so the header and every dropdown menu still paint above it. */
+	/* Pinned while the list scrolls; it supplies .work's top padding so it sits flush when stuck.
+	   The document is the scroller, so no ancestor may set overflow or the sticky never engages.
+	   Kept at the base layer (not --z-sticky) so the header and every dropdown menu still paint
+	   above it. */
 	.quick {
 		position: sticky;
 		top: var(--topbar-height, 0px);
 		z-index: var(--z-base);
 		padding: var(--space-5) 0 var(--space-3);
-		background-color: var(--bg);
-		background-image: var(--bg-gradient);
-		background-attachment: fixed;
-	}
-	/* Glass projects frost the rows scrolling beneath instead of covering them. */
-	.quick.glass {
-		background: color-mix(in oklab, var(--bg) 55%, transparent);
-		backdrop-filter: blur(12px) saturate(1.4);
+		background: transparent;
 	}
 	.work.no-quick {
 		padding-top: var(--space-5);
