@@ -343,7 +343,7 @@
 		{#if assignee}
 			<Avatar name={assignee.name} image={assignee.image} size={22} />
 		{/if}
-		<div class="actions">
+		<div class="actions" class:open={menuOpen}>
 			<button class="act" title="Copy for AI" onclick={() => onCopy(todo, true)} aria-label="Copy task">
 				<Icon name="copy" size={15} />
 			</button>
@@ -651,16 +651,22 @@
 		gap: var(--space-2);
 		flex-shrink: 0;
 	}
+	/* Out of the layout until wanted, so the title gets the full width. */
 	.actions {
-		display: flex;
+		display: none;
 		align-items: center;
 		gap: 2px;
-		opacity: 0;
-		transition: opacity var(--transition-fast);
 	}
 	.row:hover .actions,
-	.actions:focus-within {
-		opacity: 1;
+	.row:has(:focus-visible) .actions,
+	.actions.open {
+		display: flex;
+	}
+	/* No hover on touch, so they'd never appear. */
+	@media (hover: none) {
+		.actions {
+			display: flex;
+		}
 	}
 	.act {
 		display: inline-flex;
