@@ -384,6 +384,8 @@ export class TodosController {
 				headers: { 'x-client-id': this.clientId }
 			});
 			if (!res.ok) throw new Error((await res.json()).message ?? 'Delete failed');
+			// Reassign so anything watching the task (e.g. its history) sees the confirmed change.
+			todo.attachments = [...todo.attachments];
 		} catch (e) {
 			todo.attachments = prev;
 			toasts.error((e as Error).message);

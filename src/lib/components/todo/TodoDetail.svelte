@@ -7,6 +7,7 @@
 	import ImageViewer from '#lib/components/ui/ImageViewer.svelte';
 	import Markdown from '#lib/components/Markdown.svelte';
 	import SubtaskAdd from '#lib/components/todo/SubtaskAdd.svelte';
+	import TodoHistory from '#lib/components/todo/TodoHistory.svelte';
 	import { toDateInput } from '#lib/date';
 	import {
 		URGENCIES,
@@ -511,6 +512,8 @@
 					</div>
 				{/if}
 			</div>
+
+			<TodoHistory {todo} />
 
 			<div class="foot-meta">
 				{#if todo.assignee}

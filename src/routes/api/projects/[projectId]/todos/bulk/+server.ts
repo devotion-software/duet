@@ -18,7 +18,7 @@ function asIds(v: unknown): string[] {
 }
 
 export const PATCH: RequestHandler = async ({ params, request, locals }) => {
-	await requireMember(locals, params.projectId, { edit: true });
+	const { userId } = await requireMember(locals, params.projectId, { edit: true });
 
 	const body = await request.json().catch(() => null);
 	const ids = asIds(body?.ids);
@@ -49,7 +49,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 		...('inProgress' in patch ? { inProgress: !!patch.inProgress } : {}),
 		addTagIds: addTagIds.filter((id) => validTags.has(id)),
 		removeTagIds: removeTagIds.filter((id) => validTags.has(id))
-	});
+	}, userId);
 
 	const touched = new Set(updated);
 	const todos = (await listTodos(params.projectId)).filter((t) => touched.has(t.id));

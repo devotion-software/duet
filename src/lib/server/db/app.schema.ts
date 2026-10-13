@@ -257,6 +257,28 @@ export const attachments = mysqlTable(
 	(t) => [index('attachments_todo_idx').on(t.todoId)]
 );
 
+// Edit history: one row per changed field. Values are stored as display text
+// (names, not ids) so entries still read correctly after a tag or category is
+// deleted. Rows written by the same request share a createdAt.
+export const todoEvents = mysqlTable(
+	'todo_events',
+	{
+		id: id(),
+		todoId: varchar('todo_id', { length: 36 })
+			.notNull()
+			.references(() => todos.id, { onDelete: 'cascade' }),
+		actorId: varchar('actor_id', { length: 36 }).references(() => user.id, {
+			onDelete: 'set null'
+		}),
+		// A TodoField from server/history.ts.
+		field: varchar('field', { length: 32 }).notNull(),
+		fromValue: text('from_value'),
+		toValue: text('to_value'),
+		createdAt: createdAt()
+	},
+	(t) => [index('todo_events_todo_idx').on(t.todoId, t.createdAt)]
+);
+
 // ─── Secrets (per-project) ─────────────────────────────────────────────────
 // API keys, passwords and the like. Values are AES-256-GCM encrypted at rest
 // (see server/secrets.ts) and only decrypted when a member explicitly reveals one.
@@ -318,7 +340,13 @@ export const todosRelations = relations(todos, ({ one, many }) => ({
 	parent: one(todos, { fields: [todos.parentId], references: [todos.id], relationName: 'subtasks' }),
 	subtasks: many(todos, { relationName: 'subtasks' }),
 	todoTags: many(todoTags),
-	attachments: many(attachments)
+	attachments: many(attachments),
+	events: many(todoEvents)
+}));
+
+export const todoEventsRelations = relations(todoEvents, ({ one }) => ({
+	todo: one(todos, { fields: [todoEvents.todoId], references: [todos.id] }),
+	actor: one(user, { fields: [todoEvents.actorId], references: [user.id] })
 }));
 
 export const todoTagsRelations = relations(todoTags, ({ one }) => ({

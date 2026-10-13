@@ -5,7 +5,7 @@ import { publish } from '#lib/server/realtime';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ params, request, locals }) => {
-	await requireMember(locals, params.projectId, { edit: true });
+	const { userId } = await requireMember(locals, params.projectId, { edit: true });
 	if (!(await todoBelongsToProject(params.todoId, params.projectId)))
 		throw error(404, 'Todo not found');
 
@@ -14,7 +14,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	const notDoing = !!body?.notDoing;
 
 	// Completing cascades to subtasks; reopening cascades to ancestors.
-	const touched = new Set(await toggleTodo(params.projectId, params.todoId, completed, notDoing));
+	const touched = new Set(await toggleTodo(params.projectId, params.todoId, completed, notDoing, userId));
 	const todos = (await listTodos(params.projectId)).filter((t) => touched.has(t.id));
 	publish(params.projectId, {
 		type: 'todos.updated',

@@ -104,6 +104,34 @@ export interface Todo {
 	attachments: Attachment[];
 }
 
+/** Where a task stands, as recorded in its history. */
+export type TaskStatus = 'open' | 'in_progress' | 'done' | 'not_doing';
+
+/** What a history entry changed; `tag`/`image` entries are one add or removal each. */
+export type TodoField =
+	| 'created'
+	| 'title'
+	| 'description'
+	| 'status'
+	| 'parent'
+	| 'category'
+	| 'assignee'
+	| 'deadline'
+	| 'urgency'
+	| 'size'
+	| 'tag'
+	| 'image';
+
+/** One recorded change. Values are display text; null means unset (or, for tag/image, absent). */
+export interface TodoEvent {
+	id: string;
+	field: TodoField;
+	from: string | null;
+	to: string | null;
+	actor: { id: string; name: string; email: string; image: string | null } | null;
+	createdAt: Date;
+}
+
 /** Normalise a todo coming from JSON (string dates) into Date objects. */
 export function hydrateTodo(raw: Record<string, unknown>): Todo {
 	const d = (v: unknown): Date | null => (v ? new Date(v as string) : null);

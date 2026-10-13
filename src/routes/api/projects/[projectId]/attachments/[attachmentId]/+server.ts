@@ -6,12 +6,12 @@ import { publish } from '#lib/server/realtime';
 import type { RequestHandler } from './$types';
 
 export const DELETE: RequestHandler = async ({ params, request, locals }) => {
-	await requireMember(locals, params.projectId, { edit: true });
+	const { userId } = await requireMember(locals, params.projectId, { edit: true });
 	const att = await getAttachment(params.projectId, params.attachmentId);
 	if (!att) throw error(404, 'Attachment not found');
 
 	await deleteObject(att.key);
-	await deleteAttachmentRow(att.id);
+	await deleteAttachmentRow(att, userId);
 
 	const todo = (await listTodos(params.projectId)).find((t) => t.id === att.todoId);
 	publish(params.projectId, {

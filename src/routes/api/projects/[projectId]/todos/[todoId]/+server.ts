@@ -23,7 +23,7 @@ function asDate(v: unknown): Date | null {
 }
 
 export const PATCH: RequestHandler = async ({ params, request, locals }) => {
-	await requireMember(locals, params.projectId, { edit: true });
+	const { userId } = await requireMember(locals, params.projectId, { edit: true });
 	if (!(await todoBelongsToProject(params.todoId, params.projectId)))
 		throw error(404, 'Todo not found');
 
@@ -58,7 +58,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 		...('size' in body ? { size: asEnum<Size>(body.size, SIZES) } : {}),
 		...('tagIds' in body ? { tagIds: refs.tagIds } : {}),
 		...('inProgress' in body ? { inProgress: !!body.inProgress } : {})
-	});
+	}, userId);
 
 	const all = await listTodos(params.projectId);
 	const todo = all.find((t) => t.id === params.todoId);

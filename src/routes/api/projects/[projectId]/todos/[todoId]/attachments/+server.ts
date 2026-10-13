@@ -16,7 +16,7 @@ const EXT: Record<string, string> = {
 };
 
 export const POST: RequestHandler = async ({ params, request, locals }) => {
-	await requireMember(locals, params.projectId, { edit: true });
+	const { userId } = await requireMember(locals, params.projectId, { edit: true });
 	if (!(await todoBelongsToProject(params.todoId, params.projectId)))
 		throw error(404, 'Todo not found');
 
@@ -47,7 +47,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		name: file.name || safeName,
 		mime,
 		size: file.size
-	});
+	}, userId);
 	const url = `/api/projects/${params.projectId}/attachments/${id}/raw`;
 
 	// Broadcast the updated todo so other sessions pick up the new image.

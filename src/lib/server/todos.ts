@@ -12,6 +12,7 @@ import {
 } from './db/app.schema';
 import { user } from './db/auth.schema';
 import { newId } from './ids';
+import { tracked, recordEvents, recordCreated } from './history';
 import type { ImportItem, ImportRef } from '#lib/parseImport';
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -359,9 +360,12 @@ export async function createTodo(projectId: string, userId: string, input: TodoI
 		createdById: userId
 	});
 	if (input.tagIds?.length) await setTodoTags(id, input.tagIds);
+	await recordCreated(db, userId, [id]);
 	// A new open subtask means its ancestors aren't done any more.
 	const affected =
-		parentId && !input.completed ? await setCompleted(db, projectId, [parentId], false) : [];
+		parentId && !input.completed
+			? await tracked(db, projectId, userId, () => setCompleted(db, projectId, [parentId], false))
+			: [];
 	return { id, affected };
 }
 
@@ -369,37 +373,41 @@ export async function createTodo(projectId: string, userId: string, input: TodoI
 export async function updateTodo(
 	projectId: string,
 	todoId: string,
-	input: Partial<TodoInput> & { inProgress?: boolean }
+	input: Partial<TodoInput> & { inProgress?: boolean },
+	actorId: string
 ): Promise<string[]> {
-	const values: Record<string, unknown> = {};
-	let affected: string[] = [];
-	if (input.parentId !== undefined) {
-		const parentId = input.parentId || null;
-		const [current] = await db
-			.select({ parentId: todos.parentId, completed: todos.completed })
-			.from(todos)
-			.where(eq(todos.id, todoId))
-			.limit(1);
-		if (current && current.parentId !== parentId) {
-			values.parentId = parentId;
-			values.sortOrder = await siblingSortOrder(db, projectId, parentId);
-			if (parentId && !current.completed) affected = await setCompleted(db, projectId, [parentId], false);
+	return tracked(db, projectId, actorId, async () => {
+		const values: Record<string, unknown> = {};
+		let affected: string[] = [];
+		if (input.parentId !== undefined) {
+			const parentId = input.parentId || null;
+			const [current] = await db
+				.select({ parentId: todos.parentId, completed: todos.completed })
+				.from(todos)
+				.where(eq(todos.id, todoId))
+				.limit(1);
+			if (current && current.parentId !== parentId) {
+				values.parentId = parentId;
+				values.sortOrder = await siblingSortOrder(db, projectId, parentId);
+				if (parentId && !current.completed)
+					affected = await setCompleted(db, projectId, [parentId], false);
+			}
 		}
-	}
-	if (input.title !== undefined) values.title = input.title.trim().slice(0, 500);
-	if (input.description !== undefined) values.description = input.description?.trim() || null;
-	if (input.categoryId !== undefined) values.categoryId = input.categoryId || null;
-	if (input.assigneeId !== undefined) values.assigneeId = input.assigneeId || null;
-	if (input.deadline !== undefined) values.deadline = input.deadline;
-	if (input.urgency !== undefined) values.urgency = input.urgency;
-	if (input.size !== undefined) values.size = input.size;
-	if (Object.keys(values).length) {
-		await db.update(todos).set(values).where(eq(todos.id, todoId));
-	}
-	if (input.tagIds !== undefined) await setTodoTags(todoId, input.tagIds);
-	if (input.inProgress !== undefined)
-		affected = [...affected, ...(await setInProgress(db, projectId, [todoId], input.inProgress))];
-	return affected;
+		if (input.title !== undefined) values.title = input.title.trim().slice(0, 500);
+		if (input.description !== undefined) values.description = input.description?.trim() || null;
+		if (input.categoryId !== undefined) values.categoryId = input.categoryId || null;
+		if (input.assigneeId !== undefined) values.assigneeId = input.assigneeId || null;
+		if (input.deadline !== undefined) values.deadline = input.deadline;
+		if (input.urgency !== undefined) values.urgency = input.urgency;
+		if (input.size !== undefined) values.size = input.size;
+		if (Object.keys(values).length) {
+			await db.update(todos).set(values).where(eq(todos.id, todoId));
+		}
+		if (input.tagIds !== undefined) await setTodoTags(todoId, input.tagIds);
+		if (input.inProgress !== undefined)
+			affected = [...affected, ...(await setInProgress(db, projectId, [todoId], input.inProgress))];
+		return affected;
+	});
 }
 
 export interface BulkPatch {
@@ -418,52 +426,59 @@ export interface BulkPatch {
 }
 
 /** Apply the same change to many todos; ids outside the project are ignored. */
-export async function bulkUpdateTodos(projectId: string, todoIds: string[], patch: BulkPatch) {
-	return db.transaction(async (tx) => {
-		const ids = (
-			await tx
-				.select({ id: todos.id })
-				.from(todos)
-				.where(and(eq(todos.projectId, projectId), inArray(todos.id, todoIds)))
-		).map((r) => r.id);
-		if (!ids.length) return [];
-		const touched = new Set(ids);
+export async function bulkUpdateTodos(
+	projectId: string,
+	todoIds: string[],
+	patch: BulkPatch,
+	actorId: string
+) {
+	return db.transaction((tx) =>
+		tracked(tx, projectId, actorId, async () => {
+			const ids = (
+				await tx
+					.select({ id: todos.id })
+					.from(todos)
+					.where(and(eq(todos.projectId, projectId), inArray(todos.id, todoIds)))
+			).map((r) => r.id);
+			if (!ids.length) return [];
+			const touched = new Set(ids);
 
-		const values: Record<string, unknown> = {};
-		if (patch.categoryId !== undefined) values.categoryId = patch.categoryId || null;
-		if (patch.assigneeId !== undefined) values.assigneeId = patch.assigneeId || null;
-		if (patch.deadline !== undefined) values.deadline = patch.deadline;
-		if (patch.urgency !== undefined) values.urgency = patch.urgency;
-		if (patch.size !== undefined) values.size = patch.size;
-		// Always bump updatedAt so tag-only changes register too.
-		await tx
-			.update(todos)
-			.set({ ...values, updatedAt: new Date() })
-			.where(inArray(todos.id, ids));
-		if (patch.completed !== undefined) {
-			for (const id of await setCompleted(tx, projectId, ids, patch.completed, patch.notDoing))
-				touched.add(id);
-		}
-		if (patch.inProgress !== undefined) {
-			for (const id of await setInProgress(tx, projectId, ids, patch.inProgress)) touched.add(id);
-		}
+			const values: Record<string, unknown> = {};
+			if (patch.categoryId !== undefined) values.categoryId = patch.categoryId || null;
+			if (patch.assigneeId !== undefined) values.assigneeId = patch.assigneeId || null;
+			if (patch.deadline !== undefined) values.deadline = patch.deadline;
+			if (patch.urgency !== undefined) values.urgency = patch.urgency;
+			if (patch.size !== undefined) values.size = patch.size;
+			// Always bump updatedAt so tag-only changes register too.
+			await tx
+				.update(todos)
+				.set({ ...values, updatedAt: new Date() })
+				.where(inArray(todos.id, ids));
+			if (patch.completed !== undefined) {
+				for (const id of await setCompleted(tx, projectId, ids, patch.completed, patch.notDoing))
+					touched.add(id);
+			}
+			if (patch.inProgress !== undefined) {
+				for (const id of await setInProgress(tx, projectId, ids, patch.inProgress)) touched.add(id);
+			}
 
-		const add = [...new Set(patch.addTagIds ?? [])].filter(Boolean);
-		if (add.length) {
-			await tx
-				.insert(todoTags)
-				.values(ids.flatMap((todoId) => add.map((tagId) => ({ todoId, tagId }))))
-				// Already-tagged todos are left as-is.
-				.onDuplicateKeyUpdate({ set: { tagId: sql`${todoTags.tagId}` } });
-		}
-		const remove = [...new Set(patch.removeTagIds ?? [])].filter(Boolean);
-		if (remove.length) {
-			await tx
-				.delete(todoTags)
-				.where(and(inArray(todoTags.todoId, ids), inArray(todoTags.tagId, remove)));
-		}
-		return [...touched];
-	});
+			const add = [...new Set(patch.addTagIds ?? [])].filter(Boolean);
+			if (add.length) {
+				await tx
+					.insert(todoTags)
+					.values(ids.flatMap((todoId) => add.map((tagId) => ({ todoId, tagId }))))
+					// Already-tagged todos are left as-is.
+					.onDuplicateKeyUpdate({ set: { tagId: sql`${todoTags.tagId}` } });
+			}
+			const remove = [...new Set(patch.removeTagIds ?? [])].filter(Boolean);
+			if (remove.length) {
+				await tx
+					.delete(todoTags)
+					.where(and(inArray(todoTags.todoId, ids), inArray(todoTags.tagId, remove)));
+			}
+			return [...touched];
+		})
+	);
 }
 
 /** Delete many todos and their subtasks; ids outside the project are ignored. */
@@ -476,9 +491,12 @@ export async function toggleTodo(
 	projectId: string,
 	todoId: string,
 	completed: boolean,
-	notDoing = false
+	notDoing: boolean,
+	actorId: string
 ) {
-	return db.transaction((tx) => setCompleted(tx, projectId, [todoId], completed, notDoing));
+	return db.transaction((tx) =>
+		tracked(tx, projectId, actorId, () => setCompleted(tx, projectId, [todoId], completed, notDoing))
+	);
 }
 
 /** Delete a todo and its subtasks; returns every deleted id. */
@@ -600,6 +618,7 @@ export async function importTodos(projectId: string, userId: string, items: Impo
 		// Parents must exist before their children for the FK check.
 		await tx.insert(todos).values(parentsFirst(rows));
 		if (links.length) await tx.insert(todoTags).values(links);
+		await recordCreated(tx, userId, ids);
 		return rows.length;
 	});
 }
@@ -691,7 +710,8 @@ export async function deleteCategory(projectId: string, categoryId: string) {
 // ─── Attachments ────────────────────────────────────────────────────────────
 export async function addAttachment(
 	todoId: string,
-	data: { id: string; key: string; name: string | null; mime: string | null; size: number | null }
+	data: { id: string; key: string; name: string | null; mime: string | null; size: number | null },
+	actorId: string
 ): Promise<AttachmentRef & { todoId: string }> {
 	await db.insert(attachments).values({
 		id: data.id,
@@ -701,6 +721,7 @@ export async function addAttachment(
 		mime: data.mime,
 		size: data.size
 	});
+	await recordEvents(db, actorId, [{ todoId, field: 'image', to: data.name ?? 'image' }]);
 	return { id: data.id, todoId, name: data.name, mime: data.mime, size: data.size, url: '' };
 }
 
@@ -721,6 +742,10 @@ export async function getAttachment(projectId: string, attachmentId: string) {
 	return row ?? null;
 }
 
-export async function deleteAttachmentRow(attachmentId: string) {
-	await db.delete(attachments).where(eq(attachments.id, attachmentId));
+export async function deleteAttachmentRow(
+	att: { id: string; todoId: string; name: string | null },
+	actorId: string
+) {
+	await db.delete(attachments).where(eq(attachments.id, att.id));
+	await recordEvents(db, actorId, [{ todoId: att.todoId, field: 'image', from: att.name ?? 'image' }]);
 }
