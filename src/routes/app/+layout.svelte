@@ -31,9 +31,16 @@
 	// Desktop sidebar collapsed to icons. app.html restores it onto <html> before first
 	// paint, and the CSS keys off that attribute so there's no flash on load.
 	let collapsed = $state(browser && document.documentElement.dataset.sidebar === 'collapsed');
+	// Content is clipped while the column width animates so labels don't spill out.
+	let resizing = $state(false);
 
 	function setCollapsed(value: boolean) {
+		if (value === collapsed) return;
+		// Folders can't be edited collapsed, so commit any rename in progress first.
+		if (value && renamingId) (document.activeElement as HTMLElement | null)?.blur();
+		renamingId = null;
 		collapsed = value;
+		resizing = true;
 		if (value) document.documentElement.dataset.sidebar = 'collapsed';
 		else delete document.documentElement.dataset.sidebar;
 		localStorage.setItem('duet-sidebar', value ? 'collapsed' : 'expanded');
@@ -102,8 +109,7 @@
 	let renamingId = $state<string | null>(null);
 
 	async function createFolder() {
-		// Naming the new folder needs the room.
-		if (collapsed) setCollapsed(false);
+		if (collapsed) return;
 		try {
 			const folder = await api('/api/folders', 'POST', { name: 'New folder' });
 			folders = [...folders, folder];
@@ -127,6 +133,7 @@
 	}
 
 	function deleteFolder(id: string) {
+		if (collapsed) return;
 		sidebar = sidebar.flatMap((i) =>
 			i.type === 'folder' && i.id === id
 				? i.projectIds.map((pid) => ({ type: 'project' as const, id: pid }))
@@ -141,6 +148,11 @@
 	let dropTarget = $state<SidebarDrop | null>(null);
 
 	function ondragstart(e: DragEvent, drag: SidebarDrag) {
+		// Collapsed, folders are just dividers: they can't be moved, and nothing can be moved into them.
+		if (collapsed) {
+			e.preventDefault();
+			return;
+		}
 		dragging = drag;
 		e.dataTransfer!.effectAllowed = 'move';
 		// Firefox won't start a drag without some data.
@@ -272,7 +284,12 @@
 	</a>
 {/snippet}
 
-<div class="shell">
+<div
+	class="shell"
+	ontransitionend={(e) => {
+		if (e.target === e.currentTarget) resizing = false;
+	}}
+>
 	<!-- Mobile top bar -->
 	<header class="topbar">
 		<button class="icon-btn" aria-label="Menu" onclick={() => (sidebarOpen = true)}>
@@ -292,7 +309,7 @@
 		<button class="scrim" aria-label="Close menu" onclick={() => (sidebarOpen = false)}></button>
 	{/if}
 
-	<aside class="sidebar" class:open={sidebarOpen}>
+	<aside class="sidebar" class:open={sidebarOpen} class:resizing>
 		<div class="side-head">
 			<a href="/app" class="brand"><Logo size={26} /></a>
 			<button
@@ -391,7 +408,9 @@
 												class="f-action"
 												title="Rename folder"
 												aria-label="Rename folder"
-												onclick={() => (renamingId = folder.id)}
+												onclick={() => {
+													if (!collapsed) renamingId = folder.id;
+												}}
 											>
 												<Icon name="pencil" size={13} />
 											</button>
@@ -498,6 +517,7 @@
 		display: grid;
 		grid-template-columns: 264px 1fr;
 		min-height: 100vh;
+		transition: grid-template-columns var(--transition-base);
 	}
 	.topbar {
 		display: none;
@@ -928,6 +948,10 @@
 
 	/* Collapsed to icons (desktop only; the mobile sidebar is a drawer) */
 	@media (min-width: 821px) {
+		.sidebar.resizing {
+			overflow: hidden;
+			white-space: nowrap;
+		}
 		:global(html[data-sidebar='collapsed']) .shell {
 			grid-template-columns: 68px 1fr;
 		}
@@ -944,6 +968,7 @@
 		:global(html[data-sidebar='collapsed']) .p-count,
 		:global(html[data-sidebar='collapsed']) .new-project span,
 		:global(html[data-sidebar='collapsed']) .f-name,
+		:global(html[data-sidebar='collapsed']) .new-folder,
 		:global(html[data-sidebar='collapsed']) .f-actions,
 		:global(html[data-sidebar='collapsed']) .f-count,
 		:global(html[data-sidebar='collapsed']) .f-empty,
@@ -966,16 +991,9 @@
 			right: 4px;
 			box-shadow: 0 0 0 2px var(--surface-2);
 		}
-		:global(html[data-sidebar='collapsed']) .new-row {
-			flex-direction: column;
-		}
 		:global(html[data-sidebar='collapsed']) .new-project {
 			justify-content: center;
 			padding: var(--space-2);
-		}
-		:global(html[data-sidebar='collapsed']) .new-folder {
-			width: 100%;
-			height: 36px;
 		}
 		/* Folders shrink to a divider with a chevron that still opens and closes them. */
 		:global(html[data-sidebar='collapsed']) .f-head {
