@@ -45,6 +45,8 @@ export interface Attachment {
 export interface Todo {
 	id: string;
 	projectId: string;
+	/** Parent task when this is a subtask; nesting can go arbitrarily deep. */
+	parentId: string | null;
 	title: string;
 	description: string | null;
 	completed: boolean;
@@ -68,6 +70,7 @@ export function hydrateTodo(raw: Record<string, unknown>): Todo {
 	const d = (v: unknown): Date | null => (v ? new Date(v as string) : null);
 	return {
 		...(raw as unknown as Todo),
+		parentId: (raw.parentId as string | null) ?? null,
 		completedAt: d(raw.completedAt),
 		deadline: d(raw.deadline),
 		createdAt: d(raw.createdAt) ?? new Date(),

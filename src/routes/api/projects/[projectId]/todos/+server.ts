@@ -1,6 +1,6 @@
 import { json, error } from '@sveltejs/kit';
 import { requireMember } from '#lib/server/guard';
-import { createTodo, listTodos, validateRefs } from '#lib/server/todos';
+import { createTodo, listTodos, validateParent, validateRefs, ParentError } from '#lib/server/todos';
 import { publish } from '#lib/server/realtime';
 import { URGENCIES, SIZES, type Urgency, type Size } from '#lib/server/db/app.schema';
 import type { RequestHandler } from './$types';
@@ -26,8 +26,17 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		tagIds: Array.isArray(body.tagIds) ? body.tagIds : []
 	});
 
-	const id = await createTodo(params.projectId, userId, {
+	let parentId: string | null;
+	try {
+		parentId = await validateParent(params.projectId, null, body.parentId);
+	} catch (e) {
+		if (e instanceof ParentError) throw error(400, e.message);
+		throw e;
+	}
+
+	const { id, affected } = await createTodo(params.projectId, userId, {
 		title,
+		parentId,
 		description: body.description ?? null,
 		deadline: asDate(body.deadline),
 		urgency: asEnum<Urgency>(body.urgency, URGENCIES),
@@ -35,12 +44,14 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		...refs
 	});
 
-	// Return the hydrated todo so the client can render it immediately.
-	const todo = (await listTodos(params.projectId)).find((t) => t.id === id);
-	publish(params.projectId, {
-		type: 'todo.created',
-		origin: request.headers.get('x-client-id') ?? undefined,
-		payload: todo
-	});
-	return json({ todo }, { status: 201 });
+	// Return the hydrated todo so the client can render it immediately, plus any
+	// ancestors that were reopened by adding an open subtask.
+	const all = await listTodos(params.projectId);
+	const todo = all.find((t) => t.id === id);
+	const reopened = new Set(affected);
+	const todos = all.filter((t) => reopened.has(t.id));
+	const origin = request.headers.get('x-client-id') ?? undefined;
+	publish(params.projectId, { type: 'todo.created', origin, payload: todo });
+	if (todos.length) publish(params.projectId, { type: 'todos.updated', origin, payload: todos });
+	return json({ todo, todos }, { status: 201 });
 };

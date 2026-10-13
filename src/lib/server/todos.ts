@@ -15,6 +15,121 @@ import { newId } from './ids';
 import type { ImportItem, ImportRef } from '#lib/parseImport';
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type Conn = typeof db | Tx;
+
+// ─── Task tree ──────────────────────────────────────────────────────────────
+/** id → parentId for every todo in the project. */
+async function loadTree(conn: Conn, projectId: string): Promise<Map<string, string | null>> {
+	const rows = await conn
+		.select({ id: todos.id, parentId: todos.parentId })
+		.from(todos)
+		.where(eq(todos.projectId, projectId));
+	return new Map(rows.map((r) => [r.id, r.parentId]));
+}
+
+function childrenIndex(tree: Map<string, string | null>): Map<string, string[]> {
+	const kids = new Map<string, string[]>();
+	for (const [id, parentId] of tree) {
+		if (!parentId) continue;
+		const list = kids.get(parentId) ?? [];
+		list.push(id);
+		kids.set(parentId, list);
+	}
+	return kids;
+}
+
+/** The given ids plus all their descendants, grouped by depth below the roots. */
+function subtreeLevels(tree: Map<string, string | null>, ids: string[]): string[][] {
+	const kids = childrenIndex(tree);
+	const seen = new Set<string>();
+	const levels: string[][] = [];
+	let level = ids.filter((id) => tree.has(id));
+	while (level.length) {
+		level = level.filter((id) => !seen.has(id));
+		for (const id of level) seen.add(id);
+		if (level.length) levels.push(level);
+		level = level.flatMap((id) => kids.get(id) ?? []);
+	}
+	return levels;
+}
+
+function ancestorsOf(tree: Map<string, string | null>, id: string): string[] {
+	const out: string[] = [];
+	const seen = new Set([id]);
+	let cur = tree.get(id);
+	while (cur && !seen.has(cur)) {
+		out.push(cur);
+		seen.add(cur);
+		cur = tree.get(cur);
+	}
+	return out;
+}
+
+/**
+ * Check a requested parent for `todoId` (null when creating). Returns the
+ * parent id, null for top level, or throws if it's outside the project or
+ * would create a cycle.
+ */
+export async function validateParent(
+	projectId: string,
+	todoId: string | null,
+	parentId: string | null | undefined
+): Promise<string | null> {
+	if (!parentId) return null;
+	const tree = await loadTree(db, projectId);
+	if (!tree.has(parentId)) throw new ParentError('Parent task not found');
+	if (todoId && (parentId === todoId || ancestorsOf(tree, parentId).includes(todoId)))
+		throw new ParentError("A task can't be nested inside itself");
+	return parentId;
+}
+
+export class ParentError extends Error {}
+
+/**
+ * Set completion while keeping the tree consistent: completing a task completes
+ * its whole subtree, reopening one reopens its ancestors. Returns every id
+ * whose state was considered (the requested ids plus the cascade).
+ */
+async function setCompleted(conn: Conn, projectId: string, ids: string[], completed: boolean) {
+	const tree = await loadTree(conn, projectId);
+	const targets = completed
+		? subtreeLevels(tree, ids).flat()
+		: [...new Set(ids.filter((id) => tree.has(id)).flatMap((id) => [id, ...ancestorsOf(tree, id)]))];
+	if (targets.length) {
+		// Only flip the ones changing state, so existing completedAt stamps survive.
+		await conn
+			.update(todos)
+			.set({ completed, completedAt: completed ? new Date() : null })
+			.where(and(inArray(todos.id, targets), eq(todos.completed, !completed)));
+	}
+	return targets;
+}
+
+/** Delete tasks and all their descendants; returns every deleted id. */
+async function deleteSubtrees(conn: Conn, projectId: string, ids: string[]) {
+	const levels = subtreeLevels(await loadTree(conn, projectId), ids);
+	// Deepest first, so the FK cascade never has to recurse (InnoDB stops at 15).
+	for (const level of [...levels].reverse()) {
+		await conn.delete(todos).where(inArray(todos.id, level));
+	}
+	return levels.flat();
+}
+
+/** sortOrder for a task joining `parentId`: top of the list, or last subtask. */
+async function siblingSortOrder(conn: Conn, projectId: string, parentId: string | null) {
+	if (!parentId) {
+		const [row] = await conn
+			.select({ max: sql<number>`coalesce(max(${todos.sortOrder}), 0)` })
+			.from(todos)
+			.where(eq(todos.projectId, projectId));
+		return Number(row?.max ?? 0) + 1;
+	}
+	const [row] = await conn
+		.select({ min: sql<number>`coalesce(min(${todos.sortOrder}), 1)` })
+		.from(todos)
+		.where(and(eq(todos.projectId, projectId), eq(todos.parentId, parentId)));
+	return Number(row?.min ?? 1) - 1;
+}
 
 /**
  * Ensure category/assignee/tag references actually belong to the project,
@@ -71,6 +186,7 @@ export interface AttachmentRef {
 export interface TodoItem {
 	id: string;
 	projectId: string;
+	parentId: string | null;
 	title: string;
 	description: string | null;
 	completed: boolean;
@@ -155,6 +271,7 @@ export async function listTodos(projectId: string): Promise<TodoItem[]> {
 	return rows.map((r) => ({
 		id: r.todo.id,
 		projectId: r.todo.projectId,
+		parentId: r.todo.parentId,
 		title: r.todo.title,
 		description: r.todo.description,
 		completed: r.todo.completed,
@@ -174,16 +291,10 @@ export async function listTodos(projectId: string): Promise<TodoItem[]> {
 	}));
 }
 
-async function nextSortOrder(projectId: string): Promise<number> {
-	const [row] = await db
-		.select({ max: sql<number>`coalesce(max(${todos.sortOrder}), 0)` })
-		.from(todos)
-		.where(eq(todos.projectId, projectId));
-	return Number(row?.max ?? 0) + 1;
-}
-
 export interface TodoInput {
 	title: string;
+	/** Must already be checked with `validateParent`. */
+	parentId?: string | null;
 	description?: string | null;
 	categoryId?: string | null;
 	assigneeId?: string | null;
@@ -196,10 +307,12 @@ export interface TodoInput {
 
 export async function createTodo(projectId: string, userId: string, input: TodoInput) {
 	const id = newId();
-	const sortOrder = await nextSortOrder(projectId);
+	const parentId = input.parentId ?? null;
+	const sortOrder = await siblingSortOrder(db, projectId, parentId);
 	await db.insert(todos).values({
 		id,
 		projectId,
+		parentId,
 		title: input.title.trim().slice(0, 500),
 		description: input.description?.trim() || null,
 		categoryId: input.categoryId || null,
@@ -213,11 +326,33 @@ export async function createTodo(projectId: string, userId: string, input: TodoI
 		createdById: userId
 	});
 	if (input.tagIds?.length) await setTodoTags(id, input.tagIds);
-	return id;
+	// A new open subtask means its ancestors aren't done any more.
+	const affected =
+		parentId && !input.completed ? await setCompleted(db, projectId, [parentId], false) : [];
+	return { id, affected };
 }
 
-export async function updateTodo(todoId: string, input: Partial<TodoInput>) {
+/** Returns the ids of other todos changed as a side effect (re-parenting). */
+export async function updateTodo(
+	projectId: string,
+	todoId: string,
+	input: Partial<TodoInput>
+): Promise<string[]> {
 	const values: Record<string, unknown> = {};
+	let affected: string[] = [];
+	if (input.parentId !== undefined) {
+		const parentId = input.parentId || null;
+		const [current] = await db
+			.select({ parentId: todos.parentId, completed: todos.completed })
+			.from(todos)
+			.where(eq(todos.id, todoId))
+			.limit(1);
+		if (current && current.parentId !== parentId) {
+			values.parentId = parentId;
+			values.sortOrder = await siblingSortOrder(db, projectId, parentId);
+			if (parentId && !current.completed) affected = await setCompleted(db, projectId, [parentId], false);
+		}
+	}
 	if (input.title !== undefined) values.title = input.title.trim().slice(0, 500);
 	if (input.description !== undefined) values.description = input.description?.trim() || null;
 	if (input.categoryId !== undefined) values.categoryId = input.categoryId || null;
@@ -229,6 +364,7 @@ export async function updateTodo(todoId: string, input: Partial<TodoInput>) {
 		await db.update(todos).set(values).where(eq(todos.id, todoId));
 	}
 	if (input.tagIds !== undefined) await setTodoTags(todoId, input.tagIds);
+	return affected;
 }
 
 export interface BulkPatch {
@@ -253,6 +389,7 @@ export async function bulkUpdateTodos(projectId: string, todoIds: string[], patc
 				.where(and(eq(todos.projectId, projectId), inArray(todos.id, todoIds)))
 		).map((r) => r.id);
 		if (!ids.length) return [];
+		const touched = new Set(ids);
 
 		const values: Record<string, unknown> = {};
 		if (patch.categoryId !== undefined) values.categoryId = patch.categoryId || null;
@@ -266,11 +403,7 @@ export async function bulkUpdateTodos(projectId: string, todoIds: string[], patc
 			.set({ ...values, updatedAt: new Date() })
 			.where(inArray(todos.id, ids));
 		if (patch.completed !== undefined) {
-			// Only flip the ones changing state, so existing completedAt stamps survive.
-			await tx
-				.update(todos)
-				.set({ completed: patch.completed, completedAt: patch.completed ? new Date() : null })
-				.where(and(inArray(todos.id, ids), eq(todos.completed, !patch.completed)));
+			for (const id of await setCompleted(tx, projectId, ids, patch.completed)) touched.add(id);
 		}
 
 		const add = [...new Set(patch.addTagIds ?? [])].filter(Boolean);
@@ -287,33 +420,23 @@ export async function bulkUpdateTodos(projectId: string, todoIds: string[], patc
 				.delete(todoTags)
 				.where(and(inArray(todoTags.todoId, ids), inArray(todoTags.tagId, remove)));
 		}
-		return ids;
+		return [...touched];
 	});
 }
 
-/** Delete many todos at once; ids outside the project are ignored. */
+/** Delete many todos and their subtasks; ids outside the project are ignored. */
 export async function bulkDeleteTodos(projectId: string, todoIds: string[]) {
-	return db.transaction(async (tx) => {
-		const ids = (
-			await tx
-				.select({ id: todos.id })
-				.from(todos)
-				.where(and(eq(todos.projectId, projectId), inArray(todos.id, todoIds)))
-		).map((r) => r.id);
-		if (ids.length) await tx.delete(todos).where(inArray(todos.id, ids));
-		return ids;
-	});
+	return db.transaction((tx) => deleteSubtrees(tx, projectId, todoIds));
 }
 
-export async function toggleTodo(todoId: string, completed: boolean) {
-	await db
-		.update(todos)
-		.set({ completed, completedAt: completed ? new Date() : null })
-		.where(eq(todos.id, todoId));
+/** Returns every id whose completion may have changed (subtree or ancestors). */
+export async function toggleTodo(projectId: string, todoId: string, completed: boolean) {
+	return db.transaction((tx) => setCompleted(tx, projectId, [todoId], completed));
 }
 
-export async function deleteTodo(todoId: string) {
-	await db.delete(todos).where(eq(todos.id, todoId));
+/** Delete a todo and its subtasks; returns every deleted id. */
+export async function deleteTodo(projectId: string, todoId: string) {
+	return db.transaction((tx) => deleteSubtrees(tx, projectId, [todoId]));
 }
 
 /** Verify a todo belongs to a project (authorization guard for mutations). */
@@ -368,7 +491,14 @@ async function ensureNamed(
  * by name (created if missing) and assignees kept only if they're members.
  */
 export async function importTodos(projectId: string, userId: string, items: ImportItem[]) {
-	items = items.filter((i) => i.title.trim());
+	// Drop blank items, re-pointing parent indexes at the surviving positions.
+	const kept = new Map<number, number>();
+	items.forEach((i, idx) => {
+		if (i.title.trim()) kept.set(idx, kept.size);
+	});
+	items = items
+		.filter((i) => i.title.trim())
+		.map((i) => ({ ...i, parentIndex: kept.get(i.parentIndex ?? -1) ?? null }));
 	if (!items.length) return 0;
 
 	return db.transaction(async (tx) => {
@@ -393,21 +523,19 @@ export async function importTodos(projectId: string, userId: string, items: Impo
 			).map((r) => r.userId)
 		);
 
-		const [row] = await tx
-			.select({ max: sql<number>`coalesce(max(${todos.sortOrder}), 0)` })
-			.from(todos)
-			.where(eq(todos.projectId, projectId));
-		const base = Number(row?.max ?? 0) + 1;
+		const base = await siblingSortOrder(tx, projectId, null);
 		const now = new Date();
+		const ids = items.map(() => newId());
 
 		const links: { todoId: string; tagId: string }[] = [];
 		const rows = items.map((i, idx) => {
-			const id = newId();
+			const id = ids[idx];
 			const itemTagIds = new Set((i.tags ?? []).map((t) => tagIds.get(t.name.toLowerCase())));
 			for (const tagId of itemTagIds) if (tagId) links.push({ todoId: id, tagId });
 			return {
 				id,
 				projectId,
+				parentId: i.parentIndex != null ? (ids[i.parentIndex] ?? null) : null,
 				title: i.title.trim().slice(0, 500),
 				description: i.description?.trim() || null,
 				completed: i.completed,
@@ -422,10 +550,33 @@ export async function importTodos(projectId: string, userId: string, items: Impo
 				createdById: userId
 			};
 		});
-		await tx.insert(todos).values(rows);
+		// Parents must exist before their children for the FK check.
+		await tx.insert(todos).values(parentsFirst(rows));
 		if (links.length) await tx.insert(todoTags).values(links);
 		return rows.length;
 	});
+}
+
+/** Order rows so every parent precedes its children; cyclic links are dropped. */
+function parentsFirst<T extends { id: string; parentId: string | null }>(rows: T[]): T[] {
+	const byId = new Map(rows.map((r) => [r.id, r]));
+	const depth = new Map<string, number>();
+	const depthOf = (r: T, path: Set<string>): number => {
+		const known = depth.get(r.id);
+		if (known !== undefined) return known;
+		const parent = r.parentId ? byId.get(r.parentId) : undefined;
+		if (!parent || path.has(parent.id)) {
+			r.parentId = null;
+			depth.set(r.id, 0);
+			return 0;
+		}
+		path.add(r.id);
+		const d = depthOf(parent, path) + 1;
+		depth.set(r.id, d);
+		return d;
+	};
+	for (const r of rows) depthOf(r, new Set());
+	return [...rows].sort((a, b) => depth.get(a.id)! - depth.get(b.id)!);
 }
 
 export async function reorderTodos(projectId: string, orderedIds: string[]) {

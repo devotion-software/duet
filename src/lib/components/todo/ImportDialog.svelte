@@ -35,6 +35,15 @@
 		{ value: 'none', label: 'Ignore' }
 	];
 	const doneCount = $derived(parsed.filter((p) => p.completed).length);
+	// Nesting depth of each item, for indenting the preview (capped to stay legible).
+	const depths = $derived.by(() => {
+		const d: number[] = [];
+		parsed.forEach((p, i) => {
+			const parent = p.parentIndex ?? -1;
+			d[i] = parent >= 0 && parent < i ? Math.min(d[parent] + 1, 6) : 0;
+		});
+		return d;
+	});
 
 	async function loadFile(e: Event) {
 		const input = e.currentTarget as HTMLInputElement;
@@ -107,7 +116,7 @@
 								{itemGroups[i]}
 							</div>
 						{/if}
-						<div class="pitem" class:done={item.completed}>
+						<div class="pitem" class:done={item.completed} style="--depth: {depths[i]}">
 							<span class="pcheck" class:on={item.completed}>
 								{#if item.completed}<Icon name="check" size={11} strokeWidth={3} />{/if}
 							</span>
@@ -245,6 +254,7 @@
 		align-items: center;
 		gap: var(--space-2);
 		padding: var(--space-1) var(--space-2);
+		padding-left: calc(var(--space-2) + var(--depth, 0) * var(--space-5));
 		font-size: var(--text-sm);
 	}
 	.pcheck {

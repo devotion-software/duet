@@ -3,6 +3,8 @@ export interface ParsedItem {
 	completed: boolean;
 	/** Heading the item was listed under, if any. */
 	group?: string;
+	/** Index of the item this one is indented under, if any. */
+	parent?: number;
 }
 
 const LIST_MARKER = /^(?:[-*+]|\d+[.)])\s+|^\[[ xX·•]?\]/;
@@ -15,14 +17,18 @@ const HEADING = /^#{1,6}\s+/;
  *
  * Markdown headings, and plain lines directly followed by a list item, are
  * treated as group headers: the items beneath them get that `group`.
+ *
+ * Indented items become subtasks of the nearest less-indented item above them,
+ * to any depth.
  */
 export function parseChecklist(text: string): ParsedItem[] {
 	const items: ParsedItem[] = [];
-	const lines = text
-		.split(/\r?\n/)
-		.map((l) => l.trim())
-		.filter(Boolean);
+	const raw = text.split(/\r?\n/).filter((l) => l.trim());
+	const lines = raw.map((l) => l.trim());
+	const indents = raw.map((l) => l.match(/^\s*/)![0].replace(/\t/g, '    ').length);
 	let group: string | undefined;
+	// Open ancestors for the current line: [indent, item index].
+	let stack: [number, number][] = [];
 
 	for (let i = 0; i < lines.length; i++) {
 		let line = lines[i];
@@ -33,6 +39,7 @@ export function parseChecklist(text: string): ParsedItem[] {
 			const name = line.replace(HEADING, '').replace(/:$/, '').trim().slice(0, 80);
 			if (name && !/^[-=_*]{3,}$/.test(name)) {
 				group = name;
+				stack = [];
 				continue;
 			}
 		}
@@ -59,7 +66,15 @@ export function parseChecklist(text: string): ParsedItem[] {
 		// Skip markdown horizontal rules / separators.
 		if (/^[-=_*]{3,}$/.test(line)) continue;
 
-		items.push({ title: line.slice(0, 500), completed, ...(group ? { group } : {}) });
+		while (stack.length && stack[stack.length - 1][0] >= indents[i]) stack.pop();
+		const parent = stack[stack.length - 1]?.[1];
+		stack.push([indents[i], items.length]);
+		items.push({
+			title: line.slice(0, 500),
+			completed,
+			...(group ? { group } : {}),
+			...(parent !== undefined ? { parent } : {})
+		});
 	}
 
 	return items;

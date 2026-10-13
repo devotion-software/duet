@@ -12,12 +12,13 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	const body = await request.json().catch(() => null);
 	const completed = !!body?.completed;
 
-	await toggleTodo(params.todoId, completed);
-	const todo = (await listTodos(params.projectId)).find((t) => t.id === params.todoId);
+	// Completing cascades to subtasks; reopening cascades to ancestors.
+	const touched = new Set(await toggleTodo(params.projectId, params.todoId, completed));
+	const todos = (await listTodos(params.projectId)).filter((t) => touched.has(t.id));
 	publish(params.projectId, {
-		type: 'todo.updated',
+		type: 'todos.updated',
 		origin: request.headers.get('x-client-id') ?? undefined,
-		payload: todo
+		payload: todos
 	});
-	return json({ todo });
+	return json({ todo: todos.find((t) => t.id === params.todoId), todos });
 };

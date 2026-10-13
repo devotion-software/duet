@@ -19,6 +19,8 @@ export interface ImportItem {
 	category?: ImportRef | null;
 	tags?: ImportRef[];
 	assigneeId?: string | null;
+	/** Index (in the same list) of this item's parent task. */
+	parentIndex?: number | null;
 }
 
 export interface ParsedImport {
@@ -67,6 +69,9 @@ export function parseExportJson(text: string): ImportItem[] | null {
 	if (!Array.isArray(list)) return null;
 
 	const items: ImportItem[] = [];
+	// Exported ids are only used to rebuild the hierarchy; new ids are minted.
+	const exportIds: (string | null)[] = [];
+	const parentIds: (string | null)[] = [];
 	for (const raw of list) {
 		if (!raw || typeof raw !== 'object') continue;
 		const t = raw as Record<string, unknown>;
@@ -87,7 +92,14 @@ export function parseExportJson(text: string): ImportItem[] | null {
 				: [],
 			assigneeId: str(t.assigneeId, 36)
 		});
+		exportIds.push(str(t.id, 64));
+		parentIds.push(str(t.parentId, 64));
 	}
+	const indexById = new Map(exportIds.flatMap((id, i) => (id ? [[id, i] as const] : [])));
+	parentIds.forEach((pid, i) => {
+		const p = pid ? indexById.get(pid) : undefined;
+		if (p !== undefined && p !== i) items[i].parentIndex = p;
+	});
 	return items;
 }
 
@@ -104,10 +116,11 @@ export function parseImport(text: string, groupAs: GroupAs = 'category'): Parsed
 	const refs = new Map(
 		groups.map((name, i) => [name, { name, color: TAG_COLORS[i % TAG_COLORS.length] }])
 	);
-	const items = parsed.map(({ title, completed, group }): ImportItem => {
+	const items = parsed.map(({ title, completed, group, parent }): ImportItem => {
+		const base = { title, completed, parentIndex: parent ?? null };
 		const r = group ? refs.get(group) : undefined;
-		if (!r || groupAs === 'none') return { title, completed };
-		return groupAs === 'category' ? { title, completed, category: r } : { title, completed, tags: [r] };
+		if (!r || groupAs === 'none') return base;
+		return groupAs === 'category' ? { ...base, category: r } : { ...base, tags: [r] };
 	});
 	return { kind: 'checklist', items, groups };
 }

@@ -16,8 +16,11 @@ Built with **SvelteKit 3** (Svelte 5 runes), **MariaDB** + **Drizzle ORM**,
 - **Rich tasks** — category, assignee, deadline, urgency, size, custom tags, a
   full **markdown + code** description, and **image attachments** (drag, drop or
   paste) stored in Cloudflare R2.
+- **Subtasks, nested to any depth** — collapse/expand, progress counts, move
+  tasks anywhere in the tree. Completing a task completes its subtasks;
+  reopening a subtask reopens its parents.
 - **Paste to import** — drop in an existing checklist (incl. `- [x]` checked
-  items) and it's parsed into tasks.
+  items, indented items become subtasks) and it's parsed into tasks.
 - **Copy for AI** — copy a whole task as markdown to hand to an assistant.
 - **Live collaboration** — changes stream to other open sessions over SSE.
 - **Roles** — Owner / Editor / Viewer per project.

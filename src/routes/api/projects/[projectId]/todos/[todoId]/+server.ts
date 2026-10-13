@@ -5,7 +5,9 @@ import {
 	deleteTodo,
 	listTodos,
 	todoBelongsToProject,
-	validateRefs
+	validateParent,
+	validateRefs,
+	ParentError
 } from '#lib/server/todos';
 import { publish } from '#lib/server/realtime';
 import { URGENCIES, SIZES, type Urgency, type Size } from '#lib/server/db/app.schema';
@@ -35,7 +37,18 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 		tagIds: Array.isArray(body.tagIds) ? body.tagIds : []
 	});
 
-	await updateTodo(params.todoId, {
+	let parentId: string | null = null;
+	if ('parentId' in body) {
+		try {
+			parentId = await validateParent(params.projectId, params.todoId, body.parentId);
+		} catch (e) {
+			if (e instanceof ParentError) throw error(400, e.message);
+			throw e;
+		}
+	}
+
+	const affected = await updateTodo(params.projectId, params.todoId, {
+		...('parentId' in body ? { parentId } : {}),
 		...('title' in body ? { title: String(body.title) } : {}),
 		...('description' in body ? { description: body.description ?? null } : {}),
 		...('categoryId' in body ? { categoryId: refs.categoryId } : {}),
@@ -46,13 +59,17 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 		...('tagIds' in body ? { tagIds: refs.tagIds } : {})
 	});
 
-	const todo = (await listTodos(params.projectId)).find((t) => t.id === params.todoId);
+	const all = await listTodos(params.projectId);
+	const todo = all.find((t) => t.id === params.todoId);
+	// Re-parenting an open task under a done one reopens the new ancestors.
+	const reopened = new Set(affected);
+	const todos = all.filter((t) => reopened.has(t.id));
 	publish(params.projectId, {
-		type: 'todo.updated',
+		type: 'todos.updated',
 		origin: request.headers.get('x-client-id') ?? undefined,
-		payload: todo
+		payload: [todo, ...todos].filter(Boolean)
 	});
-	return json({ todo });
+	return json({ todo, todos });
 };
 
 export const DELETE: RequestHandler = async ({ params, request, locals }) => {
@@ -60,11 +77,12 @@ export const DELETE: RequestHandler = async ({ params, request, locals }) => {
 	if (!(await todoBelongsToProject(params.todoId, params.projectId)))
 		throw error(404, 'Todo not found');
 
-	await deleteTodo(params.todoId);
+	// Subtasks go with their parent.
+	const ids = await deleteTodo(params.projectId, params.todoId);
 	publish(params.projectId, {
-		type: 'todo.deleted',
+		type: 'todos.deleted',
 		origin: request.headers.get('x-client-id') ?? undefined,
-		payload: { id: params.todoId }
+		payload: { ids }
 	});
-	return json({ ok: true });
+	return json({ ids });
 };

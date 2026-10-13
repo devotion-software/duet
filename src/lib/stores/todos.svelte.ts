@@ -1,10 +1,13 @@
 import { hydrateTodo, type Todo } from '#lib/types';
+import { ancestorsOf, buildChildren, withDescendants } from '#lib/todoTree';
 import { toasts } from '#lib/components/ui/toast.svelte';
 import type { GroupAs } from '#lib/parseImport';
 import type { RealtimeEvent } from '#lib/server/realtime';
 
 export interface NewTodoInput {
 	title: string;
+	/** Nest under this task; null moves a task to the top level. */
+	parentId?: string | null;
 	description?: string | null;
 	categoryId?: string | null;
 	assigneeId?: string | null;
@@ -49,11 +52,45 @@ export class TodosController {
 		this.items = initial.map((t) => hydrateTodo(t as unknown as Record<string, unknown>));
 	}
 
+	/** Children of each task (roots under `null`), siblings sorted. */
+	children = $derived(buildChildren(this.items));
+
+	/** Every open / completed task, at any depth. */
 	get open() {
 		return this.items.filter((t) => !t.completed).sort(sortOpen);
 	}
 	get done() {
 		return this.items.filter((t) => t.completed).sort(sortDone);
+	}
+	/** Top-level tasks; subtasks render beneath these. */
+	get openRoots() {
+		return (this.children.get(null) ?? []).filter((t) => !t.completed);
+	}
+	get doneRoots() {
+		return (this.children.get(null) ?? []).filter((t) => t.completed).sort(sortDone);
+	}
+	childrenOf(id: string): Todo[] {
+		return this.children.get(id) ?? [];
+	}
+	ancestorsOf(id: string): Todo[] {
+		return ancestorsOf(this.items, id);
+	}
+	/** `ids` plus all their subtasks, at any depth. */
+	withDescendants(ids: Iterable<string>): Set<string> {
+		return withDescendants(this.items, ids);
+	}
+
+	/** Mirror the server's cascade: done → whole subtree, reopened → ancestors. */
+	#cascadeCompleted(id: string, completed: boolean): Todo[] {
+		const affected = completed
+			? [...this.withDescendants([id])].map((i) => this.items.find((t) => t.id === i)!)
+			: [this.items.find((t) => t.id === id)!, ...this.ancestorsOf(id)];
+		const changed = affected.filter((t) => t && t.completed !== completed);
+		for (const t of changed) {
+			t.completed = completed;
+			t.completedAt = completed ? new Date() : null;
+		}
+		return changed;
 	}
 
 	#base() {
@@ -87,12 +124,17 @@ export class TodosController {
 	}
 
 	async add(input: NewTodoInput): Promise<Todo | null> {
-		const maxOrder = this.items.reduce((m, t) => Math.max(m, t.sortOrder), 0);
+		const parentId = input.parentId ?? null;
+		// New top-level tasks go first; new subtasks go last among their siblings.
+		const sortOrder = parentId
+			? Math.min(1, ...this.childrenOf(parentId).map((t) => t.sortOrder)) - 1
+			: this.items.reduce((m, t) => Math.max(m, t.sortOrder), 0) + 1;
 		const tempId = `temp-${Math.random().toString(36).slice(2)}`;
 		const now = new Date();
 		const optimistic: Todo = {
 			id: tempId,
 			projectId: this.projectId,
+			parentId,
 			title: input.title,
 			description: input.description ?? null,
 			completed: false,
@@ -100,7 +142,7 @@ export class TodosController {
 			deadline: input.deadline ? new Date(input.deadline) : null,
 			urgency: (input.urgency as Todo['urgency']) ?? null,
 			size: (input.size as Todo['size']) ?? null,
-			sortOrder: maxOrder + 1,
+			sortOrder,
 			categoryId: input.categoryId ?? null,
 			category: null,
 			assigneeId: input.assigneeId ?? null,
@@ -111,18 +153,25 @@ export class TodosController {
 			attachments: []
 		};
 		this.items.push(optimistic);
+		// An open subtask means its ancestors aren't done any more.
+		const reopened = parentId ? this.#cascadeCompleted(parentId, false) : [];
 		try {
 			const res = await this.#fetch(`${this.#base()}/todos`, {
 				method: 'POST',
 				body: JSON.stringify(input)
 			});
-			const { todo } = await res.json();
+			const { todo, todos } = await res.json();
 			const hydrated = hydrateTodo(todo);
 			const i = this.items.findIndex((t) => t.id === tempId);
 			if (i >= 0) this.items[i] = hydrated;
+			for (const t of (todos ?? []) as Record<string, unknown>[]) this.#replace(hydrateTodo(t));
 			return hydrated;
 		} catch (e) {
 			this.items = this.items.filter((t) => t.id !== tempId);
+			for (const t of reopened) {
+				t.completed = true;
+				t.completedAt = new Date();
+			}
 			toasts.error((e as Error).message);
 			return null;
 		}
@@ -132,18 +181,22 @@ export class TodosController {
 		const todo = this.items.find((t) => t.id === id);
 		if (!todo) return;
 		const nextCompleted = !todo.completed;
-		todo.completed = nextCompleted;
-		todo.completedAt = nextCompleted ? new Date() : null;
+		const snapshot = this.#cascadeCompleted(id, nextCompleted).map((t) => ({ ...t }));
 		try {
 			const res = await this.#fetch(`${this.#base()}/todos/${id}/toggle`, {
 				method: 'POST',
 				body: JSON.stringify({ completed: nextCompleted })
 			});
-			const { todo: updated } = await res.json();
-			if (updated) this.#replace(hydrateTodo(updated));
+			const { todos } = await res.json();
+			for (const t of (todos ?? []) as Record<string, unknown>[]) this.#replace(hydrateTodo(t));
 		} catch (e) {
-			todo.completed = !nextCompleted;
-			todo.completedAt = !nextCompleted ? new Date() : null;
+			for (const t of snapshot) {
+				const cur = this.items.find((x) => x.id === t.id);
+				if (cur) {
+					cur.completed = !nextCompleted;
+					cur.completedAt = !nextCompleted ? new Date() : null;
+				}
+			}
 			toasts.error((e as Error).message);
 		}
 	}
@@ -158,14 +211,16 @@ export class TodosController {
 			if (patch.deadline !== undefined) prev.deadline = patch.deadline ? new Date(patch.deadline) : null;
 			if (patch.urgency !== undefined) prev.urgency = (patch.urgency as Todo['urgency']) ?? null;
 			if (patch.size !== undefined) prev.size = (patch.size as Todo['size']) ?? null;
+			if (patch.parentId !== undefined) prev.parentId = patch.parentId ?? null;
 		}
 		try {
 			const res = await this.#fetch(`${this.#base()}/todos/${id}`, {
 				method: 'PATCH',
 				body: JSON.stringify(patch)
 			});
-			const { todo } = await res.json();
+			const { todo, todos } = await res.json();
 			if (todo) this.#replace(hydrateTodo(todo));
+			for (const t of (todos ?? []) as Record<string, unknown>[]) this.#replace(hydrateTodo(t));
 		} catch (e) {
 			if (snapshot) this.#replace(snapshot as Todo);
 			toasts.error((e as Error).message);
@@ -189,7 +244,7 @@ export class TodosController {
 	}
 
 	async bulkRemove(ids: string[]): Promise<boolean> {
-		const gone = new Set(ids);
+		const gone = this.withDescendants(ids);
 		const prev = this.items;
 		this.items = this.items.filter((t) => !gone.has(t.id));
 		try {
@@ -205,14 +260,16 @@ export class TodosController {
 		}
 	}
 
+	/** Delete a task along with all its subtasks. */
 	async remove(id: string) {
-		const idx = this.items.findIndex((t) => t.id === id);
-		if (idx < 0) return;
-		const [removed] = this.items.splice(idx, 1);
+		if (!this.items.some((t) => t.id === id)) return;
+		const gone = this.withDescendants([id]);
+		const prev = this.items;
+		this.items = this.items.filter((t) => !gone.has(t.id));
 		try {
 			await this.#fetch(`${this.#base()}/todos/${id}`, { method: 'DELETE' });
 		} catch (e) {
-			this.items.splice(idx, 0, removed);
+			this.items = prev;
 			toasts.error((e as Error).message);
 		}
 	}
@@ -297,7 +354,7 @@ export class TodosController {
 					this.#replace(hydrateTodo(t));
 				break;
 			case 'todos.deleted': {
-				const ids = new Set((event.payload as { ids: string[] })?.ids ?? []);
+				const ids = this.withDescendants((event.payload as { ids: string[] })?.ids ?? []);
 				this.items = this.items.filter((t) => !ids.has(t.id));
 				break;
 			}

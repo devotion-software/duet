@@ -1,12 +1,22 @@
 import { URGENCY_META, SIZE_META, type Todo } from './types';
+import { buildChildren, flattenTree } from './todoTree';
 
 function fmtDate(d: Date | null): string | null {
 	if (!d) return null;
 	return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-/** Format a whole todo as markdown for pasting into an AI chat or elsewhere. */
-export function formatTodoForCopy(todo: Todo, projectName?: string): string {
+function checklist(rows: { todo: Todo; depth: number }[], baseDepth = 0): string {
+	return rows
+		.map(({ todo, depth }) => `${'  '.repeat(depth - baseDepth)}- [${todo.completed ? 'x' : ' '}] ${todo.title}`)
+		.join('\n');
+}
+
+/**
+ * Format a whole todo as markdown for pasting into an AI chat or elsewhere.
+ * Pass `all` (the project's todos) to include its subtasks as a checklist.
+ */
+export function formatTodoForCopy(todo: Todo, projectName?: string, all: Todo[] = []): string {
 	const lines: string[] = [];
 	lines.push(`# ${todo.title}`);
 	const meta: string[] = [];
@@ -28,22 +38,34 @@ export function formatTodoForCopy(todo: Todo, projectName?: string): string {
 		lines.push('');
 		lines.push(todo.description.trim());
 	}
+	const children = buildChildren(all);
+	const subtasks = flattenTree(children.get(todo.id) ?? [], children, 1);
+	if (subtasks.length) {
+		lines.push('');
+		lines.push('## Subtasks');
+		lines.push('');
+		lines.push(checklist(subtasks, 1));
+	}
 	return lines.join('\n');
 }
 
-/** Format todos as a markdown checklist (round-trips through the import dialog). */
+/** Format todos as a nested markdown checklist (round-trips through the import dialog). */
 export function formatTodosAsChecklist(todos: Todo[]): string {
-	return todos.map((t) => `- [${t.completed ? 'x' : ' '}] ${t.title}`).join('\n');
+	const children = buildChildren(todos);
+	return checklist(flattenTree(children.get(null) ?? [], children));
 }
 
 /** Serialise every field of the given todos as pretty-printed JSON. */
 export function formatTodosAsJson(todos: Todo[], project: { id: string; name: string }): string {
+	const children = buildChildren(todos);
+	const roots = children.get(null) ?? [];
 	return JSON.stringify(
 		{
 			project: { id: project.id, name: project.name },
 			exportedAt: new Date().toISOString(),
 			count: todos.length,
-			todos
+			// Parents before children, so `parentId` always points backwards.
+			todos: flattenTree(roots, children).map((r) => r.todo)
 		},
 		null,
 		2

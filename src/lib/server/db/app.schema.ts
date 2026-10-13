@@ -9,7 +9,8 @@ import {
 	mysqlEnum,
 	index,
 	uniqueIndex,
-	primaryKey
+	primaryKey,
+	type AnyMySqlColumn
 } from 'drizzle-orm/mysql-core';
 import { user } from './auth.schema';
 
@@ -136,6 +137,11 @@ export const todos = mysqlTable(
 		projectId: varchar('project_id', { length: 36 })
 			.notNull()
 			.references(() => projects.id, { onDelete: 'cascade' }),
+		// Parent task for subtasks; nesting depth is unbounded. Deletes remove
+		// descendants explicitly (deepest first) since InnoDB caps cascade depth.
+		parentId: varchar('parent_id', { length: 36 }).references((): AnyMySqlColumn => todos.id, {
+			onDelete: 'cascade'
+		}),
 		title: varchar('title', { length: 500 }).notNull(),
 		description: text('description'),
 		completed: boolean('completed').notNull().default(false),
@@ -160,7 +166,8 @@ export const todos = mysqlTable(
 	(t) => [
 		index('todos_project_idx').on(t.projectId),
 		index('todos_project_completed_idx').on(t.projectId, t.completed),
-		index('todos_assignee_idx').on(t.assigneeId)
+		index('todos_assignee_idx').on(t.assigneeId),
+		index('todos_parent_idx').on(t.parentId)
 	]
 );
 
@@ -224,6 +231,8 @@ export const todosRelations = relations(todos, ({ one, many }) => ({
 	project: one(projects, { fields: [todos.projectId], references: [projects.id] }),
 	category: one(categories, { fields: [todos.categoryId], references: [categories.id] }),
 	assignee: one(user, { fields: [todos.assigneeId], references: [user.id] }),
+	parent: one(todos, { fields: [todos.parentId], references: [todos.id], relationName: 'subtasks' }),
+	subtasks: many(todos, { relationName: 'subtasks' }),
 	todoTags: many(todoTags),
 	attachments: many(attachments)
 }));

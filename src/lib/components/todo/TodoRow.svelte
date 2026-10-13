@@ -16,6 +16,15 @@
 		selecting?: boolean;
 		selected?: boolean;
 		onSelect?: (id: string, e: MouseEvent) => void;
+		/** Reserve a gutter for the expand/collapse chevron (project has subtasks). */
+		tree?: boolean;
+		/** Direct subtask counts; the chevron shows when `total` > 0. */
+		subtasks?: { done: number; total: number };
+		collapsed?: boolean;
+		onToggleCollapse?: (id: string) => void;
+		onAddSubtask?: (todo: Todo) => void;
+		/** Move one level up the tree; only offered for subtasks. */
+		onOutdent?: (todo: Todo) => void;
 	}
 	let {
 		todo,
@@ -26,7 +35,13 @@
 		onDelete,
 		selecting = false,
 		selected = false,
-		onSelect
+		onSelect,
+		tree = false,
+		subtasks = { done: 0, total: 0 },
+		collapsed = false,
+		onToggleCollapse,
+		onAddSubtask,
+		onOutdent
 	}: Props = $props();
 
 	function onBodyClick(e: MouseEvent) {
@@ -43,6 +58,20 @@
 </script>
 
 <div class="row" class:done={todo.completed} class:selected>
+	{#if tree}
+		{#if subtasks.total}
+			<button
+				class="twisty"
+				onclick={() => onToggleCollapse?.(todo.id)}
+				aria-label={collapsed ? 'Expand subtasks' : 'Collapse subtasks'}
+				aria-expanded={!collapsed}
+			>
+				<Icon name={collapsed ? 'chevron-right' : 'chevron-down'} size={14} />
+			</button>
+		{:else}
+			<span class="twisty" aria-hidden="true"></span>
+		{/if}
+	{/if}
 	{#if selecting}
 		<button
 			class="select"
@@ -81,8 +110,17 @@
 			<span class="title">{todo.title}</span>
 		</div>
 
-		{#if excerpt || todo.category || todo.tags.length || deadline || todo.size || todo.assignee || todo.description || todo.attachments.length}
+		{#if excerpt || subtasks.total || todo.category || todo.tags.length || deadline || todo.size || todo.assignee || todo.description || todo.attachments.length}
 			<div class="meta">
+				{#if subtasks.total}
+					<span
+						class="chip progress"
+						class:complete={subtasks.done === subtasks.total}
+						title="{subtasks.done} of {subtasks.total} subtasks done"
+					>
+						<Icon name="check-circle" size={12} />{subtasks.done}/{subtasks.total}
+					</span>
+				{/if}
 				{#if todo.category}
 					<span class="chip" style="--c: {todo.category.color}">
 						<span class="dot"></span>{todo.category.name}
@@ -144,6 +182,28 @@
 							>
 								<Icon name="pencil" size={15} /> Edit
 							</button>
+							{#if onAddSubtask}
+								<button
+									class="menu-item"
+									onclick={() => {
+										menuOpen = false;
+										onAddSubtask(todo);
+									}}
+								>
+									<Icon name="corner-down-right" size={15} /> Add subtask
+								</button>
+							{/if}
+							{#if onOutdent && todo.parentId}
+								<button
+									class="menu-item"
+									onclick={() => {
+										menuOpen = false;
+										onOutdent(todo);
+									}}
+								>
+									<Icon name="corner-up-left" size={15} /> Move out a level
+								</button>
+							{/if}
 							<button
 								class="menu-item"
 								onclick={() => {
@@ -185,6 +245,20 @@
 	}
 	.row.selected {
 		background: var(--accent-soft);
+	}
+	.twisty {
+		margin: 2px calc(var(--space-2) * -1) 0 calc(var(--space-1) * -1);
+		width: 18px;
+		height: 18px;
+		flex-shrink: 0;
+		display: grid;
+		place-items: center;
+		border-radius: var(--radius-xs);
+		color: var(--text-faint);
+	}
+	button.twisty:hover {
+		color: var(--text);
+		background: var(--surface-active);
 	}
 	.select {
 		margin-top: 2px;
@@ -311,6 +385,10 @@
 	}
 	.chip.ghost {
 		padding: 2px 5px;
+	}
+	.progress.complete {
+		color: var(--accent-text);
+		background: var(--accent-soft);
 	}
 	.excerpt {
 		color: var(--text-faint);

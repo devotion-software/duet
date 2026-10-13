@@ -4,6 +4,8 @@
 	export const ICONS = {
 		plus: 'M5 12h14M12 5v14',
 		check: 'M20 6 9 17l-5-5',
+		'corner-down-right': 'M15 10l5 5-5 5|M4 4v7a4 4 0 0 0 4 4h12',
+		'corner-up-left': 'M9 14 4 9l5-5|M20 20v-7a4 4 0 0 0-4-4H4',
 		'check-circle': 'M21.801 10A10 10 0 1 1 17 3.335|M9 11l3 3L22 4',
 		circle: 'M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0',
 		x: 'M18 6 6 18M6 6l12 12',

@@ -6,6 +6,7 @@
 	import { flip } from 'svelte/animate';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { TodosController } from '#lib/stores/todos.svelte';
+	import { flattenTree } from '#lib/todoTree';
 	import { formatTodoForCopy, formatTodosAsChecklist, formatTodosAsJson } from '#lib/todoFormat';
 	import { toasts } from '#lib/components/ui/toast.svelte';
 	import type { Todo, Tag, Category } from '#lib/types';
@@ -16,6 +17,7 @@
 	import TodoRow from '#lib/components/todo/TodoRow.svelte';
 	import TodoDetail from '#lib/components/todo/TodoDetail.svelte';
 	import BulkBar from '#lib/components/todo/BulkBar.svelte';
+	import SubtaskAdd from '#lib/components/todo/SubtaskAdd.svelte';
 	import ImportDialog from '#lib/components/todo/ImportDialog.svelte';
 	import MembersDialog from '#lib/components/todo/MembersDialog.svelte';
 	import ProjectDialog from '#lib/components/ProjectDialog.svelte';
@@ -70,19 +72,79 @@
 
 	const selected = $derived(selectedId ? controller.items.find((t) => t.id === selectedId) : null);
 
-	const openTodos = $derived(
-		controller.open.filter((t) => t.title.toLowerCase().includes(search.toLowerCase().trim()))
-	);
-	const doneTodos = $derived(
-		controller.done.filter((t) => t.title.toLowerCase().includes(search.toLowerCase().trim()))
-	);
+	// ── Task tree ──
+	// Past this depth subtasks stop indenting further, so deep trees stay readable.
+	const MAX_INDENT = 6;
+	const query = $derived(search.toLowerCase().trim());
+	// While searching: matching tasks plus their ancestors, so matches keep context.
+	const matches = $derived.by(() => {
+		if (!query) return null;
+		const ids = new Set<string>();
+		for (const t of controller.items) {
+			if (!t.title.toLowerCase().includes(query)) continue;
+			ids.add(t.id);
+			for (const a of controller.ancestorsOf(t.id)) ids.add(a.id);
+		}
+		return ids;
+	});
+	const shown = (list: Todo[]) => (matches ? list.filter((t) => matches.has(t.id)) : list);
+	const childrenShown = (id: string) => shown(controller.childrenOf(id));
+	const openTodos = $derived(shown(controller.openRoots));
+	const doneTodos = $derived(shown(controller.doneRoots));
+	const treeMode = $derived(controller.items.some((t) => t.parentId));
+
+	// Collapsed parents, remembered per project in this browser.
+	const collapsed = new SvelteSet<string>();
+	const collapseKey = $derived(`duet:collapsed:${data.project.id}`);
+	$effect(() => {
+		if (!browser) return;
+		collapsed.clear();
+		try {
+			for (const id of JSON.parse(localStorage.getItem(collapseKey) ?? '[]')) collapsed.add(id);
+		} catch {
+			/* ignore corrupt storage */
+		}
+	});
+	function toggleCollapse(id: string) {
+		if (collapsed.has(id)) collapsed.delete(id);
+		else collapsed.add(id);
+		localStorage.setItem(collapseKey, JSON.stringify([...collapsed]));
+	}
+	// Searching expands everything so matches are never hidden.
+	const isCollapsed = (id: string) => !query && collapsed.has(id) && addingTo !== id;
+
+	/** Task whose inline "add subtask" input is open. */
+	let addingTo = $state<string | null>(null);
+	function startSubtask(todo: Todo) {
+		addingTo = todo.id;
+	}
+	function outdent(todo: Todo) {
+		const parent = controller.items.find((t) => t.id === todo.parentId);
+		controller.update(todo.id, { parentId: parent?.parentId ?? null });
+	}
+	function subtaskCounts(id: string) {
+		const kids = controller.childrenOf(id);
+		return { done: kids.filter((t) => t.completed).length, total: kids.length };
+	}
+	// Where the open task could move: anywhere except inside its own subtree.
+	const parentOptions = $derived.by(() => {
+		if (!selected) return [];
+		const own = controller.withDescendants([selected.id]);
+		return flattenTree(controller.children.get(null) ?? [], controller.children).filter(
+			(r) => !own.has(r.todo.id)
+		);
+	});
+	/** Rows in on-screen order, skipping collapsed subtrees. */
+	function visibleRows(roots: Todo[]): Todo[] {
+		return roots.flatMap((t) => [t, ...(isCollapsed(t.id) ? [] : visibleRows(childrenShown(t.id)))]);
+	}
 
 	// ── Multi-select for bulk edits ──
 	let selectMode = $state(false);
 	const selectedIds = new SvelteSet<string>();
 	let anchorId: string | null = null;
 	const selecting = $derived(canEdit && (selectMode || selectedIds.size > 0));
-	const visibleTodos = $derived([...openTodos, ...(showCompleted ? doneTodos : [])]);
+	const visibleTodos = $derived(visibleRows([...openTodos, ...(showCompleted ? doneTodos : [])]));
 	const selectedTodos = $derived(controller.items.filter((t) => selectedIds.has(t.id)));
 
 	// Drop selections for tasks that disappear (deleted, or a project switch).
@@ -117,7 +179,7 @@
 		importOpen = true;
 	}
 	function copyTodo(todo: Todo) {
-		const text = formatTodoForCopy(todo, data.project.name);
+		const text = formatTodoForCopy(todo, data.project.name, controller.items);
 		navigator.clipboard
 			.writeText(text)
 			.then(() => toasts.success('Task copied to clipboard'))
@@ -126,7 +188,7 @@
 
 	function exportToClipboard() {
 		exportMenuOpen = false;
-		const all = [...controller.open, ...controller.done];
+		const all = controller.items;
 		navigator.clipboard
 			.writeText(formatTodosAsChecklist(all))
 			.then(() => toasts.success(`Copied ${all.length} task${all.length === 1 ? '' : 's'} to clipboard`))
@@ -134,7 +196,7 @@
 	}
 	function exportToFile() {
 		exportMenuOpen = false;
-		const json = formatTodosAsJson([...controller.open, ...controller.done], data.project);
+		const json = formatTodosAsJson(controller.items, data.project);
 		const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
 		const a = document.createElement('a');
 		a.href = url;
@@ -182,6 +244,41 @@
 </script>
 
 <svelte:head><title>{data.project.name} · Duet</title></svelte:head>
+
+{#snippet node(todo: Todo, depth: number)}
+	{@const kids = childrenShown(todo.id)}
+	<TodoRow
+		{todo}
+		{canEdit}
+		onToggle={(id) => controller.toggle(id)}
+		onOpen={(t) => selectTodo(t.id)}
+		onCopy={copyTodo}
+		onDelete={(id) => controller.remove(id)}
+		{selecting}
+		selected={selectedIds.has(todo.id)}
+		onSelect={canEdit ? selectTask : undefined}
+		tree={treeMode}
+		subtasks={subtaskCounts(todo.id)}
+		collapsed={isCollapsed(todo.id)}
+		onToggleCollapse={toggleCollapse}
+		onAddSubtask={canEdit ? startSubtask : undefined}
+		onOutdent={canEdit ? outdent : undefined}
+	/>
+	{#if (kids.length || addingTo === todo.id) && !isCollapsed(todo.id)}
+		<div class="subtasks" class:capped={depth >= MAX_INDENT} transition:slide={{ duration: 150 }}>
+			{#each kids as child (child.id)}
+				<div animate:flip={{ duration: 200 }}>{@render node(child, depth + 1)}</div>
+			{/each}
+			{#if addingTo === todo.id}
+				<SubtaskAdd
+					autofocus
+					onAdd={(title) => controller.add({ title, parentId: todo.id })}
+					onClose={() => (addingTo = null)}
+				/>
+			{/if}
+		</div>
+	{/if}
+{/snippet}
 
 <div class="project" style="--accent: {data.project.color}">
 	<header class="proj-head">
@@ -295,19 +392,7 @@
 		{:else}
 			<section class="list">
 				{#each openTodos as todo (todo.id)}
-					<div animate:flip={{ duration: 200 }}>
-						<TodoRow
-							{todo}
-							{canEdit}
-							onToggle={(id) => controller.toggle(id)}
-							onOpen={(t) => selectTodo(t.id)}
-							onCopy={copyTodo}
-							onDelete={(id) => controller.remove(id)}
-							{selecting}
-							selected={selectedIds.has(todo.id)}
-							onSelect={canEdit ? selectTask : undefined}
-						/>
-					</div>
+					<div animate:flip={{ duration: 200 }}>{@render node(todo, 0)}</div>
 				{/each}
 			</section>
 
@@ -320,19 +405,7 @@
 					{#if showCompleted}
 						<section class="list done" transition:slide={{ duration: 180 }}>
 							{#each doneTodos as todo (todo.id)}
-								<div animate:flip={{ duration: 200 }}>
-									<TodoRow
-										{todo}
-										{canEdit}
-										onToggle={(id) => controller.toggle(id)}
-										onOpen={(t) => selectTodo(t.id)}
-										onCopy={copyTodo}
-										onDelete={(id) => controller.remove(id)}
-										{selecting}
-										selected={selectedIds.has(todo.id)}
-										onSelect={canEdit ? selectTask : undefined}
-									/>
-								</div>
+								<div animate:flip={{ duration: 200 }}>{@render node(todo, 0)}</div>
 							{/each}
 						</section>
 					{/if}
@@ -358,6 +431,11 @@
 		onCreateCategory={createCategory}
 		onAddAttachment={(file) => controller.addAttachment(selected!.id, file)}
 		onRemoveAttachment={(id) => controller.removeAttachment(selected!.id, id)}
+		ancestors={controller.ancestorsOf(selected.id)}
+		subtasks={controller.childrenOf(selected.id)}
+		{parentOptions}
+		onOpenTask={selectTodo}
+		onAddSubtask={(title) => controller.add({ title, parentId: selected!.id })}
 	/>
 {/if}
 
@@ -553,6 +631,18 @@
 	}
 	.list.done {
 		opacity: 0.85;
+	}
+	.subtasks {
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+		margin-left: var(--space-6);
+		padding-left: var(--space-1);
+		border-left: 1px solid var(--border-subtle);
+	}
+	/* Very deep levels stack flush with their parent instead of indenting forever. */
+	.subtasks.capped {
+		margin-left: 0;
 	}
 
 	.empty-state {

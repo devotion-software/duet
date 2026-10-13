@@ -5,6 +5,7 @@
 	import Button from '#lib/components/ui/Button.svelte';
 	import Spinner from '#lib/components/ui/Spinner.svelte';
 	import Markdown from '#lib/components/Markdown.svelte';
+	import SubtaskAdd from '#lib/components/todo/SubtaskAdd.svelte';
 	import { toDateInput } from '#lib/date';
 	import {
 		URGENCIES,
@@ -33,6 +34,14 @@
 		onCreateCategory: (name: string) => Promise<Category | null>;
 		onAddAttachment: (file: File) => Promise<void>;
 		onRemoveAttachment: (id: string) => void;
+		/** Parent chain, nearest first. */
+		ancestors: Todo[];
+		/** Direct subtasks, in display order. */
+		subtasks: Todo[];
+		/** Tasks this one may move under (excludes itself and its subtree). */
+		parentOptions: { todo: Todo; depth: number }[];
+		onOpenTask: (id: string) => void;
+		onAddSubtask: (title: string) => Promise<unknown>;
 	}
 	let {
 		todo,
@@ -48,8 +57,19 @@
 		onCreateTag,
 		onCreateCategory,
 		onAddAttachment,
-		onRemoveAttachment
+		onRemoveAttachment,
+		ancestors,
+		subtasks,
+		parentOptions,
+		onOpenTask,
+		onAddSubtask
 	}: Props = $props();
+
+	const subtasksDone = $derived(subtasks.filter((t) => t.completed).length);
+	function optionLabel(t: Todo, depth: number) {
+		const title = t.title.length > 60 ? `${t.title.slice(0, 59)}…` : t.title;
+		return `${'\u00a0\u00a0\u00a0'.repeat(depth)}${depth ? '↳ ' : ''}${title}`;
+	}
 
 	let title = $state(todo.title);
 	let description = $state(todo.description ?? '');
@@ -181,6 +201,16 @@
 		</header>
 
 		<div class="panel-body">
+			{#if ancestors.length}
+				<nav class="crumbs" aria-label="Parent tasks">
+					{#each [...ancestors].reverse() as a, i (a.id)}
+						{#if i}<Icon name="chevron-right" size={12} />{/if}
+						<button class="crumb" class:done={a.completed} onclick={() => onOpenTask(a.id)}>
+							{a.title}
+						</button>
+					{/each}
+				</nav>
+			{/if}
 			<textarea
 				class="title-input"
 				bind:this={titleEl}
@@ -203,6 +233,20 @@
 						<option value="">None</option>
 						{#each categories as c (c.id)}
 							<option value={c.id}>{c.name}</option>
+						{/each}
+					</select>
+				</label>
+
+				<label class="attr">
+					<span class="attr-label"><Icon name="corner-down-right" size={14} /> Parent</span>
+					<select
+						disabled={!canEdit}
+						value={todo.parentId ?? ''}
+						onchange={(e) => onUpdate({ parentId: e.currentTarget.value || null })}
+					>
+						<option value="">None (top level)</option>
+						{#each parentOptions as { todo: t, depth } (t.id)}
+							<option value={t.id}>{optionLabel(t, depth)}</option>
 						{/each}
 					</select>
 				</label>
@@ -299,6 +343,44 @@
 				>
 					<input bind:value={newCatName} placeholder="+ add a category" maxlength="80" />
 				</form>
+			{/if}
+
+			<!-- Subtasks -->
+			{#if subtasks.length || canEdit}
+				<div class="section">
+					<div class="desc-head">
+						<span class="section-label"><Icon name="check-circle" size={14} /> Subtasks</span>
+						{#if subtasks.length}
+							<span class="sub-count">{subtasksDone}/{subtasks.length}</span>
+						{/if}
+					</div>
+					{#if subtasks.length}
+						<div class="sub-progress" aria-hidden="true">
+							<span style="width: {(subtasksDone / subtasks.length) * 100}%"></span>
+						</div>
+					{/if}
+					<ul class="sub-list">
+						{#each subtasks as sub (sub.id)}
+							<li class="sub" class:done={sub.completed}>
+								<button
+									class="sub-check"
+									class:on={sub.completed}
+									disabled={!canEdit}
+									onclick={() => onToggle(sub.id)}
+									aria-label={sub.completed ? 'Mark as not done' : 'Mark as done'}
+									aria-pressed={sub.completed}
+								>
+									{#if sub.completed}<Icon name="check" size={10} strokeWidth={3} />{/if}
+								</button>
+								<button class="sub-title" onclick={() => onOpenTask(sub.id)}>{sub.title}</button>
+								<Icon name="chevron-right" size={14} />
+							</li>
+						{/each}
+					</ul>
+					{#if canEdit}
+						<SubtaskAdd onAdd={onAddSubtask} />
+					{/if}
+				</div>
 			{/if}
 
 			<!-- Images -->
@@ -475,6 +557,95 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-5);
+	}
+	.crumbs {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 2px;
+		margin-bottom: calc(var(--space-4) * -1);
+		color: var(--text-faint);
+		font-size: var(--text-xs);
+	}
+	.crumb {
+		max-width: 180px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		padding: 2px var(--space-1);
+		border-radius: var(--radius-xs);
+		color: var(--text-subtle);
+	}
+	.crumb:hover {
+		color: var(--text);
+		background: var(--surface-hover);
+	}
+	.crumb.done {
+		text-decoration: line-through;
+	}
+	.sub-count {
+		font-size: var(--text-xs);
+		color: var(--text-subtle);
+		font-variant-numeric: tabular-nums;
+	}
+	.sub-progress {
+		height: 3px;
+		border-radius: var(--radius-full);
+		background: var(--surface-inset);
+		overflow: hidden;
+	}
+	.sub-progress span {
+		display: block;
+		height: 100%;
+		background: var(--accent);
+		transition: width var(--transition-fast);
+	}
+	.sub-list {
+		list-style: none;
+		margin: 0;
+		padding: 0;
+		display: flex;
+		flex-direction: column;
+	}
+	.sub {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		padding: var(--space-1) var(--space-3);
+		border-radius: var(--radius-md);
+		color: var(--text-faint);
+	}
+	.sub:hover {
+		background: var(--surface-hover);
+	}
+	.sub-check {
+		width: 16px;
+		height: 16px;
+		flex-shrink: 0;
+		border-radius: var(--radius-full);
+		border: 1.6px solid var(--border-strong);
+		display: grid;
+		place-items: center;
+		color: var(--accent-contrast);
+	}
+	.sub-check:hover:not(:disabled) {
+		border-color: var(--accent);
+	}
+	.sub-check.on {
+		background: var(--accent);
+		border-color: var(--accent);
+	}
+	.sub-title {
+		flex: 1;
+		min-width: 0;
+		text-align: left;
+		font-size: var(--text-sm);
+		color: var(--text);
+		padding: var(--space-1) 0;
+	}
+	.sub.done .sub-title {
+		color: var(--text-subtle);
+		text-decoration: line-through;
 	}
 	.title-input {
 		font-size: var(--text-xl);
