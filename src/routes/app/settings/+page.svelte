@@ -15,6 +15,9 @@
 	let name = $state(data.user.name ?? '');
 	let savingName = $state(false);
 	let addingPasskey = $state(false);
+	let renamingId = $state<string | null>(null);
+	let renameValue = $state('');
+	let savingRename = $state(false);
 	let listWidth = $state<number | null>(data.projectDefaults.listWidth);
 	let countSubtasks = $state(data.projectDefaults.countSubtasks);
 	let savingDefaults = $state(false);
@@ -53,6 +56,29 @@
 			toasts.error(res.error.message ?? 'Could not add passkey');
 		} else {
 			toasts.success('Passkey added');
+			await invalidateAll();
+		}
+	}
+
+	function startRename(pk: { id: string; name: string | null }) {
+		renamingId = pk.id;
+		renameValue = pk.name ?? '';
+	}
+
+	async function saveRename(pk: { id: string; name: string | null }) {
+		const n = renameValue.trim();
+		if (savingRename || renamingId !== pk.id) return;
+		if (!n || n === pk.name) {
+			renamingId = null;
+			return;
+		}
+		savingRename = true;
+		const res = await authClient.passkey.updatePasskey({ id: pk.id, name: n });
+		savingRename = false;
+		if (res?.error) toasts.error(res.error.message ?? 'Could not rename');
+		else {
+			renamingId = null;
+			toasts.success('Passkey renamed');
 			await invalidateAll();
 		}
 	}
@@ -230,13 +256,35 @@
 					<li class="pk">
 						<span class="pk-icon"><Icon name="key" size={16} /></span>
 						<div class="pk-info">
-							<span class="pk-name">{pk.name || 'Passkey'}</span>
+							{#if renamingId === pk.id}
+								<!-- svelte-ignore a11y_autofocus -->
+								<input
+									class="pk-rename"
+									bind:value={renameValue}
+									maxlength="80"
+									aria-label="Passkey name"
+									autofocus
+									disabled={savingRename}
+									onkeydown={(e) => {
+										if (e.key === 'Enter') saveRename(pk);
+										else if (e.key === 'Escape') renamingId = null;
+									}}
+									onblur={() => saveRename(pk)}
+								/>
+							{:else}
+								<span class="pk-name">{pk.name || 'Passkey'}</span>
+							{/if}
 							<span class="pk-meta">
 								{pk.deviceType === 'singleDevice' ? 'This device' : 'Synced'} · Added
 								{new Date(pk.createdAt ?? Date.now()).toLocaleDateString()}
 							</span>
 						</div>
-						<button class="pk-remove" onclick={() => removePasskey(pk.id)} aria-label="Remove passkey">
+						{#if renamingId !== pk.id}
+							<button class="pk-action" onclick={() => startRename(pk)} aria-label="Rename passkey">
+								<Icon name="pencil" size={15} />
+							</button>
+						{/if}
+						<button class="pk-action pk-remove" onclick={() => removePasskey(pk.id)} aria-label="Remove passkey">
 							<Icon name="trash" size={15} />
 						</button>
 					</li>
@@ -496,8 +544,24 @@
 	}
 	.pk-info {
 		flex: 1;
+		min-width: 0;
 		display: flex;
 		flex-direction: column;
+	}
+	.pk-rename {
+		font-size: var(--text-sm);
+		font-weight: var(--weight-medium);
+		background: var(--surface);
+		border: 1px solid var(--border-strong);
+		border-radius: var(--radius-sm);
+		padding: 2px var(--space-2);
+		margin-left: calc(-1 * var(--space-2) - 1px);
+		color: var(--text);
+	}
+	.pk-rename:focus {
+		outline: none;
+		border-color: var(--accent);
+		box-shadow: 0 0 0 3px var(--accent-ring);
 	}
 	.pk-name {
 		font-size: var(--text-sm);
@@ -507,11 +571,15 @@
 		font-size: var(--text-xs);
 		color: var(--text-subtle);
 	}
-	.pk-remove {
+	.pk-action {
 		display: inline-flex;
 		padding: 7px;
 		border-radius: var(--radius-sm);
 		color: var(--text-subtle);
+	}
+	.pk-action:hover {
+		background: var(--surface-hover);
+		color: var(--text);
 	}
 	.pk-remove:hover {
 		background: var(--danger-soft);
