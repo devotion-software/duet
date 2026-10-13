@@ -997,6 +997,11 @@
 		:global(html[data-sidebar='collapsed'] .user .user-chev) {
 			display: none;
 		}
+		/* Outrank the hover/focus reveal so a collapsed folder is only its toggle. */
+		:global(html[data-sidebar='collapsed']) .f-head:hover .f-actions,
+		:global(html[data-sidebar='collapsed']) .f-head:focus-within .f-actions {
+			display: none;
+		}
 		:global(html[data-sidebar='collapsed']) .p-link,
 		:global(html[data-sidebar='collapsed']) .p-link.nested {
 			justify-content: center;
