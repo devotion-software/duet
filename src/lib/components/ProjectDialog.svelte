@@ -75,7 +75,9 @@
 				} else if (result.type === 'failure') {
 					toasts.error((result.data?.message as string) ?? 'Something went wrong');
 				}
-				await update({ reset: false });
+				// The action lives on /app, whose load redirects to the first project, so stay put
+				// rather than letting enhance navigate to where the submission landed.
+				await update({ reset: false, navigate: false });
 			};
 		}}
 	>
