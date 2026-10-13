@@ -12,7 +12,8 @@ export const GET: RequestHandler = async ({ params, locals }) => {
 
 	if (usingR2) {
 		// Hand off to R2 with a short-lived signed URL (no server bandwidth).
-		redirect(302, await presignGet(att.key));
+		// SvelteKit 3 rejects external redirects unless explicitly allowed.
+		redirect(302, await presignGet(att.key), { external: true });
 	}
 
 	// Local dev fallback: stream the file from disk.
