@@ -668,6 +668,8 @@
 		display: none;
 		align-items: center;
 		gap: 2px;
+		/* The buttons are taller than a single-line row; bleed into its padding rather than grow it. */
+		margin-block: -4px;
 	}
 	.row:hover .actions,
 	.row:has(:focus-visible) .actions,
