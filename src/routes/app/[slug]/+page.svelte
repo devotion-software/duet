@@ -178,8 +178,10 @@
 		importText = text;
 		importOpen = true;
 	}
-	function copyTodo(todo: Todo) {
-		const text = formatTodoForCopy(todo, data.project.name, controller.items);
+	function copyTodo(todo: Todo, quick = false) {
+		const bare =
+			!todo.description?.trim() && !todo.attachments.length && !controller.childrenOf(todo.id).length;
+		const text = quick && bare ? todo.title : formatTodoForCopy(todo, data.project.name, controller.items);
 		navigator.clipboard
 			.writeText(text)
 			.then(() => toasts.success('Task copied to clipboard'))

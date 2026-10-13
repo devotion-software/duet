@@ -10,7 +10,8 @@
 		canEdit: boolean;
 		onToggle: (id: string) => void;
 		onOpen: (todo: Todo) => void;
-		onCopy: (todo: Todo) => void;
+		/** `quick` is set by the inline icon, which copies just the title for bare tasks. */
+		onCopy: (todo: Todo, quick?: boolean) => void;
 		onDelete: (id: string) => void;
 		/** Selection mode: clicking the row selects instead of opening. */
 		selecting?: boolean;
@@ -157,7 +158,7 @@
 			<Avatar name={todo.assignee.name} image={todo.assignee.image} size={22} />
 		{/if}
 		<div class="actions">
-			<button class="act" title="Copy for AI" onclick={() => onCopy(todo)} aria-label="Copy task">
+			<button class="act" title="Copy for AI" onclick={() => onCopy(todo, true)} aria-label="Copy task">
 				<Icon name="copy" size={15} />
 			</button>
 			{#if canEdit}
