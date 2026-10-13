@@ -1024,6 +1024,8 @@
 	@media (max-width: 820px) {
 		.shell {
 			grid-template-columns: 1fr;
+			/* Sticky page content offsets by this to sit below the pinned topbar. */
+			--topbar-height: calc(var(--space-3) * 2 + 36px + 1px);
 		}
 		.topbar {
 			display: flex;

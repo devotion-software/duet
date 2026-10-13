@@ -869,7 +869,11 @@
 		flex: 1;
 		min-height: 0;
 	}
+	/* Lifted over the pinned quick add: glass headers form their own stacking context
+	   (backdrop-filter), which would otherwise trap the project menu beneath it. */
 	.proj-head {
+		position: relative;
+		z-index: calc(var(--z-base) + 1);
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
@@ -1017,18 +1021,19 @@
 
 	.work {
 		flex: 1;
-		overflow-y: auto;
 		padding: 0 var(--space-6) var(--space-16);
 		max-width: var(--list-width, 820px);
 		width: 100%;
 		margin: 0 auto;
 	}
 	/* Pinned while the list scrolls; it supplies .work's top padding so it sits flush when stuck,
-	   and repaints the page background so rows scroll out of sight beneath it. */
+	   and repaints the page background so rows scroll out of sight beneath it. The document is
+	   the scroller, so no ancestor may set overflow or the sticky never engages. Kept at the base
+	   layer (not --z-sticky) so the header and every dropdown menu still paint above it. */
 	.quick {
 		position: sticky;
-		top: 0;
-		z-index: var(--z-sticky);
+		top: var(--topbar-height, 0px);
+		z-index: var(--z-base);
 		padding: var(--space-5) 0 var(--space-3);
 		margin-bottom: var(--space-2);
 		background-color: var(--bg);
