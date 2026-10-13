@@ -278,6 +278,11 @@
 			<a href="/app" class="brand"><Logo size={26} /></a>
 		</div>
 
+		<a href="/app" class="p-link home-link" class:active={page.url.pathname === '/app'}>
+			<span class="p-icon"><Icon name="inbox" size={15} /></span>
+			<span class="p-name">Home</span>
+		</a>
+
 		<div class="new-row">
 			<button class="new-project" onclick={() => (createOpen = true)}>
 				<Icon name="plus" size={17} />
@@ -639,6 +644,9 @@
 	}
 
 	/* Folders */
+	.home-link {
+		margin-bottom: var(--space-1);
+	}
 	.new-row {
 		display: flex;
 		gap: var(--space-2);

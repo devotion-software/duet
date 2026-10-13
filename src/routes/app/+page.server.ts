@@ -8,6 +8,7 @@ import {
 	setProjectIcon,
 	validateIconFile
 } from '#lib/server/projects';
+import { getHomeOverview } from '#lib/server/home';
 import { publish } from '#lib/server/realtime';
 import { canManage } from '#lib/server/authz';
 import {
@@ -20,10 +21,8 @@ import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ parent }) => {
 	const { projects } = await parent();
-	// Prefer a project that isn't archived, falling back to any.
-	const first = projects.find((p) => p.status !== 'archived') ?? projects[0];
-	if (first) redirect(307, `/app/${first.slug}`);
-	return {};
+	// Archived projects stay out of the overview, like they do in the sidebar.
+	return getHomeOverview(projects.filter((p) => p.status !== 'archived'));
 };
 
 const STYLES: ProjectStyle[] = ['soft', 'solid', 'outline', 'glass'];
