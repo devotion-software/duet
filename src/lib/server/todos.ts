@@ -231,6 +231,80 @@ export async function updateTodo(todoId: string, input: Partial<TodoInput>) {
 	if (input.tagIds !== undefined) await setTodoTags(todoId, input.tagIds);
 }
 
+export interface BulkPatch {
+	categoryId?: string | null;
+	assigneeId?: string | null;
+	deadline?: Date | null;
+	urgency?: Urgency | null;
+	size?: Size | null;
+	completed?: boolean;
+	/** Tags are added/removed per todo rather than replaced wholesale. */
+	addTagIds?: string[];
+	removeTagIds?: string[];
+}
+
+/** Apply the same change to many todos; ids outside the project are ignored. */
+export async function bulkUpdateTodos(projectId: string, todoIds: string[], patch: BulkPatch) {
+	return db.transaction(async (tx) => {
+		const ids = (
+			await tx
+				.select({ id: todos.id })
+				.from(todos)
+				.where(and(eq(todos.projectId, projectId), inArray(todos.id, todoIds)))
+		).map((r) => r.id);
+		if (!ids.length) return [];
+
+		const values: Record<string, unknown> = {};
+		if (patch.categoryId !== undefined) values.categoryId = patch.categoryId || null;
+		if (patch.assigneeId !== undefined) values.assigneeId = patch.assigneeId || null;
+		if (patch.deadline !== undefined) values.deadline = patch.deadline;
+		if (patch.urgency !== undefined) values.urgency = patch.urgency;
+		if (patch.size !== undefined) values.size = patch.size;
+		// Always bump updatedAt so tag-only changes register too.
+		await tx
+			.update(todos)
+			.set({ ...values, updatedAt: new Date() })
+			.where(inArray(todos.id, ids));
+		if (patch.completed !== undefined) {
+			// Only flip the ones changing state, so existing completedAt stamps survive.
+			await tx
+				.update(todos)
+				.set({ completed: patch.completed, completedAt: patch.completed ? new Date() : null })
+				.where(and(inArray(todos.id, ids), eq(todos.completed, !patch.completed)));
+		}
+
+		const add = [...new Set(patch.addTagIds ?? [])].filter(Boolean);
+		if (add.length) {
+			await tx
+				.insert(todoTags)
+				.values(ids.flatMap((todoId) => add.map((tagId) => ({ todoId, tagId }))))
+				// Already-tagged todos are left as-is.
+				.onDuplicateKeyUpdate({ set: { tagId: sql`${todoTags.tagId}` } });
+		}
+		const remove = [...new Set(patch.removeTagIds ?? [])].filter(Boolean);
+		if (remove.length) {
+			await tx
+				.delete(todoTags)
+				.where(and(inArray(todoTags.todoId, ids), inArray(todoTags.tagId, remove)));
+		}
+		return ids;
+	});
+}
+
+/** Delete many todos at once; ids outside the project are ignored. */
+export async function bulkDeleteTodos(projectId: string, todoIds: string[]) {
+	return db.transaction(async (tx) => {
+		const ids = (
+			await tx
+				.select({ id: todos.id })
+				.from(todos)
+				.where(and(eq(todos.projectId, projectId), inArray(todos.id, todoIds)))
+		).map((r) => r.id);
+		if (ids.length) await tx.delete(todos).where(inArray(todos.id, ids));
+		return ids;
+	});
+}
+
 export async function toggleTodo(todoId: string, completed: boolean) {
 	await db
 		.update(todos)
