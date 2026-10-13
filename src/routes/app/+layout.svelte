@@ -499,6 +499,7 @@
 						<button class="menu-item danger" role="menuitem" onclick={signOut}>
 							<Icon name="logout" size={16} /> Sign out
 						</button>
+						<div class="menu-version">Duet v{__APP_VERSION__}</div>
 					</div>
 				{/if}
 				<button
@@ -935,6 +936,11 @@
 	}
 	.menu-item.danger {
 		color: var(--danger);
+	}
+	.menu-version {
+		padding: var(--space-1) var(--space-3) var(--space-1);
+		font-size: var(--text-xs);
+		color: var(--text-faint);
 	}
 
 	/* Content */
