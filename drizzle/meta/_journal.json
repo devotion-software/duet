@@ -15,6 +15,13 @@
       "when": 1791904836764,
       "tag": "0001_nested_tasks",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1791906441738,
+      "tag": "0002_project_row_fields",
+      "breakpoints": true
     }
   ]
 }

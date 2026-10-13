@@ -3,8 +3,10 @@ import {
 	createProject,
 	updateProject,
 	deleteProject,
-	getMembership
+	getMembership,
+	parseHiddenFields
 } from '#lib/server/projects';
+import { publish } from '#lib/server/realtime';
 import { canManage } from '#lib/server/authz';
 import type { ProjectStyle } from '#lib/server/db/app.schema';
 import type { Actions, PageServerLoad } from './$types';
@@ -52,8 +54,10 @@ export const actions: Actions = {
 			description: String(form.get('description') ?? ''),
 			color: String(form.get('color') ?? '#6366f1'),
 			icon: String(form.get('icon') ?? '📋'),
-			style: STYLES.includes(style) ? style : 'soft'
+			style: STYLES.includes(style) ? style : 'soft',
+			hiddenFields: parseHiddenFields(form.getAll('hidden').join(','))
 		});
+		publish(id, { type: 'project.updated', payload: { id } });
 		return { success: true };
 	},
 

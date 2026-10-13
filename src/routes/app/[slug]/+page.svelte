@@ -297,6 +297,7 @@
 		onAddSubtask={canEdit ? startSubtask : undefined}
 		onOutdent={canEdit ? outdent : undefined}
 		{group}
+		hiddenFields={data.project.hiddenFields}
 	/>
 	{#if (kids.length || addingTo === todo.id) && !isCollapsed(todo.id)}
 		<div class="subtasks" class:capped={depth >= MAX_INDENT} transition:slide={{ duration: 150 }}>

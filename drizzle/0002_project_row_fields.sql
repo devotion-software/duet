@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `hidden_fields` varchar(255) DEFAULT '' NOT NULL;

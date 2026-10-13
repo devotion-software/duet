@@ -5,6 +5,8 @@
 	import TextField from './ui/TextField.svelte';
 	import { PROJECT_COLORS, PROJECT_EMOJI, PROJECT_STYLES } from '#lib/palette';
 	import { toasts } from './ui/toast.svelte';
+	import Icon from './ui/Icon.svelte';
+	import { ROW_FIELDS, ROW_FIELD_LABELS, type RowField } from '#lib/types';
 
 	interface ProjectLike {
 		id?: string;
@@ -13,6 +15,7 @@
 		color?: string;
 		icon?: string;
 		style?: string;
+		hiddenFields?: RowField[];
 	}
 
 	interface Props {
@@ -27,6 +30,7 @@
 	let color = $state(project.color ?? PROJECT_COLORS[0]);
 	let icon = $state(project.icon ?? '📋');
 	let style = $state(project.style ?? 'soft');
+	let hidden = $state<RowField[]>(project.hiddenFields ?? []);
 	let submitting = $state(false);
 
 	// Reset form each time it opens.
@@ -37,6 +41,7 @@
 			color = project.color ?? PROJECT_COLORS[0];
 			icon = project.icon ?? '📋';
 			style = project.style ?? 'soft';
+			hidden = [...(project.hiddenFields ?? [])];
 		}
 	});
 
@@ -71,6 +76,9 @@
 		<input type="hidden" name="color" value={color} />
 		<input type="hidden" name="icon" value={icon} />
 		<input type="hidden" name="style" value={style} />
+		{#each hidden as f (f)}
+			<input type="hidden" name="hidden" value={f} />
+		{/each}
 
 		<!-- Live preview -->
 		<div class="preview style-{style}">
@@ -153,6 +161,26 @@
 				{/each}
 			</div>
 		</div>
+
+		{#if mode === 'edit'}
+			<div class="field">
+				<span class="flabel">Show on tasks</span>
+				<div class="fields">
+					{#each ROW_FIELDS as f (f)}
+						{@const on = !hidden.includes(f)}
+						<button
+							type="button"
+							class="field-toggle"
+							class:on
+							aria-pressed={on}
+							onclick={() => (hidden = on ? [...hidden, f] : hidden.filter((h) => h !== f))}
+						>
+							<Icon name={on ? 'check' : 'plus'} size={12} strokeWidth={2.5} />{ROW_FIELD_LABELS[f]}
+						</button>
+					{/each}
+				</div>
+			</div>
+		{/if}
 
 		<div class="actions">
 			<Button variant="ghost" type="button" onclick={() => (open = false)}>Cancel</Button>
@@ -369,6 +397,31 @@
 		background: var(--surface-raised);
 		color: var(--text);
 		box-shadow: var(--shadow-xs);
+	}
+	.fields {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2);
+	}
+	.field-toggle {
+		display: inline-flex;
+		align-items: center;
+		gap: 5px;
+		padding: var(--space-1) var(--space-3);
+		border-radius: var(--radius-full);
+		font-size: var(--text-sm);
+		font-weight: var(--weight-medium);
+		color: var(--text-subtle);
+		border: 1px dashed var(--border-strong);
+		transition: all var(--transition-fast);
+	}
+	.field-toggle:hover {
+		color: var(--text);
+	}
+	.field-toggle.on {
+		color: var(--accent-text);
+		background: var(--accent-soft);
+		border: 1px solid var(--accent-border);
 	}
 	.actions {
 		display: flex;

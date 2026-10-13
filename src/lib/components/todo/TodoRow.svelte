@@ -3,7 +3,7 @@
 	import Avatar from '#lib/components/ui/Avatar.svelte';
 	import { deadlineInfo } from '#lib/date';
 	import { markdownExcerpt } from '#lib/markdown';
-	import { URGENCY_META, SIZE_META, type Todo } from '#lib/types';
+	import { URGENCY_META, SIZE_META, type RowField, type Todo } from '#lib/types';
 	import type { GroupKey } from '#lib/todoView';
 
 	interface Props {
@@ -29,6 +29,8 @@
 		onOutdent?: (todo: Todo) => void;
 		/** The list group this row sits in; its field is implied by the heading, so isn't repeated. */
 		group?: { field: GroupKey; key: string };
+		/** Fields the project has chosen not to show on rows. */
+		hiddenFields?: RowField[];
 	}
 	let {
 		todo,
@@ -46,7 +48,8 @@
 		onToggleCollapse,
 		onAddSubtask,
 		onOutdent,
-		group
+		group,
+		hiddenFields = []
 	}: Props = $props();
 
 	function onBodyClick(e: MouseEvent) {
@@ -57,16 +60,24 @@
 		} else onOpen(todo);
 	}
 
+	const shows = (field: RowField) => !hiddenFields.includes(field);
 	const hides = (field: GroupKey) => group?.field === field;
-	const category = $derived(hides('category') ? null : todo.category);
+	const category = $derived(hides('category') || !shows('category') ? null : todo.category);
 	// Under a tag heading only that tag is implied; the task's other tags still show.
-	const tags = $derived(hides('tag') ? todo.tags.filter((t) => t.id !== group!.key) : todo.tags);
-	const assignee = $derived(hides('assignee') ? null : todo.assignee);
-	const urgency = $derived(hides('urgency') ? null : todo.urgency);
-	const size = $derived(hides('size') ? null : todo.size);
+	const tags = $derived(
+		!shows('tags') ? [] : hides('tag') ? todo.tags.filter((t) => t.id !== group!.key) : todo.tags
+	);
+	const assignee = $derived(hides('assignee') || !shows('assignee') ? null : todo.assignee);
+	const urgency = $derived(hides('urgency') || !shows('urgency') ? null : todo.urgency);
+	const size = $derived(hides('size') || !shows('size') ? null : todo.size);
 	// Deadline buckets are ranges, so the date still adds detail — except under "Today".
-	const deadline = $derived(hides('deadline') && group!.key === 'today' ? null : deadlineInfo(todo.deadline));
-	const excerpt = $derived(markdownExcerpt(todo.description, 90));
+	const deadline = $derived(
+		(hides('deadline') && group!.key === 'today') || !shows('deadline') ? null : deadlineInfo(todo.deadline)
+	);
+	const progress = $derived(shows('subtasks') ? subtasks.total : 0);
+	const notes = $derived(shows('notes') && !!todo.description);
+	const images = $derived(shows('attachments') ? todo.attachments.length : 0);
+	const excerpt = $derived(shows('excerpt') ? markdownExcerpt(todo.description, 90) : '');
 	let menuOpen = $state(false);
 </script>
 
@@ -123,9 +134,9 @@
 			<span class="title">{todo.title}</span>
 		</div>
 
-		{#if excerpt || subtasks.total || category || tags.length || deadline || size || todo.description || todo.attachments.length}
+		{#if excerpt || progress || category || tags.length || deadline || size || notes || images}
 			<div class="meta">
-				{#if subtasks.total}
+				{#if progress}
 					<span
 						class="chip progress"
 						class:complete={subtasks.done === subtasks.total}
@@ -150,12 +161,12 @@
 				{#if size}
 					<span class="chip size" title={SIZE_META[size].full}>{SIZE_META[size].label}</span>
 				{/if}
-				{#if todo.description}
+				{#if notes}
 					<span class="chip ghost" title="Has notes"><Icon name="clipboard" size={12} /></span>
 				{/if}
-				{#if todo.attachments.length}
-					<span class="chip ghost" title="{todo.attachments.length} image(s)">
-						<Icon name="image" size={12} />{todo.attachments.length}
+				{#if images}
+					<span class="chip ghost" title="{images} image(s)">
+						<Icon name="image" size={12} />{images}
 					</span>
 				{/if}
 				{#if excerpt}

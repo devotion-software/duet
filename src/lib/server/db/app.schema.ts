@@ -27,6 +27,21 @@ export type Size = (typeof SIZES)[number];
 export const PROJECT_STYLES = ['soft', 'solid', 'outline', 'glass'] as const;
 export type ProjectStyle = (typeof PROJECT_STYLES)[number];
 
+// Task details that can be shown in a row on the main list.
+export const ROW_FIELDS = [
+	'urgency',
+	'subtasks',
+	'category',
+	'tags',
+	'deadline',
+	'size',
+	'notes',
+	'attachments',
+	'excerpt',
+	'assignee'
+] as const;
+export type RowField = (typeof ROW_FIELDS)[number];
+
 const id = () => varchar('id', { length: 36 }).primaryKey();
 const createdAt = () => timestamp('created_at', { fsp: 3 }).defaultNow().notNull();
 const updatedAt = () =>
@@ -47,6 +62,8 @@ export const projects = mysqlTable(
 		color: varchar('color', { length: 32 }).notNull().default('#6366f1'),
 		icon: varchar('icon', { length: 16 }).notNull().default('📋'),
 		style: mysqlEnum('style', PROJECT_STYLES).notNull().default('soft'),
+		// Comma-separated RowFields hidden from task rows; stored as hidden so new fields show by default.
+		hiddenFields: varchar('hidden_fields', { length: 255 }).notNull().default(''),
 		ownerId: varchar('owner_id', { length: 36 })
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),

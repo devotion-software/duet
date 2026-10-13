@@ -2,9 +2,35 @@ export type Role = 'owner' | 'editor' | 'viewer';
 export type Urgency = 'low' | 'medium' | 'high' | 'urgent';
 export type Size = 'xs' | 's' | 'm' | 'l' | 'xl';
 export type ProjectStyle = 'soft' | 'solid' | 'outline' | 'glass';
+export type RowField =
+	| 'urgency'
+	| 'subtasks'
+	| 'category'
+	| 'tags'
+	| 'deadline'
+	| 'size'
+	| 'notes'
+	| 'attachments'
+	| 'excerpt'
+	| 'assignee';
 
 export const URGENCIES: Urgency[] = ['low', 'medium', 'high', 'urgent'];
 export const SIZES: Size[] = ['xs', 's', 'm', 'l', 'xl'];
+
+/** Task details a project can show or hide on list rows, in settings order. */
+export const ROW_FIELD_LABELS: Record<RowField, string> = {
+	urgency: 'Urgency',
+	subtasks: 'Subtask progress',
+	category: 'Category',
+	tags: 'Tags',
+	deadline: 'Deadline',
+	size: 'Size',
+	notes: 'Notes icon',
+	attachments: 'Image count',
+	excerpt: 'Notes preview',
+	assignee: 'Assignee'
+};
+export const ROW_FIELDS = Object.keys(ROW_FIELD_LABELS) as RowField[];
 
 export const ROLE_LABELS: Record<Role, string> = {
 	owner: 'Owner',

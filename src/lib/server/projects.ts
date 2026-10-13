@@ -5,8 +5,10 @@ import {
 	projectMembers,
 	projectInvites,
 	todos,
+	ROW_FIELDS,
 	type Role,
-	type ProjectStyle
+	type ProjectStyle,
+	type RowField
 } from './db/app.schema';
 import { user } from './db/auth.schema';
 import { newId, newToken, slugify } from './ids';
@@ -23,6 +25,11 @@ export interface ProjectSummary {
 	role: Role;
 	openCount: number;
 	totalCount: number;
+}
+
+/** Parse the stored comma-separated list, dropping fields that no longer exist. */
+export function parseHiddenFields(raw: string | null | undefined): RowField[] {
+	return (raw ?? '').split(',').filter((f): f is RowField => ROW_FIELDS.includes(f as RowField));
 }
 
 /** All projects the user belongs to, with their role and task counts. */
@@ -90,7 +97,9 @@ export async function getProjectBySlugForUser(userId: string, slug: string) {
 		)
 		.where(eq(projects.slug, slug))
 		.limit(1);
-	return row ? { ...row.project, role: row.role } : null;
+	return row
+		? { ...row.project, hiddenFields: parseHiddenFields(row.project.hiddenFields), role: row.role }
+		: null;
 }
 
 interface CreateProjectInput {
@@ -135,6 +144,7 @@ export async function updateProject(
 	projectId: string,
 	patch: Partial<Pick<CreateProjectInput, 'name' | 'description' | 'color' | 'icon' | 'style'>> & {
 		archived?: boolean;
+		hiddenFields?: RowField[];
 	}
 ) {
 	const values: Record<string, unknown> = {};
@@ -144,6 +154,8 @@ export async function updateProject(
 	if (patch.icon !== undefined) values.icon = patch.icon;
 	if (patch.style !== undefined) values.style = patch.style;
 	if (patch.archived !== undefined) values.archived = patch.archived;
+	if (patch.hiddenFields !== undefined)
+		values.hiddenFields = patch.hiddenFields.filter((f) => ROW_FIELDS.includes(f)).join(',');
 	if (Object.keys(values).length === 0) return;
 	await db.update(projects).set(values).where(eq(projects.id, projectId));
 }
