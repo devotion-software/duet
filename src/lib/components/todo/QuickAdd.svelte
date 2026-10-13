@@ -96,6 +96,7 @@
 		min-width: 0;
 		background: none;
 		border: none;
+		outline: none;
 		font-size: var(--text-md);
 		color: var(--text);
 	}

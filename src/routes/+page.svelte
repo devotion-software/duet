@@ -39,6 +39,14 @@
 
 	const accents = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#8b5cf6'];
 	let heroAccent = $state('#6366f1');
+
+	let mockItems = $state([
+		{ t: 'Write launch announcement', done: false, tag: 'Marketing' },
+		{ t: 'Final QA pass on billing', done: false, tag: 'Eng' },
+		{ t: 'Set up status page', done: true, tag: 'Ops' },
+		{ t: 'Record demo video', done: false, tag: 'Marketing' }
+	]);
+	let mockDone = $derived(mockItems.filter((i) => i.done).length);
 </script>
 
 <div class="page" style="--accent: {heroAccent}">
@@ -83,27 +91,33 @@
 			</div>
 		</div>
 
-		<div class="hero-preview" aria-hidden="true">
+		<div class="hero-preview">
 			<div class="mock">
 				<div class="mock-head">
 					<span class="mock-icon">🚀</span>
 					<div class="mock-titles">
 						<strong>Launch checklist</strong>
-						<small>8 open · 3 done</small>
+						<small>{mockItems.length - mockDone} open · {mockDone} done</small>
 					</div>
 				</div>
 				<div class="mock-add">
 					<Icon name="plus" size={16} />
 					<span>Add a task…</span>
 				</div>
-				{#each [{ t: 'Write launch announcement', done: false, tag: 'Marketing' }, { t: 'Final QA pass on billing', done: false, tag: 'Eng' }, { t: 'Set up status page', done: true, tag: 'Ops' }, { t: 'Record demo video', done: false, tag: 'Marketing' }] as item (item.t)}
-					<div class="mock-item" class:done={item.done}>
+				{#each mockItems as item (item.t)}
+					<button
+						type="button"
+						class="mock-item"
+						class:done={item.done}
+						aria-pressed={item.done}
+						onclick={() => (item.done = !item.done)}
+					>
 						<span class="check" class:on={item.done}>
 							{#if item.done}<Icon name="check" size={12} />{/if}
 						</span>
 						<span class="mock-text">{item.t}</span>
 						<span class="mock-chip">{item.tag}</span>
-					</div>
+					</button>
 				{/each}
 			</div>
 		</div>
@@ -174,6 +188,8 @@
 		-webkit-background-clip: text;
 		background-clip: text;
 		color: transparent;
+		padding-right: 0.08em;
+		margin-right: -0.08em;
 	}
 	.lede {
 		font-size: var(--text-lg);
@@ -267,12 +283,22 @@
 		font-size: var(--text-sm);
 	}
 	.mock-item {
+		width: 100%;
+		text-align: left;
+		background: none;
+		border: none;
+		font: inherit;
+		color: inherit;
+		cursor: pointer;
 		display: flex;
 		align-items: center;
 		gap: var(--space-3);
 		padding: var(--space-3);
 		border-radius: var(--radius-md);
 		transition: background var(--transition-fast);
+	}
+	.mock-item:hover {
+		background: var(--surface-inset);
 	}
 	.mock-item + .mock-item {
 		border-top: 1px solid var(--border-subtle);

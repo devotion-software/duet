@@ -88,6 +88,7 @@
 		min-width: 0;
 		background: transparent;
 		border: none;
+		outline: none;
 		color: var(--text);
 		width: 100%;
 	}
