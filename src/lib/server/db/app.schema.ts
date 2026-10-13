@@ -84,6 +84,23 @@ export const projects = mysqlTable(
 	(t) => [uniqueIndex('projects_slug_idx').on(t.slug), index('projects_owner_idx').on(t.ownerId)]
 );
 
+// Per-user folders for grouping projects in the sidebar.
+export const projectFolders = mysqlTable(
+	'project_folders',
+	{
+		id: id(),
+		userId: varchar('user_id', { length: 36 })
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		name: varchar('name', { length: 80 }).notNull(),
+		// Shares an ordering with the user's unfoldered projects (projectMembers.sortOrder).
+		sortOrder: int('sort_order').notNull().default(0),
+		collapsed: boolean('collapsed').notNull().default(false),
+		createdAt: createdAt()
+	},
+	(t) => [index('project_folders_user_idx').on(t.userId)]
+);
+
 export const projectMembers = mysqlTable(
 	'project_members',
 	{
@@ -95,8 +112,13 @@ export const projectMembers = mysqlTable(
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),
 		role: mysqlEnum('role', ROLES).notNull().default('editor'),
-		// Per-user ordering of their project list.
+		// Per-user ordering of their project list: within the folder if there is one,
+		// otherwise among the user's top-level folders and projects.
 		sortOrder: int('sort_order').notNull().default(0),
+		// The member's own sidebar folder for this project, if any.
+		folderId: varchar('folder_id', { length: 36 }).references(() => projectFolders.id, {
+			onDelete: 'set null'
+		}),
 		createdAt: createdAt()
 	},
 	(t) => [
@@ -266,7 +288,13 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
 
 export const projectMembersRelations = relations(projectMembers, ({ one }) => ({
 	project: one(projects, { fields: [projectMembers.projectId], references: [projects.id] }),
-	user: one(user, { fields: [projectMembers.userId], references: [user.id] })
+	user: one(user, { fields: [projectMembers.userId], references: [user.id] }),
+	folder: one(projectFolders, { fields: [projectMembers.folderId], references: [projectFolders.id] })
+}));
+
+export const projectFoldersRelations = relations(projectFolders, ({ one, many }) => ({
+	user: one(user, { fields: [projectFolders.userId], references: [user.id] }),
+	members: many(projectMembers)
 }));
 
 export const categoriesRelations = relations(categories, ({ one, many }) => ({

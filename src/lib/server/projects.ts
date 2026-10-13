@@ -1,8 +1,9 @@
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { db } from './db';
 import {
 	projects,
 	projectMembers,
+	projectFolders,
 	projectInvites,
 	todos,
 	ROW_FIELDS,
@@ -14,6 +15,7 @@ import {
 import { user } from './db/auth.schema';
 import { newId, newToken, slugify } from './ids';
 import { putObject, deleteObject } from './storage';
+import { buildSidebar, type ProjectFolder, type SidebarItem } from '../sidebar';
 
 export interface ProjectSummary {
 	id: string;
@@ -27,6 +29,9 @@ export interface ProjectSummary {
 	style: ProjectStyle;
 	status: ProjectStatus;
 	role: Role;
+	/** The user's sidebar folder for the project, if any. */
+	folderId: string | null;
+	sortOrder: number;
 	countSubtasks: boolean;
 	/** Open tasks, counting subtasks only if the project's `countSubtasks` is set. */
 	openCount: number;
@@ -43,7 +48,9 @@ export async function listUserProjects(userId: string): Promise<ProjectSummary[]
 	const rows = await db
 		.select({
 			project: projects,
-			role: projectMembers.role
+			role: projectMembers.role,
+			folderId: projectMembers.folderId,
+			sortOrder: projectMembers.sortOrder
 		})
 		.from(projectMembers)
 		.innerJoin(projects, eq(projects.id, projectMembers.projectId))
@@ -79,6 +86,8 @@ export async function listUserProjects(userId: string): Promise<ProjectSummary[]
 			style: r.project.style,
 			status: r.project.status,
 			role: r.role,
+			folderId: r.folderId,
+			sortOrder: r.sortOrder,
 			countSubtasks: r.project.countSubtasks,
 			openCount: Number((r.project.countSubtasks ? c?.open : c?.openRoots) ?? 0),
 			totalCount: Number(c?.total ?? 0)
@@ -128,10 +137,7 @@ interface CreateProjectInput {
 export async function createProject(userId: string, input: CreateProjectInput) {
 	const id = newId();
 	const slug = slugify(input.name);
-	const [maxOrder] = await db
-		.select({ max: sql<number>`coalesce(max(${projectMembers.sortOrder}), 0)` })
-		.from(projectMembers)
-		.where(eq(projectMembers.userId, userId));
+	const sortOrder = await nextSidebarOrder(userId);
 
 	await db.insert(projects).values({
 		id,
@@ -150,7 +156,7 @@ export async function createProject(userId: string, input: CreateProjectInput) {
 		projectId: id,
 		userId,
 		role: 'owner',
-		sortOrder: Number(maxOrder?.max ?? 0) + 1
+		sortOrder
 	});
 
 	return { id, slug };
@@ -229,16 +235,137 @@ export async function getProjectIconKey(projectId: string): Promise<string | nul
 	return row?.iconKey ?? null;
 }
 
-/** Persist a user's custom ordering of their project list. */
-export async function reorderProjects(userId: string, orderedIds: string[]) {
-	await Promise.all(
-		orderedIds.map((pid, i) =>
-			db
+// ─── Sidebar folders ────────────────────────────────────────────────────────
+export async function listUserFolders(userId: string): Promise<ProjectFolder[]> {
+	return db
+		.select({
+			id: projectFolders.id,
+			name: projectFolders.name,
+			sortOrder: projectFolders.sortOrder,
+			collapsed: projectFolders.collapsed
+		})
+		.from(projectFolders)
+		.where(eq(projectFolders.userId, userId))
+		.orderBy(asc(projectFolders.sortOrder), asc(projectFolders.createdAt));
+}
+
+/** The user's whole sidebar arrangement, archived projects included. */
+async function getSidebar(userId: string): Promise<SidebarItem[]> {
+	const [folders, members] = await Promise.all([
+		listUserFolders(userId),
+		db
+			.select({
+				id: projectMembers.projectId,
+				folderId: projectMembers.folderId,
+				sortOrder: projectMembers.sortOrder
+			})
+			.from(projectMembers)
+			.innerJoin(projects, eq(projects.id, projectMembers.projectId))
+			.where(eq(projectMembers.userId, userId))
+			.orderBy(asc(projectMembers.sortOrder), asc(projects.createdAt))
+	]);
+	return buildSidebar(folders, members);
+}
+
+/** A sortOrder that puts a new top-level item at the bottom of the user's sidebar. */
+async function nextSidebarOrder(userId: string): Promise<number> {
+	const [[folderMax], [projectMax]] = await Promise.all([
+		db
+			.select({ max: sql<number>`coalesce(max(${projectFolders.sortOrder}), 0)` })
+			.from(projectFolders)
+			.where(eq(projectFolders.userId, userId)),
+		db
+			.select({ max: sql<number>`coalesce(max(${projectMembers.sortOrder}), 0)` })
+			.from(projectMembers)
+			.where(and(eq(projectMembers.userId, userId), isNull(projectMembers.folderId)))
+	]);
+	return Math.max(Number(folderMax?.max ?? 0), Number(projectMax?.max ?? 0)) + 1;
+}
+
+/** Create a folder at the bottom of the user's sidebar. */
+export async function createFolder(userId: string, name: string): Promise<ProjectFolder> {
+	const folder = {
+		id: newId(),
+		name: name.trim().slice(0, 80),
+		sortOrder: await nextSidebarOrder(userId),
+		collapsed: false
+	};
+	await db.insert(projectFolders).values({ ...folder, userId });
+	return folder;
+}
+
+/** Rename or collapse/expand one of the user's folders. Returns false if it isn't theirs. */
+export async function updateFolder(
+	userId: string,
+	folderId: string,
+	patch: { name?: string; collapsed?: boolean }
+): Promise<boolean> {
+	const values: Record<string, unknown> = {};
+	if (patch.name !== undefined) values.name = patch.name.trim().slice(0, 80);
+	if (patch.collapsed !== undefined) values.collapsed = patch.collapsed;
+	const [res] = await db
+		.update(projectFolders)
+		.set(values)
+		.where(and(eq(projectFolders.id, folderId), eq(projectFolders.userId, userId)));
+	return res.affectedRows > 0;
+}
+
+/** Delete a folder, leaving its projects at the top level where the folder was. */
+export async function deleteFolder(userId: string, folderId: string): Promise<boolean> {
+	const sidebar = await getSidebar(userId);
+	const index = sidebar.findIndex((i) => i.type === 'folder' && i.id === folderId);
+	if (index < 0) return false;
+	const folder = sidebar[index] as Extract<SidebarItem, { type: 'folder' }>;
+	sidebar.splice(index, 1, ...folder.projectIds.map((id) => ({ type: 'project' as const, id })));
+	await saveSidebar(userId, sidebar);
+	await db
+		.delete(projectFolders)
+		.where(and(eq(projectFolders.id, folderId), eq(projectFolders.userId, userId)));
+	return true;
+}
+
+/**
+ * Persist the user's sidebar arrangement. Folders and projects that aren't the user's
+ * are ignored, as are any of theirs left out (e.g. archived projects keep their place).
+ */
+export async function saveSidebar(userId: string, items: SidebarItem[]) {
+	const [folders, members] = await Promise.all([
+		db.select({ id: projectFolders.id }).from(projectFolders).where(eq(projectFolders.userId, userId)),
+		db
+			.select({ id: projectMembers.projectId })
+			.from(projectMembers)
+			.where(eq(projectMembers.userId, userId))
+	]);
+	const folderIds = new Set(folders.map((f) => f.id));
+	const projectIds = new Set(members.map((m) => m.id));
+
+	const placements: { projectId: string; folderId: string | null; sortOrder: number }[] = [];
+	const folderOrders: { id: string; sortOrder: number }[] = [];
+	items.forEach((item, i) => {
+		if (item.type === 'project') {
+			if (projectIds.has(item.id)) placements.push({ projectId: item.id, folderId: null, sortOrder: i });
+		} else if (folderIds.has(item.id)) {
+			folderOrders.push({ id: item.id, sortOrder: i });
+			item.projectIds.forEach((pid, j) => {
+				if (projectIds.has(pid)) placements.push({ projectId: pid, folderId: item.id, sortOrder: j });
+			});
+		}
+	});
+
+	await db.transaction(async (tx) => {
+		for (const f of folderOrders) {
+			await tx
+				.update(projectFolders)
+				.set({ sortOrder: f.sortOrder })
+				.where(and(eq(projectFolders.id, f.id), eq(projectFolders.userId, userId)));
+		}
+		for (const p of placements) {
+			await tx
 				.update(projectMembers)
-				.set({ sortOrder: i })
-				.where(and(eq(projectMembers.userId, userId), eq(projectMembers.projectId, pid)))
-		)
-	);
+				.set({ folderId: p.folderId, sortOrder: p.sortOrder })
+				.where(and(eq(projectMembers.userId, userId), eq(projectMembers.projectId, p.projectId)));
+		}
+	});
 }
 
 // ─── Members & invites ──────────────────────────────────────────────────────

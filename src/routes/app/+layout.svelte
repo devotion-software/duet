@@ -11,6 +11,14 @@
 	import ShortcutsDialog from '#lib/components/ShortcutsDialog.svelte';
 	import { shortcutAllowed } from '#lib/shortcuts';
 	import { liveCounts } from '#lib/stores/liveCounts.svelte';
+	import { toasts } from '#lib/components/ui/toast.svelte';
+	import {
+		buildSidebar,
+		moveSidebarItem,
+		type SidebarDrag,
+		type SidebarDrop,
+		type SidebarItem
+	} from '#lib/sidebar';
 
 	let { data, children } = $props();
 
@@ -21,13 +29,162 @@
 
 	const activeSlug = $derived(page.params.slug);
 	const activeProject = $derived(data.projects.find((p) => p.slug === activeSlug));
-	const currentProjects = $derived(data.projects.filter((p) => p.status !== 'archived'));
+	const projectById = $derived(new Map(data.projects.map((p) => [p.id, p])));
 	const archivedProjects = $derived(data.projects.filter((p) => p.status === 'archived'));
 	// Archived projects stay collapsed unless you're viewing one.
 	let archivedOpen = $state(false);
 	const showArchived = $derived(archivedOpen || activeProject?.status === 'archived');
+
+	// Folders and the sidebar arrangement are overwritten optimistically, then re-derived
+	// from the server once it has caught up.
+	let folders = $derived(data.folders);
+	const folderById = $derived(new Map(folders.map((f) => [f.id, f])));
+	let sidebar = $derived(buildSidebar(data.folders, data.projects));
+	// The arrangement minus archived projects, which live in their own section.
+	const isCurrent = (id: string) => {
+		const p = projectById.get(id);
+		return !!p && p.status !== 'archived';
+	};
+	const currentSidebar = $derived(
+		sidebar
+			.map((i) => (i.type === 'folder' ? { ...i, projectIds: i.projectIds.filter(isCurrent) } : i))
+			.filter((i) => i.type === 'folder' || isCurrent(i.id))
+	);
+	/** A folder's projects that show: all of them when open, else just the one being viewed. */
+	function visibleIn(item: Extract<SidebarItem, { type: 'folder' }>) {
+		const ids = folderById.get(item.id)?.collapsed
+			? item.projectIds.filter((id) => id === activeProject?.id)
+			: item.projectIds;
+		return ids.map((id) => projectById.get(id)!);
+	}
 	// Projects in sidebar order, as far as they're visible; drives the switching shortcuts.
-	const navProjects = $derived(showArchived ? [...currentProjects, ...archivedProjects] : currentProjects);
+	const navProjects = $derived([
+		...currentSidebar.flatMap((i) => (i.type === 'folder' ? visibleIn(i) : [projectById.get(i.id)!])),
+		...(showArchived ? archivedProjects : [])
+	]);
+
+	async function api(url: string, method: string, body?: unknown) {
+		const res = await fetch(url, {
+			method,
+			headers: { 'content-type': 'application/json' },
+			body: body === undefined ? undefined : JSON.stringify(body)
+		});
+		if (!res.ok) {
+			const err = await res.json().catch(() => null);
+			throw new Error(err?.message ?? 'Something went wrong');
+		}
+		return res.json();
+	}
+
+	/** Run a sidebar change against the server, resyncing with it either way. */
+	async function persist(request: Promise<unknown>) {
+		try {
+			await request;
+		} catch (e) {
+			toasts.error((e as Error).message);
+		}
+		await invalidateAll();
+	}
+
+	// ─── Folders ────────────────────────────────────────────────────────────
+	let renamingId = $state<string | null>(null);
+
+	async function createFolder() {
+		try {
+			const folder = await api('/api/folders', 'POST', { name: 'New folder' });
+			folders = [...folders, folder];
+			sidebar = [...sidebar, { type: 'folder', id: folder.id, projectIds: [] }];
+			renamingId = folder.id;
+		} catch (e) {
+			toasts.error((e as Error).message);
+		}
+	}
+
+	function updateFolder(id: string, patch: { name?: string; collapsed?: boolean }) {
+		folders = folders.map((f) => (f.id === id ? { ...f, ...patch } : f));
+		persist(api(`/api/folders/${id}`, 'PATCH', patch));
+	}
+
+	function finishRename(id: string, input: HTMLInputElement, save: boolean) {
+		if (renamingId !== id) return;
+		renamingId = null;
+		const name = input.value.trim();
+		if (save && name && name !== folderById.get(id)?.name) updateFolder(id, { name });
+	}
+
+	function deleteFolder(id: string) {
+		sidebar = sidebar.flatMap((i) =>
+			i.type === 'folder' && i.id === id
+				? i.projectIds.map((pid) => ({ type: 'project' as const, id: pid }))
+				: [i]
+		);
+		folders = folders.filter((f) => f.id !== id);
+		persist(api(`/api/folders/${id}`, 'DELETE'));
+	}
+
+	// ─── Drag to reorder / move between folders ─────────────────────────────
+	let dragging = $state<SidebarDrag | null>(null);
+	let dropTarget = $state<SidebarDrop | null>(null);
+
+	function ondragstart(e: DragEvent, drag: SidebarDrag) {
+		dragging = drag;
+		e.dataTransfer!.effectAllowed = 'move';
+		// Firefox won't start a drag without some data.
+		e.dataTransfer!.setData('text/plain', drag.id);
+	}
+
+	function ondragend() {
+		dragging = null;
+		dropTarget = null;
+	}
+
+	/** Where the pointer would drop the dragged item, or null if it's over itself. */
+	function dropAt(e: DragEvent, drag: SidebarDrag): SidebarDrop | null {
+		const el = (e.target as Element).closest<HTMLElement>('[data-drop-id]');
+		if (!el) return { pos: 'end' };
+		const { dropId: id, dropKind: kind, dropFolder: folder } = el.dataset as Record<string, string>;
+		const rect = el.getBoundingClientRect();
+		const y = (e.clientY - rect.top) / rect.height;
+		let drop: SidebarDrop;
+		if (drag.type === 'folder') {
+			// Folders stay at the top level, so aim at the folder around a nested project.
+			drop = folder ? { id: folder, pos: 'after' } : { id, pos: y < 0.5 ? 'before' : 'after' };
+		} else if (kind === 'folder') {
+			drop = { id, pos: y < 0.25 ? 'before' : 'inside' };
+		} else {
+			drop = { id, pos: y < 0.5 ? 'before' : 'after' };
+		}
+		return 'id' in drop && drop.id === drag.id ? null : drop;
+	}
+
+	function ondragover(e: DragEvent) {
+		if (!dragging) return;
+		e.preventDefault();
+		e.dataTransfer!.dropEffect = 'move';
+		dropTarget = dropAt(e, dragging);
+	}
+
+	function ondragleave(e: DragEvent) {
+		if (!(e.currentTarget as Element).contains(e.relatedTarget as Node | null)) dropTarget = null;
+	}
+
+	function ondrop(e: DragEvent) {
+		if (!dragging) return;
+		e.preventDefault();
+		const drop = dropAt(e, dragging);
+		const drag = dragging;
+		ondragend();
+		if (!drop) return;
+		const next = moveSidebarItem(currentSidebar, drag, drop);
+		if (JSON.stringify(next) === JSON.stringify(currentSidebar)) return;
+		sidebar = next;
+		persist(api('/api/sidebar', 'PUT', { items: next }));
+	}
+
+	/** The drop indicator class for an item, if the pending drop is next to or inside it. */
+	function dropClass(id: string) {
+		return dropTarget && 'id' in dropTarget && dropTarget.id === id ? `drop-${dropTarget.pos}` : '';
+	}
 
 	async function signOut() {
 		await authClient.signOut();
@@ -67,14 +224,23 @@
 
 <svelte:window {onkeydown} />
 
-{#snippet projectLink(p: (typeof data.projects)[number])}
+{#snippet projectLink(p: (typeof data.projects)[number], folderId: string | null = null)}
 	{@const openCount = liveCounts[p.id] ?? p.openCount}
+	{@const movable = p.status !== 'archived'}
 	<a
 		href="/app/{p.slug}"
-		class="p-link style-{p.style}"
+		class="p-link style-{p.style} {movable ? dropClass(p.id) : ''}"
 		class:active={p.slug === activeSlug}
 		class:archived={p.status === 'archived'}
+		class:nested={!!folderId}
+		class:dragged={dragging?.id === p.id}
 		style="--accent: {p.color}"
+		draggable={movable}
+		data-drop-id={movable ? p.id : undefined}
+		data-drop-kind="project"
+		data-drop-folder={folderId ?? undefined}
+		ondragstart={(e) => ondragstart(e, { type: 'project', id: p.id })}
+		{ondragend}
 	>
 		<span class="p-icon"><ProjectIcon icon={p.icon} iconUrl={p.iconUrl} /></span>
 		<span class="p-name truncate">{p.name}</span>
@@ -112,17 +278,104 @@
 			<a href="/app" class="brand"><Logo size={26} /></a>
 		</div>
 
-		<button class="new-project" onclick={() => (createOpen = true)}>
-			<Icon name="plus" size={17} />
-			<span>New project</span>
-		</button>
+		<div class="new-row">
+			<button class="new-project" onclick={() => (createOpen = true)}>
+				<Icon name="plus" size={17} />
+				<span>New project</span>
+			</button>
+			<button class="new-folder" title="New folder" aria-label="New folder" onclick={createFolder}>
+				<Icon name="folder-plus" size={17} />
+			</button>
+		</div>
 
-		<nav class="projects" aria-label="Projects">
-			{#if data.projects.length === 0}
+		<nav
+			class="projects"
+			class:drop-end={dropTarget?.pos === 'end'}
+			aria-label="Projects"
+			{ondragover}
+			{ondragleave}
+			{ondrop}
+		>
+			{#if data.projects.length === 0 && folders.length === 0}
 				<p class="no-projects">No projects yet.<br />Create your first one above.</p>
 			{:else}
-				{#each currentProjects as p (p.id)}
-					{@render projectLink(p)}
+				{#each currentSidebar as item (item.id)}
+					{#if item.type === 'folder'}
+						{@const folder = folderById.get(item.id)}
+						{#if folder}
+							<div class="folder {dropClass(folder.id)}" class:dragged={dragging?.id === folder.id}>
+								<div
+									class="f-head"
+									role="listitem"
+									draggable={renamingId !== folder.id}
+									data-drop-id={folder.id}
+									data-drop-kind="folder"
+									ondragstart={(e) => ondragstart(e, { type: 'folder', id: folder.id })}
+									{ondragend}
+								>
+									{#if renamingId === folder.id}
+										<span class="f-toggle">
+											<Icon name="folder" size={15} />
+											<!-- svelte-ignore a11y_autofocus -->
+											<input
+												class="f-rename"
+												value={folder.name}
+												maxlength="80"
+												aria-label="Folder name"
+												autofocus
+												onfocus={(e) => e.currentTarget.select()}
+												onblur={(e) => finishRename(folder.id, e.currentTarget, true)}
+												onkeydown={(e) => {
+													if (e.key === 'Enter') finishRename(folder.id, e.currentTarget, true);
+													else if (e.key === 'Escape') finishRename(folder.id, e.currentTarget, false);
+												}}
+											/>
+										</span>
+									{:else}
+										<button
+											class="f-toggle"
+											aria-expanded={!folder.collapsed}
+											onclick={() => updateFolder(folder.id, { collapsed: !folder.collapsed })}
+											ondblclick={() => (renamingId = folder.id)}
+										>
+											<Icon name={folder.collapsed ? 'chevron-right' : 'chevron-down'} size={14} />
+											<span class="f-name truncate">{folder.name}</span>
+										</button>
+										<span class="f-actions">
+											<button
+												class="f-action"
+												title="Rename folder"
+												aria-label="Rename folder"
+												onclick={() => (renamingId = folder.id)}
+											>
+												<Icon name="pencil" size={13} />
+											</button>
+											<button
+												class="f-action"
+												title="Delete folder (keeps its projects)"
+												aria-label="Delete folder"
+												onclick={() => deleteFolder(folder.id)}
+											>
+												<Icon name="trash" size={13} />
+											</button>
+										</span>
+										{#if folder.collapsed && item.projectIds.length}
+											<span class="f-count">{item.projectIds.length}</span>
+										{/if}
+									{/if}
+								</div>
+								{#each visibleIn(item) as p (p.id)}
+									{@render projectLink(p, folder.id)}
+								{:else}
+									{#if !folder.collapsed}
+										<p class="f-empty">Drag projects here</p>
+									{/if}
+								{/each}
+							</div>
+						{/if}
+					{:else}
+						{@render projectLink(projectById.get(item.id)!)}
+					{/if}
 				{/each}
 				{#if archivedProjects.length}
 					<button
@@ -383,6 +636,146 @@
 	.p-link.active .p-count {
 		background: color-mix(in oklab, var(--accent) 22%, transparent);
 		color: var(--accent-text);
+	}
+
+	/* Folders */
+	.new-row {
+		display: flex;
+		gap: var(--space-2);
+	}
+	.new-folder {
+		display: grid;
+		place-items: center;
+		flex-shrink: 0;
+		width: 40px;
+		color: var(--text-muted);
+		background: var(--surface);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		box-shadow: var(--shadow-xs);
+		transition: all var(--transition-fast);
+	}
+	.new-folder:hover {
+		color: var(--text);
+		border-color: var(--border-strong);
+		background: var(--surface-hover);
+	}
+	.folder {
+		display: flex;
+		flex-direction: column;
+		gap: 1px;
+		border-radius: var(--radius-md);
+	}
+	.folder + .folder,
+	.p-link + .folder,
+	.folder + .p-link {
+		margin-top: var(--space-1);
+	}
+	.f-head {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+		min-height: 32px;
+		padding-right: var(--space-2);
+		border-radius: var(--radius-md);
+		color: var(--text-subtle);
+	}
+	.f-head:hover {
+		background: var(--surface-hover);
+		color: var(--text);
+	}
+	.f-toggle {
+		flex: 1;
+		min-width: 0;
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		padding: var(--space-1-5, 0.375rem) var(--space-3);
+		font-size: var(--text-xs);
+		font-weight: var(--weight-semibold);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: inherit;
+		text-align: left;
+	}
+	.f-rename {
+		flex: 1;
+		min-width: 0;
+		padding: 2px 6px;
+		margin: -3px 0;
+		font: inherit;
+		text-transform: none;
+		letter-spacing: normal;
+		color: var(--text);
+		background: var(--surface);
+		border: 1px solid var(--accent-border, var(--border-strong));
+		border-radius: var(--radius-sm);
+	}
+	.f-actions {
+		display: none;
+		gap: 2px;
+	}
+	.f-head:hover .f-actions,
+	.f-head:focus-within .f-actions {
+		display: flex;
+	}
+	@media (hover: none) {
+		.f-actions {
+			display: flex;
+		}
+	}
+	.f-action {
+		display: grid;
+		place-items: center;
+		width: 24px;
+		height: 24px;
+		border-radius: var(--radius-sm);
+		color: var(--text-faint);
+	}
+	.f-action:hover {
+		color: var(--text);
+		background: var(--surface-inset);
+	}
+	.f-count {
+		font-size: var(--text-xs);
+		font-weight: var(--weight-medium);
+		color: var(--text-faint);
+	}
+	.f-head:hover .f-count {
+		display: none;
+	}
+	.f-empty {
+		padding: var(--space-1) var(--space-3) var(--space-2) calc(var(--space-3) + 22px);
+		font-size: var(--text-xs);
+		color: var(--text-faint);
+	}
+	.p-link.nested {
+		padding-left: calc(var(--space-3) + 14px);
+	}
+
+	/* Drag and drop */
+	.p-link[draggable='true'],
+	.f-head[draggable='true'] {
+		-webkit-user-drag: element;
+	}
+	.dragged {
+		opacity: 0.4;
+	}
+	.p-link.drop-before,
+	.folder.drop-before {
+		box-shadow: inset 0 2px 0 var(--accent);
+	}
+	.p-link.drop-after,
+	.folder.drop-after {
+		box-shadow: inset 0 -2px 0 var(--accent);
+	}
+	.folder.drop-inside > .f-head {
+		background: var(--surface-hover);
+		box-shadow: inset 0 0 0 1.5px var(--accent);
+		color: var(--text);
+	}
+	.projects.drop-end {
+		box-shadow: inset 0 -2px 0 var(--accent);
 	}
 
 	/* Footer / user menu */

@@ -1,5 +1,5 @@
 import { redirect } from '@sveltejs/kit';
-import { listUserProjects } from '#lib/server/projects';
+import { listUserProjects, listUserFolders } from '#lib/server/projects';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async ({ locals, url }) => {
@@ -8,10 +8,14 @@ export const load: LayoutServerLoad = async ({ locals, url }) => {
 		redirect(302, `/signin?next=${next}`);
 	}
 
-	const projects = await listUserProjects(locals.user.id);
+	const [projects, folders] = await Promise.all([
+		listUserProjects(locals.user.id),
+		listUserFolders(locals.user.id)
+	]);
 
 	return {
 		user: locals.user,
-		projects
+		projects,
+		folders
 	};
 };
