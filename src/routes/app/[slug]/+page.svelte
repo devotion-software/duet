@@ -140,6 +140,28 @@
 	// Searching or filtering expands everything so matches are never hidden.
 	const isCollapsed = (id: string) => !narrowed && collapsed.has(id) && addingTo !== id;
 
+	// Collapsed groups, keyed by grouping + group key, remembered per project in this browser.
+	const collapsedGroups = new SvelteSet<string>();
+	const groupCollapseKey = $derived(`duet:collapsedGroups:${data.project.id}`);
+	$effect(() => {
+		if (!browser) return;
+		collapsedGroups.clear();
+		try {
+			for (const id of JSON.parse(localStorage.getItem(groupCollapseKey) ?? '[]')) collapsedGroups.add(id);
+		} catch {
+			/* ignore corrupt storage */
+		}
+	});
+	const groupId = (key: string) => `${view.group}:${key}`;
+	function toggleGroup(key: string) {
+		const id = groupId(key);
+		if (collapsedGroups.has(id)) collapsedGroups.delete(id);
+		else collapsedGroups.add(id);
+		localStorage.setItem(groupCollapseKey, JSON.stringify([...collapsedGroups]));
+	}
+	const isGroupCollapsed = (key: string) =>
+		view.group !== 'none' && !narrowed && collapsedGroups.has(groupId(key));
+
 	/** Task whose inline "add subtask" input is open. */
 	let addingTo = $state<string | null>(null);
 	function startSubtask(todo: Todo) {
@@ -173,7 +195,12 @@
 	const selecting = $derived(canEdit && (selectMode || selectedIds.size > 0));
 	// A task can sit in several groups (one per tag); select it once.
 	const visibleTodos = $derived([
-		...new Set(visibleRows([...openGroups.flatMap((g) => g.todos), ...(showCompleted ? doneTodos : [])]))
+		...new Set(
+			visibleRows([
+				...openGroups.flatMap((g) => (isGroupCollapsed(g.key) ? [] : g.todos)),
+				...(showCompleted ? doneTodos : [])
+			])
+		)
 	]);
 	const selectedTodos = $derived(controller.items.filter((t) => selectedIds.has(t.id)));
 
@@ -430,20 +457,31 @@
 			</div>
 		{:else}
 			{#each openGroups as group (group.key)}
+				{@const groupCollapsed = isGroupCollapsed(group.key)}
 				{#if view.group !== 'none'}
 					<h3 class="group-head">
-						{#if group.color}<span class="group-dot" style="--c: {group.color}"></span>{/if}
-						<span class:muted={!group.key}>{group.label}</span>
-						<span class="group-count">{group.todos.length}</span>
+						<button
+							class="group-toggle"
+							aria-expanded={!groupCollapsed}
+							disabled={narrowed}
+							onclick={() => toggleGroup(group.key)}
+						>
+							<Icon name={groupCollapsed ? 'chevron-right' : 'chevron-down'} size={15} />
+							{#if group.color}<span class="group-dot" style="--c: {group.color}"></span>{/if}
+							<span class:muted={!group.key}>{group.label}</span>
+							<span class="group-count">{group.todos.length}</span>
+						</button>
 					</h3>
 				{/if}
-				<section class="list">
-					{#each group.todos as todo (todo.id)}
-						<div animate:flip={{ duration: 200 }}>
-							{@render node(todo, 0, view.group === 'none' ? undefined : { field: view.group, key: group.key })}
-						</div>
-					{/each}
-				</section>
+				{#if !groupCollapsed}
+					<section class="list" transition:slide={{ duration: 180 }}>
+						{#each group.todos as todo (todo.id)}
+							<div animate:flip={{ duration: 200 }}>
+								{@render node(todo, 0, view.group === 'none' ? undefined : { field: view.group, key: group.key })}
+							</div>
+						{/each}
+					</section>
+				{/if}
 			{/each}
 
 			{#if doneTodos.length}
@@ -661,17 +699,31 @@
 		gap: 1px;
 	}
 	.group-head {
-		display: flex;
-		align-items: center;
-		gap: var(--space-2);
 		margin: var(--space-5) 0 var(--space-2);
-		padding: 0 var(--space-3);
 		font-size: var(--text-sm);
 		font-weight: var(--weight-semibold);
 		color: var(--text);
 	}
 	.group-head:first-of-type {
 		margin-top: 0;
+	}
+	.group-toggle {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		padding: var(--space-1) var(--space-3);
+		font: inherit;
+		color: inherit;
+		border-radius: var(--radius-sm);
+	}
+	.group-toggle :global(svg) {
+		color: var(--text-faint);
+	}
+	.group-toggle:hover:not(:disabled) :global(svg) {
+		color: var(--text);
+	}
+	.group-toggle:disabled {
+		cursor: default;
 	}
 	.group-head .muted {
 		color: var(--text-subtle);
