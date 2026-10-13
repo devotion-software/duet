@@ -4,6 +4,7 @@
 	import { deadlineInfo } from '#lib/date';
 	import { markdownExcerpt } from '#lib/markdown';
 	import { URGENCY_META, SIZE_META, type Todo } from '#lib/types';
+	import type { GroupKey } from '#lib/todoView';
 
 	interface Props {
 		todo: Todo;
@@ -26,6 +27,8 @@
 		onAddSubtask?: (todo: Todo) => void;
 		/** Move one level up the tree; only offered for subtasks. */
 		onOutdent?: (todo: Todo) => void;
+		/** The list group this row sits in; its field is implied by the heading, so isn't repeated. */
+		group?: { field: GroupKey; key: string };
 	}
 	let {
 		todo,
@@ -42,7 +45,8 @@
 		collapsed = false,
 		onToggleCollapse,
 		onAddSubtask,
-		onOutdent
+		onOutdent,
+		group
 	}: Props = $props();
 
 	function onBodyClick(e: MouseEvent) {
@@ -53,7 +57,15 @@
 		} else onOpen(todo);
 	}
 
-	const deadline = $derived(deadlineInfo(todo.deadline));
+	const hides = (field: GroupKey) => group?.field === field;
+	const category = $derived(hides('category') ? null : todo.category);
+	// Under a tag heading only that tag is implied; the task's other tags still show.
+	const tags = $derived(hides('tag') ? todo.tags.filter((t) => t.id !== group!.key) : todo.tags);
+	const assignee = $derived(hides('assignee') ? null : todo.assignee);
+	const urgency = $derived(hides('urgency') ? null : todo.urgency);
+	const size = $derived(hides('size') ? null : todo.size);
+	// Deadline buckets are ranges, so the date still adds detail — except under "Today".
+	const deadline = $derived(hides('deadline') && group!.key === 'today' ? null : deadlineInfo(todo.deadline));
 	const excerpt = $derived(markdownExcerpt(todo.description, 90));
 	let menuOpen = $state(false);
 </script>
@@ -101,17 +113,17 @@
 		onmousedown={(e) => e.shiftKey && onSelect && e.preventDefault()}
 	>
 		<div class="title-line">
-			{#if todo.urgency && !todo.completed}
+			{#if urgency && !todo.completed}
 				<span
 					class="urgency-dot"
-					style="--u: {URGENCY_META[todo.urgency].color}"
-					title="{URGENCY_META[todo.urgency].label} urgency"
+					style="--u: {URGENCY_META[urgency].color}"
+					title="{URGENCY_META[urgency].label} urgency"
 				></span>
 			{/if}
 			<span class="title">{todo.title}</span>
 		</div>
 
-		{#if excerpt || subtasks.total || todo.category || todo.tags.length || deadline || todo.size || todo.assignee || todo.description || todo.attachments.length}
+		{#if excerpt || subtasks.total || category || tags.length || deadline || size || todo.description || todo.attachments.length}
 			<div class="meta">
 				{#if subtasks.total}
 					<span
@@ -122,12 +134,12 @@
 						<Icon name="check-circle" size={12} />{subtasks.done}/{subtasks.total}
 					</span>
 				{/if}
-				{#if todo.category}
-					<span class="chip" style="--c: {todo.category.color}">
-						<span class="dot"></span>{todo.category.name}
+				{#if category}
+					<span class="chip" style="--c: {category.color}">
+						<span class="dot"></span>{category.name}
 					</span>
 				{/if}
-				{#each todo.tags as tag (tag.id)}
+				{#each tags as tag (tag.id)}
 					<span class="tag" style="--c: {tag.color}">{tag.name}</span>
 				{/each}
 				{#if deadline}
@@ -135,8 +147,8 @@
 						<Icon name="calendar" size={12} />{deadline.label}
 					</span>
 				{/if}
-				{#if todo.size}
-					<span class="chip size" title={SIZE_META[todo.size].full}>{SIZE_META[todo.size].label}</span>
+				{#if size}
+					<span class="chip size" title={SIZE_META[size].full}>{SIZE_META[size].label}</span>
 				{/if}
 				{#if todo.description}
 					<span class="chip ghost" title="Has notes"><Icon name="clipboard" size={12} /></span>
@@ -154,8 +166,8 @@
 	</button>
 
 	<div class="right">
-		{#if todo.assignee}
-			<Avatar name={todo.assignee.name} image={todo.assignee.image} size={22} />
+		{#if assignee}
+			<Avatar name={assignee.name} image={assignee.image} size={22} />
 		{/if}
 		<div class="actions">
 			<button class="act" title="Copy for AI" onclick={() => onCopy(todo, true)} aria-label="Copy task">

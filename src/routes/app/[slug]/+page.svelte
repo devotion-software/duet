@@ -7,7 +7,7 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import { TodosController } from '#lib/stores/todos.svelte';
 	import { flattenTree } from '#lib/todoTree';
-	import { filterCount, groupTodos, matchesFilter, parseView, viewComparator, type ViewState } from '#lib/todoView';
+	import { filterCount, groupTodos, matchesFilter, parseView, viewComparator, type GroupKey, type ViewState } from '#lib/todoView';
 	import { formatTodoForCopy, formatTodosAsChecklist, formatTodosAsJson } from '#lib/todoFormat';
 	import { toasts } from '#lib/components/ui/toast.svelte';
 	import type { Todo, Tag, Category } from '#lib/types';
@@ -277,7 +277,8 @@
 
 <svelte:head><title>{data.project.name} · Duet</title></svelte:head>
 
-{#snippet node(todo: Todo, depth: number)}
+<!-- `group` is set on grouped top-level rows only; subtasks aren't grouped, so show all their fields. -->
+{#snippet node(todo: Todo, depth: number, group?: { field: GroupKey; key: string })}
 	{@const kids = childrenShown(todo.id)}
 	<TodoRow
 		{todo}
@@ -295,6 +296,7 @@
 		onToggleCollapse={toggleCollapse}
 		onAddSubtask={canEdit ? startSubtask : undefined}
 		onOutdent={canEdit ? outdent : undefined}
+		{group}
 	/>
 	{#if (kids.length || addingTo === todo.id) && !isCollapsed(todo.id)}
 		<div class="subtasks" class:capped={depth >= MAX_INDENT} transition:slide={{ duration: 150 }}>
@@ -436,7 +438,9 @@
 				{/if}
 				<section class="list">
 					{#each group.todos as todo (todo.id)}
-						<div animate:flip={{ duration: 200 }}>{@render node(todo, 0)}</div>
+						<div animate:flip={{ duration: 200 }}>
+							{@render node(todo, 0, view.group === 'none' ? undefined : { field: view.group, key: group.key })}
+						</div>
 					{/each}
 				</section>
 			{/each}
