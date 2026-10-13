@@ -8,6 +8,7 @@
 		SIZES,
 		URGENCY_META,
 		SIZE_META,
+		isInProgress,
 		type Todo,
 		type Tag,
 		type Category,
@@ -55,6 +56,8 @@
 	}
 	// If everything selected is already done, the action reopens instead.
 	const allDone = $derived(selected.length > 0 && selected.every((t) => t.completed));
+	// Likewise, if everything selected is already in progress, the action stops it.
+	const allStarted = $derived(selected.length > 0 && selected.every(isInProgress));
 
 	async function deleteSelected() {
 		const n = selected.length;
@@ -230,6 +233,10 @@
 	</div>
 
 	<div class="actions">
+		<button class="ctl" disabled={busy} onclick={() => apply({ inProgress: !allStarted })}>
+			<Icon name="clock" size={14} />
+			{allStarted ? 'Stop' : 'Start'}
+		</button>
 		<button class="ctl" disabled={busy} onclick={() => apply({ completed: !allDone })}>
 			<Icon name={allDone ? 'circle' : 'check-circle'} size={14} />
 			{allDone ? 'Reopen' : 'Complete'}

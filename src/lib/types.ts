@@ -77,6 +77,8 @@ export interface Todo {
 	description: string | null;
 	completed: boolean;
 	completedAt: Date | null;
+	/** Set while the task is being worked on; cleared on completion. */
+	startedAt: Date | null;
 	deadline: Date | null;
 	urgency: Urgency | null;
 	size: Size | null;
@@ -98,10 +100,15 @@ export function hydrateTodo(raw: Record<string, unknown>): Todo {
 		...(raw as unknown as Todo),
 		parentId: (raw.parentId as string | null) ?? null,
 		completedAt: d(raw.completedAt),
+		startedAt: d(raw.startedAt),
 		deadline: d(raw.deadline),
 		createdAt: d(raw.createdAt) ?? new Date(),
 		updatedAt: d(raw.updatedAt) ?? new Date()
 	};
+}
+
+export function isInProgress(t: Todo): boolean {
+	return !!t.startedAt && !t.completed;
 }
 
 export const URGENCY_META: Record<Urgency, { label: string; color: string; rank: number }> = {

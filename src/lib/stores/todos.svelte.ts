@@ -24,6 +24,7 @@ export interface BulkPatchInput {
 	urgency?: string | null;
 	size?: string | null;
 	completed?: boolean;
+	inProgress?: boolean;
 	addTagIds?: string[];
 	removeTagIds?: string[];
 }
@@ -139,6 +140,7 @@ export class TodosController {
 			description: input.description ?? null,
 			completed: false,
 			completedAt: null,
+			startedAt: null,
 			deadline: input.deadline ? new Date(input.deadline) : null,
 			urgency: (input.urgency as Todo['urgency']) ?? null,
 			size: (input.size as Todo['size']) ?? null,
@@ -196,6 +198,31 @@ export class TodosController {
 					cur.completed = !nextCompleted;
 					cur.completedAt = !nextCompleted ? new Date() : null;
 				}
+			}
+			toasts.error((e as Error).message);
+		}
+	}
+
+	/** Start or stop work on a task; starting a done task reopens it. */
+	async setInProgress(id: string, inProgress: boolean) {
+		const todo = this.items.find((t) => t.id === id);
+		if (!todo) return;
+		const prev = todo.startedAt;
+		const reopened = inProgress ? this.#cascadeCompleted(id, false) : [];
+		todo.startedAt = inProgress ? (prev ?? new Date()) : null;
+		try {
+			const res = await this.#fetch(`${this.#base()}/todos/${id}`, {
+				method: 'PATCH',
+				body: JSON.stringify({ inProgress })
+			});
+			const { todo: updated, todos } = await res.json();
+			if (updated) this.#replace(hydrateTodo(updated));
+			for (const t of (todos ?? []) as Record<string, unknown>[]) this.#replace(hydrateTodo(t));
+		} catch (e) {
+			todo.startedAt = prev;
+			for (const t of reopened) {
+				t.completed = true;
+				t.completedAt = new Date();
 			}
 			toasts.error((e as Error).message);
 		}

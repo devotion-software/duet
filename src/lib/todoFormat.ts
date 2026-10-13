@@ -1,4 +1,4 @@
-import { URGENCY_META, SIZE_META, type Todo } from './types';
+import { URGENCY_META, SIZE_META, isInProgress, type Todo } from './types';
 import { buildChildren, flattenTree } from './todoTree';
 
 function fmtDate(d: Date | null): string | null {
@@ -21,7 +21,7 @@ export function formatTodoForCopy(todo: Todo, projectName?: string, all: Todo[] 
 	lines.push(`# ${todo.title}`);
 	const meta: string[] = [];
 	if (projectName) meta.push(`**Project:** ${projectName}`);
-	meta.push(`**Status:** ${todo.completed ? 'Done' : 'Open'}`);
+	meta.push(`**Status:** ${todo.completed ? 'Done' : isInProgress(todo) ? 'In progress' : 'Open'}`);
 	if (todo.category) meta.push(`**Category:** ${todo.category.name}`);
 	if (todo.assignee) meta.push(`**Assignee:** ${todo.assignee.name}`);
 	if (todo.deadline) meta.push(`**Deadline:** ${fmtDate(todo.deadline)}`);

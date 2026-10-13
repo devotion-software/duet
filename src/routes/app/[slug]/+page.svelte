@@ -320,6 +320,7 @@
 		{todo}
 		{canEdit}
 		onToggle={(id) => controller.toggle(id)}
+		onSetInProgress={canEdit ? (id, on) => controller.setInProgress(id, on) : undefined}
 		onOpen={(t) => selectTodo(t.id)}
 		onCopy={copyTodo}
 		onDelete={(id) => controller.remove(id)}
@@ -521,6 +522,7 @@
 		tags={data.tags}
 		onUpdate={(patch) => controller.update(selected!.id, patch)}
 		onToggle={(id) => controller.toggle(id)}
+		onSetInProgress={(id, on) => controller.setInProgress(id, on)}
 		onDelete={(id) => { controller.remove(id); selectTodo(null); }}
 		onCopy={copyTodo}
 		onClose={() => selectTodo(null)}

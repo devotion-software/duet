@@ -1,0 +1,1 @@
+ALTER TABLE `todos` ADD `started_at` timestamp(3);

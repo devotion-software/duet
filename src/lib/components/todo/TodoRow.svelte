@@ -3,13 +3,14 @@
 	import Avatar from '#lib/components/ui/Avatar.svelte';
 	import { deadlineInfo } from '#lib/date';
 	import { markdownExcerpt } from '#lib/markdown';
-	import { URGENCY_META, SIZE_META, type RowField, type Todo } from '#lib/types';
+	import { URGENCY_META, SIZE_META, isInProgress, type RowField, type Todo } from '#lib/types';
 	import type { GroupKey } from '#lib/todoView';
 
 	interface Props {
 		todo: Todo;
 		canEdit: boolean;
 		onToggle: (id: string) => void;
+		onSetInProgress?: (id: string, inProgress: boolean) => void;
 		onOpen: (todo: Todo) => void;
 		/** `quick` is set by the inline icon, which copies just the title for bare tasks. */
 		onCopy: (todo: Todo, quick?: boolean) => void;
@@ -36,6 +37,7 @@
 		todo,
 		canEdit,
 		onToggle,
+		onSetInProgress,
 		onOpen,
 		onCopy,
 		onDelete,
@@ -78,6 +80,7 @@
 	const notes = $derived(shows('notes') && !!todo.description);
 	const images = $derived(shows('attachments') ? todo.attachments.length : 0);
 	const excerpt = $derived(shows('excerpt') ? markdownExcerpt(todo.description, 400) : '');
+	const inProgress = $derived(isInProgress(todo));
 	let menuOpen = $state(false);
 </script>
 
@@ -110,10 +113,12 @@
 	<button
 		class="check"
 		class:on={todo.completed}
+		class:progress={inProgress}
 		disabled={!canEdit}
 		onclick={() => onToggle(todo.id)}
 		aria-label={todo.completed ? 'Mark as not done' : 'Mark as done'}
 		aria-pressed={todo.completed}
+		title={inProgress ? 'In progress' : undefined}
 	>
 		{#if todo.completed}<Icon name="check" size={13} strokeWidth={3} />{/if}
 	</button>
@@ -134,8 +139,11 @@
 			<span class="title">{todo.title}</span>
 		</div>
 
-		{#if excerpt || progress || category || tags.length || deadline || size || notes || images}
+		{#if excerpt || inProgress || progress || category || tags.length || deadline || size || notes || images}
 			<div class="meta">
+				{#if inProgress}
+					<span class="chip started"><Icon name="clock" size={12} />In progress</span>
+				{/if}
 				{#if progress}
 					<span
 						class="chip progress"
@@ -206,6 +214,18 @@
 							>
 								<Icon name="pencil" size={15} /> Edit
 							</button>
+							{#if onSetInProgress && !todo.completed}
+								<button
+									class="menu-item"
+									onclick={() => {
+										menuOpen = false;
+										onSetInProgress(todo.id, !inProgress);
+									}}
+								>
+									<Icon name="clock" size={15} />
+									{inProgress ? 'Stop progress' : 'Mark in progress'}
+								</button>
+							{/if}
 							{#if onAddSubtask}
 								<button
 									class="menu-item"
@@ -322,6 +342,12 @@
 		background: var(--accent);
 		border-color: var(--accent);
 	}
+	/* Half-filled ring: started but not done. */
+	.check.progress {
+		border-color: var(--accent);
+		background: linear-gradient(90deg, var(--accent) 50%, transparent 50%) content-box;
+		padding: 2px;
+	}
 	.check:disabled {
 		cursor: default;
 	}
@@ -409,6 +435,10 @@
 	}
 	.chip.ghost {
 		padding: 2px 5px;
+	}
+	.chip.started {
+		color: var(--accent-text);
+		background: var(--accent-soft);
 	}
 	.progress.complete {
 		color: var(--accent-text);

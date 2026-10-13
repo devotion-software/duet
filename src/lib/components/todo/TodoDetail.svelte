@@ -12,6 +12,7 @@
 		SIZES,
 		URGENCY_META,
 		SIZE_META,
+		isInProgress,
 		type Todo,
 		type Tag,
 		type Category,
@@ -27,6 +28,7 @@
 		tags: Tag[];
 		onUpdate: (patch: Partial<NewTodoInput>) => void;
 		onToggle: (id: string) => void;
+		onSetInProgress: (id: string, inProgress: boolean) => void;
 		onDelete: (id: string) => void;
 		onCopy: (todo: Todo) => void;
 		onClose: () => void;
@@ -51,6 +53,7 @@
 		tags,
 		onUpdate,
 		onToggle,
+		onSetInProgress,
 		onDelete,
 		onCopy,
 		onClose,
@@ -65,6 +68,7 @@
 		onAddSubtask
 	}: Props = $props();
 
+	const inProgress = $derived(isInProgress(todo));
 	const subtasksDone = $derived(subtasks.filter((t) => t.completed).length);
 	function optionLabel(t: Todo, depth: number) {
 		const title = t.title.length > 60 ? `${t.title.slice(0, 59)}…` : t.title;
@@ -175,16 +179,31 @@
 		onpaste={onPaste}
 	>
 		<header class="panel-head">
-			<button
-				class="check"
-				class:on={todo.completed}
-				disabled={!canEdit}
-				onclick={() => onToggle(todo.id)}
-				aria-label="Toggle complete"
-			>
-				{#if todo.completed}<Icon name="check" size={13} strokeWidth={3} />{/if}
-				<span>{todo.completed ? 'Completed' : 'Mark done'}</span>
-			</button>
+			<div class="status">
+				<button
+					class="check"
+					class:on={todo.completed}
+					disabled={!canEdit}
+					onclick={() => onToggle(todo.id)}
+					aria-label="Toggle complete"
+				>
+					{#if todo.completed}<Icon name="check" size={13} strokeWidth={3} />{/if}
+					<span>{todo.completed ? 'Completed' : 'Mark done'}</span>
+				</button>
+				{#if !todo.completed}
+					<button
+						class="check progress"
+						class:on={inProgress}
+						disabled={!canEdit}
+						onclick={() => onSetInProgress(todo.id, !inProgress)}
+						aria-pressed={inProgress}
+						title={inProgress ? 'Stop progress' : 'Mark as in progress'}
+					>
+						<Icon name="clock" size={13} />
+						<span>{inProgress ? 'In progress' : 'Start'}</span>
+					</button>
+				{/if}
+			</div>
 			<div class="head-actions">
 				<button class="icon-act" title="Copy for AI" onclick={() => onCopy(todo)}>
 					<Icon name="copy" size={17} />
@@ -530,6 +549,14 @@
 		background: var(--accent);
 		border-color: var(--accent);
 		color: var(--accent-contrast);
+	}
+	.check.progress.on {
+		background: var(--accent-soft);
+		color: var(--accent-text);
+	}
+	.status {
+		display: flex;
+		gap: var(--space-2);
 	}
 	.head-actions {
 		display: flex;

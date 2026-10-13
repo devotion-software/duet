@@ -87,8 +87,9 @@ export class ParentError extends Error {}
 
 /**
  * Set completion while keeping the tree consistent: completing a task completes
- * its whole subtree, reopening one reopens its ancestors. Returns every id
- * whose state was considered (the requested ids plus the cascade).
+ * its whole subtree (and stops any progress on it), reopening one reopens its
+ * ancestors. Returns every id whose state was considered (the requested ids
+ * plus the cascade).
  */
 async function setCompleted(conn: Conn, projectId: string, ids: string[], completed: boolean) {
 	const tree = await loadTree(conn, projectId);
@@ -99,7 +100,11 @@ async function setCompleted(conn: Conn, projectId: string, ids: string[], comple
 		// Only flip the ones changing state, so existing completedAt stamps survive.
 		await conn
 			.update(todos)
-			.set({ completed, completedAt: completed ? new Date() : null })
+			.set(
+				completed
+					? { completed, completedAt: new Date(), startedAt: null }
+					: { completed, completedAt: null }
+			)
 			.where(and(inArray(todos.id, targets), eq(todos.completed, !completed)));
 	}
 	return targets;
@@ -191,6 +196,7 @@ export interface TodoItem {
 	description: string | null;
 	completed: boolean;
 	completedAt: Date | null;
+	startedAt: Date | null;
 	deadline: Date | null;
 	urgency: Urgency | null;
 	size: Size | null;
@@ -276,6 +282,7 @@ export async function listTodos(projectId: string): Promise<TodoItem[]> {
 		description: r.todo.description,
 		completed: r.todo.completed,
 		completedAt: r.todo.completedAt,
+		startedAt: r.todo.startedAt,
 		deadline: r.todo.deadline,
 		urgency: r.todo.urgency,
 		size: r.todo.size,
@@ -303,6 +310,21 @@ export interface TodoInput {
 	size?: Size | null;
 	tagIds?: string[];
 	completed?: boolean;
+}
+
+/** Start or stop progress on tasks; starting a done task reopens it (and its ancestors). */
+async function setInProgress(conn: Conn, projectId: string, ids: string[], inProgress: boolean) {
+	if (!inProgress) {
+		await conn.update(todos).set({ startedAt: null }).where(inArray(todos.id, ids));
+		return [];
+	}
+	const reopened = await setCompleted(conn, projectId, ids, false);
+	// Keep the original start time for tasks already in progress.
+	await conn
+		.update(todos)
+		.set({ startedAt: sql`coalesce(${todos.startedAt}, now(3))` })
+		.where(inArray(todos.id, ids));
+	return reopened;
 }
 
 export async function createTodo(projectId: string, userId: string, input: TodoInput) {
@@ -336,7 +358,7 @@ export async function createTodo(projectId: string, userId: string, input: TodoI
 export async function updateTodo(
 	projectId: string,
 	todoId: string,
-	input: Partial<TodoInput>
+	input: Partial<TodoInput> & { inProgress?: boolean }
 ): Promise<string[]> {
 	const values: Record<string, unknown> = {};
 	let affected: string[] = [];
@@ -364,6 +386,8 @@ export async function updateTodo(
 		await db.update(todos).set(values).where(eq(todos.id, todoId));
 	}
 	if (input.tagIds !== undefined) await setTodoTags(todoId, input.tagIds);
+	if (input.inProgress !== undefined)
+		affected = [...affected, ...(await setInProgress(db, projectId, [todoId], input.inProgress))];
 	return affected;
 }
 
@@ -374,6 +398,7 @@ export interface BulkPatch {
 	urgency?: Urgency | null;
 	size?: Size | null;
 	completed?: boolean;
+	inProgress?: boolean;
 	/** Tags are added/removed per todo rather than replaced wholesale. */
 	addTagIds?: string[];
 	removeTagIds?: string[];
@@ -404,6 +429,9 @@ export async function bulkUpdateTodos(projectId: string, todoIds: string[], patc
 			.where(inArray(todos.id, ids));
 		if (patch.completed !== undefined) {
 			for (const id of await setCompleted(tx, projectId, ids, patch.completed)) touched.add(id);
+		}
+		if (patch.inProgress !== undefined) {
+			for (const id of await setInProgress(tx, projectId, ids, patch.inProgress)) touched.add(id);
 		}
 
 		const add = [...new Set(patch.addTagIds ?? [])].filter(Boolean);

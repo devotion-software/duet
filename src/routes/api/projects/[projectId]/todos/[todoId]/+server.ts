@@ -56,12 +56,13 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 		...('deadline' in body ? { deadline: asDate(body.deadline) } : {}),
 		...('urgency' in body ? { urgency: asEnum<Urgency>(body.urgency, URGENCIES) } : {}),
 		...('size' in body ? { size: asEnum<Size>(body.size, SIZES) } : {}),
-		...('tagIds' in body ? { tagIds: refs.tagIds } : {})
+		...('tagIds' in body ? { tagIds: refs.tagIds } : {}),
+		...('inProgress' in body ? { inProgress: !!body.inProgress } : {})
 	});
 
 	const all = await listTodos(params.projectId);
 	const todo = all.find((t) => t.id === params.todoId);
-	// Re-parenting an open task under a done one reopens the new ancestors.
+	// Re-parenting an open task under a done one, or starting a done one, reopens ancestors.
 	const reopened = new Set(affected);
 	const todos = all.filter((t) => reopened.has(t.id));
 	publish(params.projectId, {
