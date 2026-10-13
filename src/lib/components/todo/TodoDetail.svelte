@@ -658,6 +658,7 @@
 		overflow: hidden;
 		width: 100%;
 		min-height: 2em;
+		flex-shrink: 0;
 		letter-spacing: var(--tracking-tight);
 	}
 	.title-input:focus {
@@ -665,13 +666,14 @@
 	}
 	.attrs {
 		display: grid;
-		grid-template-columns: 1fr 1fr;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
 		gap: var(--space-3);
 	}
 	.attr {
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-1);
+		min-width: 0;
 	}
 	.attr-label,
 	.section-label {
@@ -692,6 +694,8 @@
 		border-radius: var(--radius-sm);
 		padding: var(--space-2) var(--space-2);
 		font-size: var(--text-sm);
+		min-width: 0;
+		max-width: 100%;
 	}
 	.attr select:focus,
 	.attr input:focus,
