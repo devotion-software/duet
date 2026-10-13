@@ -7,6 +7,7 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import { TodosController } from '#lib/stores/todos.svelte';
 	import { flattenTree } from '#lib/todoTree';
+	import { filterCount, groupTodos, matchesFilter, parseView, viewComparator, type ViewState } from '#lib/todoView';
 	import { formatTodoForCopy, formatTodosAsChecklist, formatTodosAsJson } from '#lib/todoFormat';
 	import { toasts } from '#lib/components/ui/toast.svelte';
 	import type { Todo, Tag, Category } from '#lib/types';
@@ -18,6 +19,7 @@
 	import TodoDetail from '#lib/components/todo/TodoDetail.svelte';
 	import BulkBar from '#lib/components/todo/BulkBar.svelte';
 	import SubtaskAdd from '#lib/components/todo/SubtaskAdd.svelte';
+	import ViewBar from '#lib/components/todo/ViewBar.svelte';
 	import ImportDialog from '#lib/components/todo/ImportDialog.svelte';
 	import MembersDialog from '#lib/components/todo/MembersDialog.svelte';
 	import ProjectDialog from '#lib/components/ProjectDialog.svelte';
@@ -76,21 +78,46 @@
 	// Past this depth subtasks stop indenting further, so deep trees stay readable.
 	const MAX_INDENT = 6;
 	const query = $derived(search.toLowerCase().trim());
-	// While searching: matching tasks plus their ancestors, so matches keep context.
+
+	// Sort / group / filter, remembered per project in this browser.
+	let view = $state<ViewState>(parseView(null));
+	const viewKey = $derived(`duet:view:${data.project.id}`);
+	let viewLoadedFor: string | null = null;
+	$effect(() => {
+		if (!browser) return;
+		view = parseView(localStorage.getItem(viewKey));
+		viewLoadedFor = viewKey;
+	});
+	$effect(() => {
+		const json = JSON.stringify(view);
+		if (browser && viewLoadedFor === viewKey) localStorage.setItem(viewKey, json);
+	});
+	const filtering = $derived(filterCount(view.filter) > 0);
+	const narrowed = $derived(!!query || filtering);
+	const compare = $derived(viewComparator(view.sort, view.reverse));
+
+	// While searching or filtering: matching tasks plus their ancestors, so matches keep context.
 	const matches = $derived.by(() => {
-		if (!query) return null;
+		if (!narrowed) return null;
 		const ids = new Set<string>();
 		for (const t of controller.items) {
-			if (!t.title.toLowerCase().includes(query)) continue;
+			if (query && !t.title.toLowerCase().includes(query)) continue;
+			if (filtering && !matchesFilter(t, view.filter)) continue;
 			ids.add(t.id);
 			for (const a of controller.ancestorsOf(t.id)) ids.add(a.id);
 		}
 		return ids;
 	});
 	const shown = (list: Todo[]) => (matches ? list.filter((t) => matches.has(t.id)) : list);
-	const childrenShown = (id: string) => shown(controller.childrenOf(id));
-	const openTodos = $derived(shown(controller.openRoots));
-	const doneTodos = $derived(shown(controller.doneRoots));
+	const sorted = (list: Todo[]) => (view.sort === 'manual' && !view.reverse ? list : [...list].sort(compare));
+	const childrenShown = (id: string) => sorted(shown(controller.childrenOf(id)));
+	const openTodos = $derived(sorted(shown(controller.openRoots)));
+	// Completed tasks keep most-recently-done first unless a sort is chosen.
+	const doneTodos = $derived(view.sort === 'manual' ? shown(controller.doneRoots) : sorted(shown(controller.doneRoots)));
+	// Grouping applies to top-level open tasks; subtasks stay with their parent.
+	const openGroups = $derived(
+		groupTodos(openTodos, view.group, { categories: data.categories, tags: data.tags, members: data.members })
+	);
 	const treeMode = $derived(controller.items.some((t) => t.parentId));
 
 	// Collapsed parents, remembered per project in this browser.
@@ -110,8 +137,8 @@
 		else collapsed.add(id);
 		localStorage.setItem(collapseKey, JSON.stringify([...collapsed]));
 	}
-	// Searching expands everything so matches are never hidden.
-	const isCollapsed = (id: string) => !query && collapsed.has(id) && addingTo !== id;
+	// Searching or filtering expands everything so matches are never hidden.
+	const isCollapsed = (id: string) => !narrowed && collapsed.has(id) && addingTo !== id;
 
 	/** Task whose inline "add subtask" input is open. */
 	let addingTo = $state<string | null>(null);
@@ -144,7 +171,10 @@
 	const selectedIds = new SvelteSet<string>();
 	let anchorId: string | null = null;
 	const selecting = $derived(canEdit && (selectMode || selectedIds.size > 0));
-	const visibleTodos = $derived(visibleRows([...openTodos, ...(showCompleted ? doneTodos : [])]));
+	// A task can sit in several groups (one per tag); select it once.
+	const visibleTodos = $derived([
+		...new Set(visibleRows([...openGroups.flatMap((g) => g.todos), ...(showCompleted ? doneTodos : [])]))
+	]);
 	const selectedTodos = $derived(controller.items.filter((t) => selectedIds.has(t.id)));
 
 	// Drop selections for tasks that disappear (deleted, or a project switch).
@@ -374,29 +404,42 @@
 			</div>
 		{/if}
 
+		{#if controller.items.length}
+			<ViewBar bind:view categories={data.categories} tags={data.tags} members={data.members} />
+		{/if}
+
 		{#if openTodos.length === 0 && doneTodos.length === 0}
 			<div class="empty-state">
 				<span class="es-emoji">{data.project.icon}</span>
-				<h2>{search ? 'No matching tasks' : 'No tasks yet'}</h2>
+				<h2>{narrowed ? 'No matching tasks' : 'No tasks yet'}</h2>
 				<p>
-					{#if search}
-						Try a different search.
+					{#if narrowed}
+						Try a different {search ? 'search' : 'filter'}.
 					{:else if canEdit}
 						Add your first task above, or import an existing checklist.
 					{:else}
 						This project doesn't have any tasks yet.
 					{/if}
 				</p>
-				{#if !search && canEdit}
+				{#if !narrowed && canEdit}
 					<Button variant="subtle" icon="clipboard" onclick={() => openImport()}>Import a checklist</Button>
 				{/if}
 			</div>
 		{:else}
-			<section class="list">
-				{#each openTodos as todo (todo.id)}
-					<div animate:flip={{ duration: 200 }}>{@render node(todo, 0)}</div>
-				{/each}
-			</section>
+			{#each openGroups as group (group.key)}
+				{#if view.group !== 'none'}
+					<h3 class="group-head">
+						{#if group.color}<span class="group-dot" style="--c: {group.color}"></span>{/if}
+						<span class:muted={!group.key}>{group.label}</span>
+						<span class="group-count">{group.todos.length}</span>
+					</h3>
+				{/if}
+				<section class="list">
+					{#each group.todos as todo (todo.id)}
+						<div animate:flip={{ duration: 200 }}>{@render node(todo, 0)}</div>
+					{/each}
+				</section>
+			{/each}
 
 			{#if doneTodos.length}
 				<div class="done-section">
@@ -611,6 +654,32 @@
 		display: flex;
 		flex-direction: column;
 		gap: 1px;
+	}
+	.group-head {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		margin: var(--space-5) 0 var(--space-2);
+		padding: 0 var(--space-3);
+		font-size: var(--text-sm);
+		font-weight: var(--weight-semibold);
+		color: var(--text);
+	}
+	.group-head:first-of-type {
+		margin-top: 0;
+	}
+	.group-head .muted {
+		color: var(--text-subtle);
+	}
+	.group-dot {
+		width: 8px;
+		height: 8px;
+		border-radius: var(--radius-full);
+		background: var(--c);
+	}
+	.group-count {
+		color: var(--text-faint);
+		font-weight: var(--weight-normal);
 	}
 	.done-section {
 		margin-top: var(--space-6);
