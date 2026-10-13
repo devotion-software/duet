@@ -376,7 +376,7 @@
 	/>
 {/if}
 
-<ImportDialog bind:open={importOpen} initialText={importText} onImport={(t) => controller.importText(t)} />
+<ImportDialog bind:open={importOpen} initialText={importText} onImport={(t, g) => controller.importText(t, g)} />
 <MembersDialog
 	bind:open={membersOpen}
 	projectId={data.project.id}

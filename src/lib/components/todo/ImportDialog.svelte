@@ -2,17 +2,19 @@
 	import Modal from '#lib/components/ui/Modal.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Icon from '#lib/components/ui/Icon.svelte';
-	import { parseImport } from '#lib/parseImport';
+	import { parseImport, type GroupAs } from '#lib/parseImport';
+	import { parseChecklist } from '#lib/parseChecklist';
 	import { toasts } from '#lib/components/ui/toast.svelte';
 
 	interface Props {
 		open: boolean;
 		initialText?: string;
-		onImport: (text: string) => Promise<number>;
+		onImport: (text: string, groupAs: GroupAs) => Promise<number>;
 	}
 	let { open = $bindable(), initialText = '', onImport }: Props = $props();
 
 	let text = $state('');
+	let groupAs = $state<GroupAs>('category');
 	let busy = $state(false);
 	let fileInput = $state<HTMLInputElement>();
 
@@ -20,8 +22,18 @@
 		if (open) text = initialText;
 	});
 
-	const result = $derived(parseImport(text));
+	const result = $derived(parseImport(text, groupAs));
 	const parsed = $derived(result.items);
+	// Group of each item, for the preview headers (independent of `groupAs`).
+	const itemGroups = $derived(
+		result.kind === 'checklist' ? parseChecklist(text).map((p) => p.group) : []
+	);
+
+	const GROUP_OPTIONS: { value: GroupAs; label: string }[] = [
+		{ value: 'category', label: 'Categories' },
+		{ value: 'tag', label: 'Tags' },
+		{ value: 'none', label: 'Ignore' }
+	];
 	const doneCount = $derived(parsed.filter((p) => p.completed).length);
 
 	async function loadFile(e: Event) {
@@ -40,7 +52,7 @@
 		if (!parsed.length || busy) return;
 		busy = true;
 		try {
-			const count = await onImport(text);
+			const count = await onImport(text, groupAs);
 			toasts.success(`Imported ${count} task${count === 1 ? '' : 's'}`);
 			open = false;
 			text = '';
@@ -60,6 +72,21 @@
 			rows="8"
 		></textarea>
 
+		{#if result.groups.length}
+			<div class="grouping">
+				<span>
+					Found {result.groups.length} heading{result.groups.length === 1 ? '' : 's'}. Apply them as
+				</span>
+				<div class="segmented">
+					{#each GROUP_OPTIONS as o (o.value)}
+						<button type="button" class="seg" class:sel={groupAs === o.value} onclick={() => (groupAs = o.value)}>
+							{o.label}
+						</button>
+					{/each}
+				</div>
+			</div>
+		{/if}
+
 		<div class="preview">
 			<div class="preview-head">
 				<span>Preview</span>
@@ -74,6 +101,12 @@
 					<p class="empty"><Icon name="clipboard" size={16} /> Paste or type above to see tasks here.</p>
 				{:else}
 					{#each parsed.slice(0, 50) as item, i (i)}
+						{#if itemGroups[i] && itemGroups[i] !== itemGroups[i - 1]}
+							<div class="pgroup">
+								{#if groupAs !== 'none'}<Icon name={groupAs === 'tag' ? 'tag' : 'folder'} size={12} />{/if}
+								{itemGroups[i]}
+							</div>
+						{/if}
 						<div class="pitem" class:done={item.completed}>
 							<span class="pcheck" class:on={item.completed}>
 								{#if item.completed}<Icon name="check" size={11} strokeWidth={3} />{/if}
@@ -165,6 +198,47 @@
 		font-size: var(--text-sm);
 		padding: var(--space-4);
 		justify-content: center;
+	}
+	.grouping {
+		grid-column: 1 / -1;
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: var(--space-3);
+		font-size: var(--text-sm);
+		color: var(--text-muted);
+	}
+	.segmented {
+		display: inline-flex;
+		background: var(--surface-inset);
+		border-radius: var(--radius-md);
+		padding: 3px;
+		gap: 2px;
+	}
+	.seg {
+		padding: var(--space-1) var(--space-3);
+		font-size: var(--text-sm);
+		font-weight: var(--weight-medium);
+		color: var(--text-muted);
+		border-radius: var(--radius-sm);
+		transition: all var(--transition-fast);
+	}
+	.seg:hover {
+		color: var(--text);
+	}
+	.seg.sel {
+		background: var(--surface-raised);
+		color: var(--text);
+		box-shadow: var(--shadow-xs);
+	}
+	.pgroup {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+		padding: var(--space-2) var(--space-2) var(--space-1);
+		font-size: var(--text-xs);
+		font-weight: var(--weight-semibold);
+		color: var(--text-muted);
 	}
 	.pitem {
 		display: flex;

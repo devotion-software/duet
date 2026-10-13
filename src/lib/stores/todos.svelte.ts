@@ -1,5 +1,6 @@
 import { hydrateTodo, type Todo } from '#lib/types';
 import { toasts } from '#lib/components/ui/toast.svelte';
+import type { GroupAs } from '#lib/parseImport';
 import type { RealtimeEvent } from '#lib/server/realtime';
 
 export interface NewTodoInput {
@@ -255,10 +256,10 @@ export class TodosController {
 		}
 	}
 
-	async importText(text: string): Promise<number> {
+	async importText(text: string, groupAs: GroupAs = 'category'): Promise<number> {
 		const res = await this.#fetch(`${this.#base()}/todos/import`, {
 			method: 'POST',
-			body: JSON.stringify({ text })
+			body: JSON.stringify({ text, groupAs })
 		});
 		const { todos, count } = await res.json();
 		this.items = (todos as Record<string, unknown>[]).map(hydrateTodo);

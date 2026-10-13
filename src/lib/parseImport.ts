@@ -1,5 +1,6 @@
 import { parseChecklist } from './parseChecklist';
 import { URGENCIES, SIZES, type Urgency, type Size } from './types';
+import { TAG_COLORS } from './palette';
 
 export interface ImportRef {
 	name: string;
@@ -23,7 +24,13 @@ export interface ImportItem {
 export interface ParsedImport {
 	kind: 'json' | 'checklist';
 	items: ImportItem[];
+	/** Checklist group headers, in order of appearance. */
+	groups: string[];
 }
+
+/** How checklist group headers are applied to the items beneath them. */
+export type GroupAs = 'category' | 'tag' | 'none';
+export const GROUP_AS: readonly GroupAs[] = ['category', 'tag', 'none'];
 
 const DEFAULT_COLOR = '#64748b';
 
@@ -84,9 +91,23 @@ export function parseExportJson(text: string): ImportItem[] | null {
 	return items;
 }
 
-/** Parse pasted/uploaded text as a Duet JSON export, falling back to a checklist. */
-export function parseImport(text: string): ParsedImport {
+/**
+ * Parse pasted/uploaded text as a Duet JSON export, falling back to a checklist.
+ * Checklist group headers become each item's category or tag per `groupAs`.
+ */
+export function parseImport(text: string, groupAs: GroupAs = 'category'): ParsedImport {
 	const json = parseExportJson(text);
-	if (json) return { kind: 'json', items: json };
-	return { kind: 'checklist', items: parseChecklist(text) };
+	if (json) return { kind: 'json', items: json, groups: [] };
+
+	const parsed = parseChecklist(text);
+	const groups = [...new Set(parsed.flatMap((p) => (p.group ? [p.group] : [])))];
+	const refs = new Map(
+		groups.map((name, i) => [name, { name, color: TAG_COLORS[i % TAG_COLORS.length] }])
+	);
+	const items = parsed.map(({ title, completed, group }): ImportItem => {
+		const r = group ? refs.get(group) : undefined;
+		if (!r || groupAs === 'none') return { title, completed };
+		return groupAs === 'category' ? { title, completed, category: r } : { title, completed, tags: [r] };
+	});
+	return { kind: 'checklist', items, groups };
 }
