@@ -21,6 +21,13 @@
 
 	const activeSlug = $derived(page.params.slug);
 	const activeProject = $derived(data.projects.find((p) => p.slug === activeSlug));
+	const currentProjects = $derived(data.projects.filter((p) => p.status !== 'archived'));
+	const archivedProjects = $derived(data.projects.filter((p) => p.status === 'archived'));
+	// Archived projects stay collapsed unless you're viewing one.
+	let archivedOpen = $state(false);
+	const showArchived = $derived(archivedOpen || activeProject?.status === 'archived');
+	// Projects in sidebar order, as far as they're visible; drives the switching shortcuts.
+	const navProjects = $derived(showArchived ? [...currentProjects, ...archivedProjects] : currentProjects);
 
 	async function signOut() {
 		await authClient.signOut();
@@ -30,7 +37,7 @@
 	// App-wide shortcuts: help and project switching. Task shortcuts live on the project page.
 	function onkeydown(e: KeyboardEvent) {
 		if (!shortcutAllowed(e)) return;
-		const projects = data.projects;
+		const projects = navProjects;
 		const index = projects.findIndex((p) => p.slug === activeSlug);
 		let target: (typeof projects)[number] | undefined;
 		if (e.key === '?') {
@@ -59,6 +66,26 @@
 </script>
 
 <svelte:window {onkeydown} />
+
+{#snippet projectLink(p: (typeof data.projects)[number])}
+	{@const openCount = liveCounts[p.id] ?? p.openCount}
+	<a
+		href="/app/{p.slug}"
+		class="p-link style-{p.style}"
+		class:active={p.slug === activeSlug}
+		class:archived={p.status === 'archived'}
+		style="--accent: {p.color}"
+	>
+		<span class="p-icon"><ProjectIcon icon={p.icon} iconUrl={p.iconUrl} /></span>
+		<span class="p-name truncate">{p.name}</span>
+		{#if p.status === 'live'}
+			<span class="p-live" title="Live"></span>
+		{/if}
+		{#if openCount > 0}
+			<span class="p-count">{openCount}</span>
+		{/if}
+	</a>
+{/snippet}
 
 <div class="shell">
 	<!-- Mobile top bar -->
@@ -94,21 +121,25 @@
 			{#if data.projects.length === 0}
 				<p class="no-projects">No projects yet.<br />Create your first one above.</p>
 			{:else}
-				{#each data.projects as p (p.id)}
-					{@const openCount = liveCounts[p.id] ?? p.openCount}
-					<a
-						href="/app/{p.slug}"
-						class="p-link style-{p.style}"
-						class:active={p.slug === activeSlug}
-						style="--accent: {p.color}"
-					>
-						<span class="p-icon"><ProjectIcon icon={p.icon} iconUrl={p.iconUrl} /></span>
-						<span class="p-name truncate">{p.name}</span>
-						{#if openCount > 0}
-							<span class="p-count">{openCount}</span>
-						{/if}
-					</a>
+				{#each currentProjects as p (p.id)}
+					{@render projectLink(p)}
 				{/each}
+				{#if archivedProjects.length}
+					<button
+						class="archived-toggle"
+						aria-expanded={showArchived}
+						onclick={() => (archivedOpen = !showArchived)}
+					>
+						<Icon name={showArchived ? 'chevron-down' : 'chevron-right'} size={14} />
+						Archived
+						<span class="archived-count">{archivedProjects.length}</span>
+					</button>
+					{#if showArchived}
+						{#each archivedProjects as p (p.id)}
+							{@render projectLink(p)}
+						{/each}
+					{/if}
+				{/if}
 			{/if}
 		</nav>
 
@@ -254,6 +285,35 @@
 	}
 	.p-name {
 		flex: 1;
+	}
+	.p-live {
+		width: 7px;
+		height: 7px;
+		flex-shrink: 0;
+		border-radius: var(--radius-full);
+		background: var(--success);
+	}
+	.p-link.archived:not(.active) {
+		opacity: 0.65;
+	}
+	.archived-toggle {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+		margin-top: var(--space-3);
+		padding: var(--space-1) var(--space-3);
+		font-size: var(--text-xs);
+		font-weight: var(--weight-semibold);
+		text-transform: uppercase;
+		letter-spacing: 0.04em;
+		color: var(--text-faint);
+		border-radius: var(--radius-sm);
+	}
+	.archived-toggle:hover {
+		color: var(--text-muted);
+	}
+	.archived-count {
+		font-weight: var(--weight-medium);
 	}
 
 	/* Project card style, matching the preview in ProjectDialog: the icon tile always shows it,

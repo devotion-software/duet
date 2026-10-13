@@ -27,6 +27,7 @@
 	import ProjectDialog from '#lib/components/ProjectDialog.svelte';
 	import SecretsDialog from '#lib/components/SecretsDialog.svelte';
 	import ProjectIcon from '#lib/components/ProjectIcon.svelte';
+	import ProjectStatusBadge from '#lib/components/ProjectStatusBadge.svelte';
 	import { liveCounts } from '#lib/stores/liveCounts.svelte';
 
 	let { data } = $props();
@@ -532,7 +533,10 @@
 		<div class="title-area">
 			<span class="proj-icon"><ProjectIcon icon={data.project.icon} iconUrl={data.project.iconUrl} /></span>
 			<div class="titles">
-				<h1>{data.project.name}</h1>
+				<div class="title-row">
+					<h1>{data.project.name}</h1>
+					<ProjectStatusBadge status={data.project.status} />
+				</div>
 				{#if data.project.description}
 					<p class="desc" title={data.project.description}>{data.project.description}</p>
 				{/if}
@@ -862,6 +866,12 @@
 	.titles h1 {
 		font-size: var(--text-xl);
 		line-height: 1.1;
+	}
+	.title-row {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: var(--space-2);
 	}
 	.titles {
 		min-width: 0;

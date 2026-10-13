@@ -27,6 +27,10 @@ export type Size = (typeof SIZES)[number];
 export const PROJECT_STYLES = ['soft', 'solid', 'outline', 'glass'] as const;
 export type ProjectStyle = (typeof PROJECT_STYLES)[number];
 
+// Lifecycle of a project; archived ones are tucked away in the sidebar.
+export const PROJECT_STATUSES = ['not_started', 'in_progress', 'live', 'archived'] as const;
+export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
+
 // Task details that can be shown in a row on the main list.
 export const ROW_FIELDS = [
 	'urgency',
@@ -73,7 +77,7 @@ export const projects = mysqlTable(
 		ownerId: varchar('owner_id', { length: 36 })
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),
-		archived: boolean('archived').notNull().default(false),
+		status: mysqlEnum('status', PROJECT_STATUSES).notNull().default('not_started'),
 		createdAt: createdAt(),
 		updatedAt: updatedAt()
 	},

@@ -2,6 +2,7 @@ export type Role = 'owner' | 'editor' | 'viewer';
 export type Urgency = 'low' | 'medium' | 'high' | 'urgent';
 export type Size = 'xs' | 's' | 'm' | 'l' | 'xl';
 export type ProjectStyle = 'soft' | 'solid' | 'outline' | 'glass';
+export type ProjectStatus = 'not_started' | 'in_progress' | 'live' | 'archived';
 export type RowField =
 	| 'urgency'
 	| 'subtasks'
@@ -16,6 +17,14 @@ export type RowField =
 
 export const URGENCIES: Urgency[] = ['low', 'medium', 'high', 'urgent'];
 export const SIZES: Size[] = ['xs', 's', 'm', 'l', 'xl'];
+
+/** Project lifecycle statuses, in picker order. */
+export const PROJECT_STATUSES: { value: ProjectStatus; label: string }[] = [
+	{ value: 'not_started', label: 'Not started' },
+	{ value: 'in_progress', label: 'In progress' },
+	{ value: 'live', label: 'Live' },
+	{ value: 'archived', label: 'Archived' }
+];
 
 /** Task details a project can show or hide on list rows, in settings order. */
 export const ROW_FIELD_LABELS: Record<RowField, string> = {

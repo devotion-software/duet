@@ -8,6 +8,7 @@ import {
 	ROW_FIELDS,
 	type Role,
 	type ProjectStyle,
+	type ProjectStatus,
 	type RowField
 } from './db/app.schema';
 import { user } from './db/auth.schema';
@@ -24,7 +25,7 @@ export interface ProjectSummary {
 	/** Uploaded image icon, shown in place of the emoji `icon` when set. */
 	iconUrl: string | null;
 	style: ProjectStyle;
-	archived: boolean;
+	status: ProjectStatus;
 	role: Role;
 	countSubtasks: boolean;
 	/** Open tasks, counting subtasks only if the project's `countSubtasks` is set. */
@@ -76,7 +77,7 @@ export async function listUserProjects(userId: string): Promise<ProjectSummary[]
 			icon: r.project.icon,
 			iconUrl: projectIconUrl(r.project),
 			style: r.project.style,
-			archived: r.project.archived,
+			status: r.project.status,
 			role: r.role,
 			countSubtasks: r.project.countSubtasks,
 			openCount: Number((r.project.countSubtasks ? c?.open : c?.openRoots) ?? 0),
@@ -121,6 +122,7 @@ interface CreateProjectInput {
 	color?: string;
 	icon?: string;
 	style?: ProjectStyle;
+	status?: ProjectStatus;
 }
 
 export async function createProject(userId: string, input: CreateProjectInput) {
@@ -139,6 +141,7 @@ export async function createProject(userId: string, input: CreateProjectInput) {
 		color: input.color || '#6366f1',
 		icon: input.icon || '📋',
 		style: input.style || 'soft',
+		status: input.status || 'not_started',
 		ownerId: userId
 	});
 
@@ -155,8 +158,7 @@ export async function createProject(userId: string, input: CreateProjectInput) {
 
 export async function updateProject(
 	projectId: string,
-	patch: Partial<Pick<CreateProjectInput, 'name' | 'description' | 'color' | 'icon' | 'style'>> & {
-		archived?: boolean;
+	patch: Partial<Pick<CreateProjectInput, 'name' | 'description' | 'color' | 'icon' | 'style' | 'status'>> & {
 		hiddenFields?: RowField[];
 		listWidth?: number;
 		countSubtasks?: boolean;
@@ -168,7 +170,7 @@ export async function updateProject(
 	if (patch.color !== undefined) values.color = patch.color;
 	if (patch.icon !== undefined) values.icon = patch.icon;
 	if (patch.style !== undefined) values.style = patch.style;
-	if (patch.archived !== undefined) values.archived = patch.archived;
+	if (patch.status !== undefined) values.status = patch.status;
 	if (patch.hiddenFields !== undefined)
 		values.hiddenFields = patch.hiddenFields.filter((f) => ROW_FIELDS.includes(f)).join(',');
 	if (patch.listWidth !== undefined) values.listWidth = patch.listWidth;

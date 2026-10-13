@@ -8,7 +8,13 @@
 	import { toasts } from './ui/toast.svelte';
 	import Icon from './ui/Icon.svelte';
 	import ProjectIcon from './ProjectIcon.svelte';
-	import { ROW_FIELDS, ROW_FIELD_LABELS, type RowField } from '#lib/types';
+	import {
+		PROJECT_STATUSES,
+		ROW_FIELDS,
+		ROW_FIELD_LABELS,
+		type ProjectStatus,
+		type RowField
+	} from '#lib/types';
 
 	interface ProjectLike {
 		id?: string;
@@ -18,6 +24,7 @@
 		icon?: string;
 		iconUrl?: string | null;
 		style?: string;
+		status?: ProjectStatus;
 		hiddenFields?: RowField[];
 		listWidth?: number;
 		countSubtasks?: boolean;
@@ -40,6 +47,7 @@
 	let iconPicker = $state<HTMLDetailsElement>();
 	let fileInput = $state<HTMLInputElement>();
 	let style = $state(project.style ?? 'soft');
+	let status = $state<ProjectStatus>(project.status ?? 'not_started');
 	let hidden = $state<RowField[]>(project.hiddenFields ?? []);
 	// Kept separately from `fullWidth` so toggling back restores the last width.
 	let listWidth = $state(project.listWidth || LIST_WIDTH.default);
@@ -58,6 +66,7 @@
 			untrack(() => setIconFile(null));
 			iconUrl = project.iconUrl ?? null;
 			style = project.style ?? 'soft';
+			status = project.status ?? 'not_started';
 			hidden = [...(project.hiddenFields ?? [])];
 			listWidth = project.listWidth || LIST_WIDTH.default;
 			fullWidth = project.listWidth === 0;
@@ -126,6 +135,7 @@
 		<input type="hidden" name="color" value={color} />
 		<input type="hidden" name="icon" value={icon} />
 		<input type="hidden" name="style" value={style} />
+		<input type="hidden" name="status" value={status} />
 		{#if mode === 'edit'}
 			<input type="hidden" name="listWidth" value={fullWidth ? 0 : listWidth} />
 			<input type="hidden" name="countSubtasks" value={countSubtasks} />
@@ -229,6 +239,22 @@
 						onclick={() => (style = s.value)}
 					>
 						{s.label}
+					</button>
+				{/each}
+			</div>
+		</div>
+
+		<div class="field">
+			<span class="flabel">Status</span>
+			<div class="segmented">
+				{#each PROJECT_STATUSES as s (s.value)}
+					<button
+						type="button"
+						class="seg status-{s.value}"
+						class:sel={status === s.value}
+						onclick={() => (status = s.value)}
+					>
+						<span class="status-dot"></span>{s.label}
 					</button>
 				{/each}
 			</div>
@@ -533,6 +559,27 @@
 		background: var(--surface-raised);
 		color: var(--text);
 		box-shadow: var(--shadow-xs);
+	}
+	.seg.status-not_started {
+		--status-color: var(--text-subtle);
+	}
+	.seg.status-in_progress {
+		--status-color: var(--warning);
+	}
+	.seg.status-live {
+		--status-color: var(--success);
+	}
+	.seg.status-archived {
+		--status-color: var(--text-faint);
+	}
+	.status-dot {
+		display: inline-block;
+		width: 7px;
+		height: 7px;
+		margin-right: 6px;
+		vertical-align: 1px;
+		border-radius: var(--radius-full);
+		background: var(--status-color);
 	}
 	.width-row {
 		display: flex;
