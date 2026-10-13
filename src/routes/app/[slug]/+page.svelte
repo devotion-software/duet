@@ -324,6 +324,11 @@
 		onOpen={(t) => selectTodo(t.id)}
 		onCopy={copyTodo}
 		onDelete={(id) => controller.remove(id)}
+		onUpdate={canEdit ? (id, patch) => controller.update(id, patch) : undefined}
+		onCreateTag={createTag}
+		members={data.members}
+		categories={data.categories}
+		projectTags={data.tags}
 		{selecting}
 		selected={selectedIds.has(todo.id)}
 		onSelect={canEdit ? selectTask : undefined}

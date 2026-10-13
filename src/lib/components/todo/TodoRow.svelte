@@ -1,10 +1,22 @@
 <script lang="ts">
-	import Icon from '#lib/components/ui/Icon.svelte';
+	import Icon, { type IconName } from '#lib/components/ui/Icon.svelte';
 	import Avatar from '#lib/components/ui/Avatar.svelte';
-	import { deadlineInfo } from '#lib/date';
+	import { deadlineInfo, toDateInput } from '#lib/date';
 	import { markdownExcerpt } from '#lib/markdown';
-	import { URGENCY_META, SIZE_META, isInProgress, type RowField, type Todo } from '#lib/types';
+	import {
+		URGENCIES,
+		SIZES,
+		URGENCY_META,
+		SIZE_META,
+		isInProgress,
+		type Category,
+		type Member,
+		type RowField,
+		type Tag,
+		type Todo
+	} from '#lib/types';
 	import type { GroupKey } from '#lib/todoView';
+	import type { NewTodoInput } from '#lib/stores/todos.svelte';
 
 	interface Props {
 		todo: Todo;
@@ -15,6 +27,12 @@
 		/** `quick` is set by the inline icon, which copies just the title for bare tasks. */
 		onCopy: (todo: Todo, quick?: boolean) => void;
 		onDelete: (id: string) => void;
+		/** Quick edits from the menu; the field submenus show only when this is set. */
+		onUpdate?: (id: string, patch: Partial<NewTodoInput>) => void;
+		onCreateTag?: (name: string) => Promise<Tag | null>;
+		members?: Member[];
+		categories?: Category[];
+		projectTags?: Tag[];
 		/** Selection mode: clicking the row selects instead of opening. */
 		selecting?: boolean;
 		selected?: boolean;
@@ -41,6 +59,11 @@
 		onOpen,
 		onCopy,
 		onDelete,
+		onUpdate,
+		onCreateTag,
+		members = [],
+		categories = [],
+		projectTags = [],
 		selecting = false,
 		selected = false,
 		onSelect,
@@ -82,7 +105,125 @@
 	const excerpt = $derived(shows('excerpt') ? markdownExcerpt(todo.description, 400) : '');
 	const inProgress = $derived(isInProgress(todo));
 	let menuOpen = $state(false);
+
+	type Submenu = 'deadline' | 'assignee' | 'urgency' | 'size' | 'category' | 'tags';
+	// The menu drills into one field at a time rather than flying out, so it never runs off-screen.
+	let submenu = $state<Submenu | null>(null);
+	let newTagName = $state('');
+	const SUBMENUS: { key: Submenu; label: string; icon: IconName }[] = [
+		{ key: 'deadline', label: 'Deadline', icon: 'calendar' },
+		{ key: 'assignee', label: 'Assignee', icon: 'user' },
+		{ key: 'urgency', label: 'Urgency', icon: 'flag' },
+		{ key: 'size', label: 'Size', icon: 'inbox' },
+		{ key: 'category', label: 'Category', icon: 'folder' },
+		{ key: 'tags', label: 'Tags', icon: 'tag' }
+	];
+
+	function toggleMenu() {
+		menuOpen = !menuOpen;
+		submenu = null;
+	}
+	function closeMenu() {
+		menuOpen = false;
+		submenu = null;
+	}
+	function set(patch: Partial<NewTodoInput>) {
+		closeMenu();
+		onUpdate?.(todo.id, patch);
+	}
+	function inDays(n: number) {
+		const d = new Date();
+		d.setDate(d.getDate() + n);
+		return toDateInput(d);
+	}
+	// Tags toggle in place so several can be picked in one go.
+	function toggleTag(tagId: string) {
+		const ids = todo.tags.map((t) => t.id);
+		onUpdate?.(todo.id, { tagIds: ids.includes(tagId) ? ids.filter((id) => id !== tagId) : [...ids, tagId] });
+	}
+	async function addNewTag() {
+		const name = newTagName.trim();
+		if (!name || !onCreateTag) return;
+		newTagName = '';
+		const tag = await onCreateTag(name);
+		if (tag) onUpdate?.(todo.id, { tagIds: [...todo.tags.map((t) => t.id), tag.id] });
+	}
 </script>
+
+<svelte:window onkeydown={(e) => e.key === 'Escape' && menuOpen && (submenu ? (submenu = null) : closeMenu())} />
+
+{#snippet fieldMenu(key: Submenu)}
+	{@const meta = SUBMENUS.find((m) => m.key === key)!}
+	<button class="menu-item menu-back" onclick={() => (submenu = null)}>
+		<Icon name="chevron-left" size={14} />
+		{meta.label}
+	</button>
+	<hr />
+	<div class="menu-list">
+		{#if key === 'deadline'}
+			{@const current = toDateInput(todo.deadline)}
+			{#each [['Today', 0], ['Tomorrow', 1], ['In a week', 7]] as const as [label, n] (label)}
+				{@render option(label, current === inDays(n), () => set({ deadline: inDays(n) }))}
+			{/each}
+			<input
+				type="date"
+				aria-label="Pick a date"
+				value={current}
+				onchange={(e) => e.currentTarget.value && set({ deadline: e.currentTarget.value })}
+			/>
+			{#if todo.deadline}
+				<hr />
+				<button class="menu-item danger" onclick={() => set({ deadline: null })}>
+					<Icon name="x" size={15} /> Clear deadline
+				</button>
+			{/if}
+		{:else if key === 'assignee'}
+			{@render option('Unassigned', !todo.assigneeId, () => set({ assigneeId: null }))}
+			{#each members as m (m.userId)}
+				{@render option(m.name || m.email, todo.assigneeId === m.userId, () => set({ assigneeId: m.userId }))}
+			{/each}
+		{:else if key === 'urgency'}
+			{@render option('None', !todo.urgency, () => set({ urgency: null }))}
+			{#each URGENCIES as u (u)}
+				{@render option(URGENCY_META[u].label, todo.urgency === u, () => set({ urgency: u }), URGENCY_META[u].color)}
+			{/each}
+		{:else if key === 'size'}
+			{@render option('None', !todo.size, () => set({ size: null }))}
+			{#each SIZES as sz (sz)}
+				{@render option(SIZE_META[sz].full, todo.size === sz, () => set({ size: sz }))}
+			{/each}
+		{:else if key === 'category'}
+			{@render option('No category', !todo.categoryId, () => set({ categoryId: null }))}
+			{#each categories as c (c.id)}
+				{@render option(c.name, todo.categoryId === c.id, () => set({ categoryId: c.id }), c.color)}
+			{/each}
+		{:else if key === 'tags'}
+			{#each projectTags as tag (tag.id)}
+				{@render option(tag.name, todo.tags.some((t) => t.id === tag.id), () => toggleTag(tag.id), tag.color)}
+			{:else}
+				<p class="menu-empty">No tags yet.</p>
+			{/each}
+			{#if onCreateTag}
+				<form
+					onsubmit={(e) => {
+						e.preventDefault();
+						addNewTag();
+					}}
+				>
+					<input class="new-tag" bind:value={newTagName} placeholder="+ new tag" maxlength="60" />
+				</form>
+			{/if}
+		{/if}
+	</div>
+{/snippet}
+
+{#snippet option(label: string, on: boolean, pick: () => void, color?: string)}
+	<button class="menu-item" class:on onclick={pick}>
+		<span class="menu-check">{#if on}<Icon name="check" size={14} strokeWidth={2.5} />{/if}</span>
+		{#if color}<span class="swatch" style="--c: {color}"></span>{/if}
+		<span class="truncate">{label}</span>
+	</button>
+{/snippet}
 
 <div class="row" class:done={todo.completed} class:selected>
 	{#if tree}
@@ -198,75 +339,91 @@
 						class="act"
 						title="More"
 						aria-label="More actions"
-						onclick={() => (menuOpen = !menuOpen)}
+						aria-expanded={menuOpen}
+						onclick={toggleMenu}
 					>
 						<Icon name="more-horizontal" size={15} />
 					</button>
 					{#if menuOpen}
-						<button class="menu-scrim" aria-label="Close" onclick={() => (menuOpen = false)}></button>
+						<button class="menu-scrim" aria-label="Close" onclick={closeMenu}></button>
 						<div class="menu">
-							<button
-								class="menu-item"
-								onclick={() => {
-									menuOpen = false;
-									onOpen(todo);
-								}}
-							>
-								<Icon name="pencil" size={15} /> Edit
-							</button>
-							{#if onSetInProgress && !todo.completed}
+							{#if submenu}
+								{@render fieldMenu(submenu)}
+							{:else}
 								<button
 									class="menu-item"
 									onclick={() => {
 										menuOpen = false;
-										onSetInProgress(todo.id, !inProgress);
+										onOpen(todo);
 									}}
 								>
-									<Icon name="clock" size={15} />
-									{inProgress ? 'Stop progress' : 'Mark in progress'}
+									<Icon name="pencil" size={15} /> Edit
 								</button>
-							{/if}
-							{#if onAddSubtask}
+								{#if onUpdate}
+									<hr />
+									{#each SUBMENUS as m (m.key)}
+										<button class="menu-item" onclick={() => (submenu = m.key)}>
+											<Icon name={m.icon} size={15} />
+											{m.label}
+											<span class="menu-trail"><Icon name="chevron-right" size={14} /></span>
+										</button>
+									{/each}
+									<hr />
+								{/if}
+								{#if onSetInProgress && !todo.completed}
+									<button
+										class="menu-item"
+										onclick={() => {
+											menuOpen = false;
+											onSetInProgress(todo.id, !inProgress);
+										}}
+									>
+										<Icon name="clock" size={15} />
+										{inProgress ? 'Stop progress' : 'Mark in progress'}
+									</button>
+								{/if}
+								{#if onAddSubtask}
+									<button
+										class="menu-item"
+										onclick={() => {
+											menuOpen = false;
+											onAddSubtask(todo);
+										}}
+									>
+										<Icon name="corner-down-right" size={15} /> Add subtask
+									</button>
+								{/if}
+								{#if onOutdent && todo.parentId}
+									<button
+										class="menu-item"
+										onclick={() => {
+											menuOpen = false;
+											onOutdent(todo);
+										}}
+									>
+										<Icon name="corner-up-left" size={15} /> Move out a level
+									</button>
+								{/if}
 								<button
 									class="menu-item"
 									onclick={() => {
 										menuOpen = false;
-										onAddSubtask(todo);
+										onCopy(todo);
 									}}
 								>
-									<Icon name="corner-down-right" size={15} /> Add subtask
+									<Icon name="copy" size={15} /> Copy for AI
 								</button>
-							{/if}
-							{#if onOutdent && todo.parentId}
+								<hr />
 								<button
-									class="menu-item"
+									class="menu-item danger"
 									onclick={() => {
 										menuOpen = false;
-										onOutdent(todo);
+										onDelete(todo.id);
 									}}
 								>
-									<Icon name="corner-up-left" size={15} /> Move out a level
+									<Icon name="trash" size={15} /> Delete
 								</button>
 							{/if}
-							<button
-								class="menu-item"
-								onclick={() => {
-									menuOpen = false;
-									onCopy(todo);
-								}}
-							>
-								<Icon name="copy" size={15} /> Copy for AI
-							</button>
-							<hr />
-							<button
-								class="menu-item danger"
-								onclick={() => {
-									menuOpen = false;
-									onDelete(todo.id);
-								}}
-							>
-								<Icon name="trash" size={15} /> Delete
-							</button>
 						</div>
 					{/if}
 				</div>
@@ -520,5 +677,59 @@
 	}
 	.menu-item.danger {
 		color: var(--danger);
+	}
+	.menu-trail {
+		margin-left: auto;
+		display: inline-flex;
+		color: var(--text-faint);
+	}
+	.menu-back {
+		color: var(--text-muted);
+		font-weight: var(--weight-medium);
+	}
+	.menu-list {
+		max-height: 280px;
+		overflow-y: auto;
+	}
+	.menu-check {
+		width: 14px;
+		flex-shrink: 0;
+		display: inline-flex;
+		color: var(--accent-text);
+	}
+	.menu-item.on {
+		font-weight: var(--weight-medium);
+	}
+	.swatch {
+		width: 8px;
+		height: 8px;
+		flex-shrink: 0;
+		border-radius: var(--radius-full);
+		background: var(--c);
+	}
+	.menu-empty {
+		padding: var(--space-2) var(--space-3);
+		font-size: var(--text-sm);
+		color: var(--text-faint);
+	}
+	.menu input {
+		display: block;
+		width: calc(100% - var(--space-4));
+		margin: var(--space-1) var(--space-2);
+		font: inherit;
+		font-size: var(--text-sm);
+		color: var(--text);
+		background: var(--surface);
+		border: 1px solid var(--border-strong);
+		border-radius: var(--radius-sm);
+		padding: var(--space-1) var(--space-2);
+	}
+	.menu input:focus {
+		outline: none;
+		border-color: var(--accent);
+		box-shadow: 0 0 0 3px var(--accent-ring);
+	}
+	.menu input.new-tag {
+		border-style: dashed;
 	}
 </style>
