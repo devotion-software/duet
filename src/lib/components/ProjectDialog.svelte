@@ -145,8 +145,8 @@
 		{/each}
 
 		<!-- Live preview -->
-		<div class="preview style-{style}">
-			<span class="prev-icon"><ProjectIcon {icon} {iconUrl} /></span>
+		<div class="preview project-surface style-{style}">
+			<span class="prev-icon project-tile style-{style}"><ProjectIcon {icon} {iconUrl} /></span>
 			<div class="prev-text">
 				<strong>{name || 'Project name'}</strong>
 				<small>{description || 'A short description'}</small>
@@ -356,40 +356,12 @@
 		gap: var(--space-3);
 		padding: var(--space-4);
 		border-radius: var(--radius-lg);
-		border: 1px solid var(--border);
-	}
-	.preview.style-soft {
-		background: var(--accent-soft);
-		border-color: var(--accent-border);
-	}
-	.preview.style-solid {
-		background: var(--accent);
-		border-color: transparent;
-	}
-	.preview.style-solid strong,
-	.preview.style-solid small {
-		color: var(--accent-contrast);
-	}
-	.preview.style-solid small {
-		opacity: 0.85;
-	}
-	.preview.style-outline {
-		background: var(--surface);
-		border: 2px solid var(--accent);
-	}
-	.preview.style-glass {
-		background: color-mix(in oklab, var(--accent) 12%, var(--surface));
-		backdrop-filter: blur(6px);
-		border-color: var(--accent-border);
+		border: 1px solid var(--project-border, var(--border));
 	}
 	.prev-icon {
-		display: grid;
-		place-items: center;
 		width: 44px;
 		height: 44px;
 		font-size: 24px;
-		background: color-mix(in oklab, var(--surface) 70%, transparent);
-		border-radius: var(--radius-md);
 	}
 	.prev-text {
 		display: flex;

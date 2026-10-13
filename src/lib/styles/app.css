@@ -167,6 +167,67 @@ samp {
 	white-space: nowrap;
 }
 
+/* ── Project styles ────────────────────────────────────────────────────────
+   One treatment per ProjectStyle, shared by every place a project is shown.
+   Pair with a `style-<name>` class under an element that sets --accent.
+   .project-tile    the icon tile; carries most of the style's identity.
+   .project-surface a header band; kept to a light wash so content stays legible.
+                    Its divider should use var(--project-border, <fallback>). */
+.project-tile {
+	display: grid;
+	place-items: center;
+	flex-shrink: 0;
+	border-radius: var(--radius-md);
+}
+.project-tile.style-soft {
+	background: var(--accent-soft);
+}
+.project-tile.style-solid {
+	background: var(--accent);
+	box-shadow:
+		inset 0 -1px 0 rgb(0 0 0 / 0.12),
+		var(--shadow-xs);
+}
+.project-tile.style-outline {
+	background: var(--surface);
+	box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.project-tile.style-glass {
+	background: linear-gradient(
+		145deg,
+		color-mix(in oklab, var(--accent) 26%, var(--surface)),
+		color-mix(in oklab, var(--accent) 6%, var(--surface))
+	);
+	box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 22%, transparent);
+}
+
+.project-surface.style-soft,
+.project-surface.style-solid {
+	background: linear-gradient(
+		180deg,
+		color-mix(in oklab, var(--accent) 8%, transparent),
+		color-mix(in oklab, var(--accent) 2%, transparent)
+	);
+	--project-border: color-mix(in oklab, var(--accent) 22%, var(--border));
+}
+.project-surface.style-solid {
+	box-shadow: inset 0 3px 0 var(--accent);
+}
+.project-surface.style-outline {
+	--project-border: color-mix(in oklab, var(--accent) 55%, var(--border));
+}
+.project-surface.style-glass {
+	background:
+		radial-gradient(
+			120% 160% at 0% 0%,
+			color-mix(in oklab, var(--accent) 16%, transparent),
+			transparent 60%
+		),
+		color-mix(in oklab, var(--surface) 65%, transparent);
+	backdrop-filter: blur(12px);
+	--project-border: color-mix(in oklab, var(--accent) 18%, var(--border));
+}
+
 /* Respect reduced motion. */
 @media (prefers-reduced-motion: reduce) {
 	*,

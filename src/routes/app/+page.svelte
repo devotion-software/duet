@@ -116,7 +116,7 @@
 						{@const total = s.open + s.done}
 						<a class="card style-{p.style}" href="/app/{p.slug}" style="--accent: {p.color}">
 							<div class="card-head">
-								<span class="c-icon"><ProjectIcon icon={p.icon} iconUrl={p.iconUrl} /></span>
+								<span class="c-icon project-tile style-{p.style}"><ProjectIcon icon={p.icon} iconUrl={p.iconUrl} /></span>
 								<span class="c-name truncate">{p.name}</span>
 								<ProjectStatusBadge status={p.status} />
 							</div>
@@ -360,33 +360,9 @@
 		gap: var(--space-3);
 	}
 	.c-icon {
-		display: grid;
-		place-items: center;
 		width: 34px;
 		height: 34px;
-		flex-shrink: 0;
 		font-size: 18px;
-		border-radius: var(--radius-md);
-		border: 1px solid transparent;
-	}
-	.style-soft .c-icon {
-		background: var(--accent-soft);
-		border-color: var(--accent-border);
-	}
-	.style-solid .c-icon {
-		background: var(--accent);
-	}
-	.style-outline .c-icon {
-		background: var(--surface);
-		border: 1.5px solid var(--accent);
-	}
-	.style-glass .c-icon {
-		background: linear-gradient(
-			135deg,
-			color-mix(in oklab, var(--accent) 32%, var(--surface)),
-			color-mix(in oklab, var(--accent) 10%, var(--surface))
-		);
-		border-color: var(--accent-border);
 	}
 	.c-name {
 		flex: 1;

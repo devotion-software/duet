@@ -187,7 +187,7 @@
 		aria-label="Task details"
 		onpaste={onPaste}
 	>
-		<header class="panel-head style-{projectStyle}">
+		<header class="panel-head project-surface style-{projectStyle}">
 			<div class="status">
 				<button
 					class="check"
@@ -542,47 +542,8 @@
 		align-items: center;
 		justify-content: space-between;
 		padding: var(--space-4) var(--space-4);
-		border-bottom: 1px solid var(--border-subtle);
+		border-bottom: 1px solid var(--project-border, var(--border-subtle));
 	}
-	/* Project card style, matching the project page header. */
-	.panel-head.style-soft {
-		background: var(--accent-softer);
-		border-bottom-color: var(--accent-border);
-	}
-	.panel-head.style-solid {
-		background: var(--accent);
-		border-bottom-color: transparent;
-	}
-	.panel-head.style-solid .check,
-	.panel-head.style-solid .icon-act {
-		color: var(--accent-contrast);
-		border-color: color-mix(in oklab, var(--accent-contrast) 45%, transparent);
-	}
-	.panel-head.style-solid .icon-act:hover,
-	.panel-head.style-solid .check.progress.on {
-		background: color-mix(in oklab, var(--accent-contrast) 18%, transparent);
-		color: var(--accent-contrast);
-	}
-	.panel-head.style-solid .check.on:not(.progress) {
-		background: var(--accent-contrast);
-		border-color: var(--accent-contrast);
-		color: var(--accent);
-	}
-	.panel-head.style-outline {
-		border-bottom: 2px solid var(--accent);
-	}
-	.panel-head.style-glass {
-		background:
-			linear-gradient(
-				135deg,
-				color-mix(in oklab, var(--accent) 20%, transparent),
-				color-mix(in oklab, var(--accent) 4%, transparent) 70%
-			),
-			var(--surface);
-		border-bottom-color: var(--accent-border);
-		box-shadow: inset 0 1px 0 color-mix(in oklab, white 35%, transparent);
-	}
-
 	.check {
 		display: inline-flex;
 		align-items: center;

@@ -528,9 +528,9 @@
 {/snippet}
 
 <div class="project" style="--accent: {data.project.color}">
-	<header class="proj-head style-{data.project.style}">
+	<header class="proj-head project-surface style-{data.project.style}">
 		<div class="title-area">
-			<span class="proj-icon"><ProjectIcon icon={data.project.icon} iconUrl={data.project.iconUrl} /></span>
+			<span class="proj-icon project-tile style-{data.project.style}"><ProjectIcon icon={data.project.icon} iconUrl={data.project.iconUrl} /></span>
 			<div class="titles">
 				<div class="title-row">
 					<h1>{data.project.name}</h1>
@@ -776,7 +776,7 @@
 		justify-content: space-between;
 		gap: var(--space-4);
 		padding: var(--space-5) var(--space-6);
-		border-bottom: 1px solid var(--border);
+		border-bottom: 1px solid var(--project-border, var(--border));
 		flex-wrap: wrap;
 	}
 	.title-area {
@@ -786,79 +786,10 @@
 		min-width: 0;
 	}
 	.proj-icon {
-		display: grid;
-		place-items: center;
 		width: 44px;
 		height: 44px;
 		font-size: 24px;
-		background: var(--accent-soft);
-		border: 1px solid var(--accent-border);
-		border-radius: var(--radius-md);
-		flex-shrink: 0;
 	}
-	/* Project card style, matching the preview in ProjectDialog. */
-	.proj-head.style-soft {
-		background: var(--accent-softer);
-		border-bottom-color: var(--accent-border);
-	}
-	.proj-head.style-solid {
-		background: var(--accent);
-		border-bottom-color: transparent;
-		color: var(--accent-contrast);
-	}
-	.proj-head.style-solid .counts,
-	.proj-head.style-solid .desc {
-		color: var(--accent-contrast);
-		opacity: 0.85;
-	}
-	.proj-head.style-solid .proj-icon {
-		background: color-mix(in oklab, var(--accent-contrast) 22%, transparent);
-		border-color: color-mix(in oklab, var(--accent-contrast) 35%, transparent);
-	}
-	.proj-head.style-solid .head-actions :global(.btn.ghost),
-	.proj-head.style-solid .head-actions :global(.btn.subtle),
-	.proj-head.style-solid .head-actions > .menu-host > .icon-btn {
-		background: transparent;
-		color: var(--accent-contrast);
-	}
-	.proj-head.style-solid .head-actions :global(.btn.ghost:hover:not(:disabled)),
-	.proj-head.style-solid .head-actions :global(.btn.subtle),
-	.proj-head.style-solid .head-actions > .menu-host > .icon-btn:hover {
-		background: color-mix(in oklab, var(--accent-contrast) 18%, transparent);
-	}
-	.proj-head.style-solid .searchbox {
-		border-color: transparent;
-	}
-	.proj-head.style-outline {
-		border-bottom: 2px solid var(--accent);
-	}
-	.proj-head.style-outline .proj-icon {
-		background: var(--surface);
-		border: 2px solid var(--accent);
-	}
-	.proj-head.style-outline h1 {
-		color: var(--accent-text);
-	}
-	.proj-head.style-glass {
-		background:
-			linear-gradient(
-				135deg,
-				color-mix(in oklab, var(--accent) 20%, transparent),
-				color-mix(in oklab, var(--accent) 4%, transparent) 70%
-			),
-			var(--surface);
-		border-bottom-color: var(--accent-border);
-		box-shadow: inset 0 1px 0 color-mix(in oklab, white 35%, transparent);
-	}
-	.proj-head.style-glass .proj-icon {
-		background: color-mix(in oklab, var(--surface) 55%, transparent);
-		border-color: color-mix(in oklab, white 45%, var(--accent-border));
-		backdrop-filter: blur(6px);
-		box-shadow:
-			inset 0 1px 0 color-mix(in oklab, white 50%, transparent),
-			var(--shadow-xs);
-	}
-
 	.titles h1 {
 		font-size: var(--text-xl);
 		line-height: 1.1;

@@ -636,56 +636,27 @@
 		font-weight: var(--weight-medium);
 	}
 
-	/* Project card style, matching the preview in ProjectDialog: the icon tile always shows it,
-	   and the active row takes on the full treatment. */
-	.p-icon {
-		border-radius: var(--radius-sm);
-		border: 1px solid transparent;
-	}
-	.style-soft .p-icon {
-		background: var(--accent-soft);
-		border-color: var(--accent-border);
-	}
-	.style-solid .p-icon {
-		background: var(--accent);
-	}
-	.style-outline .p-icon {
-		background: var(--surface);
-		border: 1.5px solid var(--accent);
-	}
-	.style-glass .p-icon {
-		background: linear-gradient(
-			135deg,
-			color-mix(in oklab, var(--accent) 32%, var(--surface)),
-			color-mix(in oklab, var(--accent) 6%, var(--surface))
-		);
-		border-color: var(--accent-border);
-		box-shadow: inset 0 1px 0 color-mix(in oklab, white 45%, transparent);
-	}
+	/* Project style shows on the active row only; the icon stays bare so the list reads cleanly. */
 	.p-link.active.style-solid {
 		background: var(--accent);
 		color: var(--accent-contrast);
-	}
-	.p-link.active.style-solid .p-icon {
-		background: color-mix(in oklab, var(--accent-contrast) 22%, transparent);
+		box-shadow: var(--shadow-xs);
 	}
 	.p-link.active.style-solid .p-count {
 		background: color-mix(in oklab, var(--accent-contrast) 22%, transparent);
 		color: var(--accent-contrast);
 	}
 	.p-link.active.style-outline {
-		background: var(--surface);
-		box-shadow: inset 0 0 0 1.5px var(--accent);
+		background: transparent;
+		box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 60%, transparent);
 	}
 	.p-link.active.style-glass {
 		background: linear-gradient(
-			135deg,
-			color-mix(in oklab, var(--accent) 22%, var(--surface)),
-			color-mix(in oklab, var(--accent) 5%, var(--surface))
+			90deg,
+			color-mix(in oklab, var(--accent) 18%, transparent),
+			color-mix(in oklab, var(--accent) 5%, transparent)
 		);
-		box-shadow:
-			inset 0 0 0 1px var(--accent-border),
-			inset 0 1px 0 color-mix(in oklab, white 40%, transparent);
+		box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 18%, transparent);
 	}
 	.p-count {
 		font-size: var(--text-xs);
