@@ -50,6 +50,13 @@
       "when": 1791909620591,
       "tag": "0006_project_icon_image",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "5",
+      "when": 1791909960993,
+      "tag": "0007_project_secrets",
+      "breakpoints": true
     }
   ]
 }

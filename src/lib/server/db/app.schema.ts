@@ -227,6 +227,29 @@ export const attachments = mysqlTable(
 	(t) => [index('attachments_todo_idx').on(t.todoId)]
 );
 
+// ─── Secrets (per-project) ─────────────────────────────────────────────────
+// API keys, passwords and the like. Values are AES-256-GCM encrypted at rest
+// (see server/secrets.ts) and only decrypted when a member explicitly reveals one.
+export const projectSecrets = mysqlTable(
+	'project_secrets',
+	{
+		id: id(),
+		projectId: varchar('project_id', { length: 36 })
+			.notNull()
+			.references(() => projects.id, { onDelete: 'cascade' }),
+		name: varchar('name', { length: 120 }).notNull(),
+		note: varchar('note', { length: 500 }),
+		// "iv.tag.ciphertext", each base64url.
+		value: text('value').notNull(),
+		createdById: varchar('created_by_id', { length: 36 }).references(() => user.id, {
+			onDelete: 'set null'
+		}),
+		createdAt: createdAt(),
+		updatedAt: updatedAt()
+	},
+	(t) => [index('project_secrets_project_idx').on(t.projectId)]
+);
+
 // ─── Relations ─────────────────────────────────────────────────────────────
 export const projectsRelations = relations(projects, ({ one, many }) => ({
 	owner: one(user, { fields: [projects.ownerId], references: [user.id] }),

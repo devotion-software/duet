@@ -25,6 +25,7 @@
 	import ImportDialog from '#lib/components/todo/ImportDialog.svelte';
 	import MembersDialog from '#lib/components/todo/MembersDialog.svelte';
 	import ProjectDialog from '#lib/components/ProjectDialog.svelte';
+	import SecretsDialog from '#lib/components/SecretsDialog.svelte';
 	import ProjectIcon from '#lib/components/ProjectIcon.svelte';
 	import { liveCounts } from '#lib/stores/liveCounts.svelte';
 
@@ -81,6 +82,7 @@
 	let importText = $state('');
 	let membersOpen = $state(false);
 	let settingsOpen = $state(false);
+	let secretsOpen = $state(false);
 	let projectMenuOpen = $state(false);
 	let exportMenuOpen = $state(false);
 
@@ -531,6 +533,9 @@
 			<span class="proj-icon"><ProjectIcon icon={data.project.icon} iconUrl={data.project.iconUrl} /></span>
 			<div class="titles">
 				<h1>{data.project.name}</h1>
+				{#if data.project.description}
+					<p class="desc" title={data.project.description}>{data.project.description}</p>
+				{/if}
 				<p class="counts">
 					{controller.open.length} open · {controller.done.length} done
 					{#if data.members.length > 1}· {data.members.length} members{/if}
@@ -582,6 +587,11 @@
 					{/if}
 				</div>
 			{/if}
+			{#if canEdit}
+				<Button variant="ghost" size="sm" icon="key" title="Keys & secrets" onclick={() => (secretsOpen = true)}>
+					Keys
+				</Button>
+			{/if}
 			<Button variant="ghost" size="sm" icon="users" onclick={() => (membersOpen = true)}>
 				{data.members.length}
 			</Button>
@@ -598,6 +608,9 @@
 							</button>
 							<button class="menu-item" onclick={() => { projectMenuOpen = false; membersOpen = true; }}>
 								<Icon name="users" size={15} /> Members
+							</button>
+							<button class="menu-item" onclick={() => { projectMenuOpen = false; secretsOpen = true; }}>
+								<Icon name="key" size={15} /> Keys & secrets
 							</button>
 							<hr />
 							<form method="POST" action="/app?/deleteProject">
@@ -746,6 +759,9 @@
 	onChanged={() => invalidateAll()}
 />
 <ProjectDialog bind:open={settingsOpen} mode="edit" project={data.project} />
+{#if canEdit}
+	<SecretsDialog bind:open={secretsOpen} projectId={data.project.id} />
+{/if}
 
 <style>
 	.project {
@@ -790,7 +806,8 @@
 		border-bottom-color: transparent;
 		color: var(--accent-contrast);
 	}
-	.proj-head.style-solid .counts {
+	.proj-head.style-solid .counts,
+	.proj-head.style-solid .desc {
 		color: var(--accent-contrast);
 		opacity: 0.85;
 	}
@@ -845,6 +862,20 @@
 	.titles h1 {
 		font-size: var(--text-xl);
 		line-height: 1.1;
+	}
+	.titles {
+		min-width: 0;
+	}
+	.desc {
+		color: var(--text-muted);
+		font-size: var(--text-sm);
+		margin-top: 2px;
+		max-width: 60ch;
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
 	}
 	.counts {
 		color: var(--text-subtle);
