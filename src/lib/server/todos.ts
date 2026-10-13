@@ -12,6 +12,9 @@ import {
 } from './db/app.schema';
 import { user } from './db/auth.schema';
 import { newId } from './ids';
+import type { ImportItem, ImportRef } from '#lib/parseImport';
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 /**
  * Ensure category/assignee/tag references actually belong to the project,
@@ -257,29 +260,98 @@ export async function setTodoTags(todoId: string, tagIds: string[]) {
 	}
 }
 
-/** Bulk import of parsed checklist items. */
-export async function importTodos(
+/** Find-or-create tags/categories by name; returns lowercased name → id. */
+async function ensureNamed(
+	tx: Tx,
+	table: typeof tags | typeof categories,
 	projectId: string,
-	userId: string,
-	items: { title: string; completed: boolean }[]
-) {
+	wanted: ImportRef[]
+): Promise<Map<string, string>> {
+	const byName = new Map<string, ImportRef>();
+	for (const r of wanted) if (!byName.has(r.name.toLowerCase())) byName.set(r.name.toLowerCase(), r);
+	if (!byName.size) return new Map();
+
+	const load = async () =>
+		new Map(
+			(await tx.select({ id: table.id, name: table.name }).from(table).where(eq(table.projectId, projectId))).map(
+				(r) => [r.name.toLowerCase(), r.id]
+			)
+		);
+	const existing = await load();
+	const missing = [...byName.entries()].filter(([k]) => !existing.has(k)).map(([, r]) => r);
+	if (!missing.length) return existing;
+	await tx
+		.insert(table)
+		.values(missing.map((r) => ({ id: newId(), projectId, name: r.name, color: r.color })))
+		// Keep existing rows (and their colours) on a collation-level name clash.
+		.onDuplicateKeyUpdate({ set: { name: sql`${table.name}` } });
+	return load();
+}
+
+/**
+ * Bulk import of parsed items (checklist lines or a JSON export). Items keep
+ * their given order at the top of the list; tags and categories are matched
+ * by name (created if missing) and assignees kept only if they're members.
+ */
+export async function importTodos(projectId: string, userId: string, items: ImportItem[]) {
+	items = items.filter((i) => i.title.trim());
 	if (!items.length) return 0;
-	let order = await nextSortOrder(projectId);
-	const now = new Date();
-	const rows = items
-		.filter((i) => i.title.trim())
-		.map((i) => ({
-			id: newId(),
+
+	return db.transaction(async (tx) => {
+		const categoryIds = await ensureNamed(
+			tx,
+			categories,
 			projectId,
-			title: i.title.trim().slice(0, 500),
-			completed: i.completed,
-			completedAt: i.completed ? now : null,
-			sortOrder: order++,
-			createdById: userId
-		}));
-	if (!rows.length) return 0;
-	await db.insert(todos).values(rows);
-	return rows.length;
+			items.flatMap((i) => (i.category ? [i.category] : []))
+		);
+		const tagIds = await ensureNamed(
+			tx,
+			tags,
+			projectId,
+			items.flatMap((i) => i.tags ?? [])
+		);
+		const memberIds = new Set(
+			(
+				await tx
+					.select({ userId: projectMembers.userId })
+					.from(projectMembers)
+					.where(eq(projectMembers.projectId, projectId))
+			).map((r) => r.userId)
+		);
+
+		const [row] = await tx
+			.select({ max: sql<number>`coalesce(max(${todos.sortOrder}), 0)` })
+			.from(todos)
+			.where(eq(todos.projectId, projectId));
+		const base = Number(row?.max ?? 0) + 1;
+		const now = new Date();
+
+		const links: { todoId: string; tagId: string }[] = [];
+		const rows = items.map((i, idx) => {
+			const id = newId();
+			const itemTagIds = new Set((i.tags ?? []).map((t) => tagIds.get(t.name.toLowerCase())));
+			for (const tagId of itemTagIds) if (tagId) links.push({ todoId: id, tagId });
+			return {
+				id,
+				projectId,
+				title: i.title.trim().slice(0, 500),
+				description: i.description?.trim() || null,
+				completed: i.completed,
+				completedAt: i.completed ? (i.completedAt ?? now) : null,
+				deadline: i.deadline ?? null,
+				urgency: i.urgency ?? null,
+				size: i.size ?? null,
+				categoryId: (i.category && categoryIds.get(i.category.name.toLowerCase())) || null,
+				assigneeId: i.assigneeId && memberIds.has(i.assigneeId) ? i.assigneeId : null,
+				// Larger sortOrder floats to the top, so the first item gets the highest.
+				sortOrder: base + items.length - 1 - idx,
+				createdById: userId
+			};
+		});
+		await tx.insert(todos).values(rows);
+		if (links.length) await tx.insert(todoTags).values(links);
+		return rows.length;
+	});
 }
 
 export async function reorderTodos(projectId: string, orderedIds: string[]) {

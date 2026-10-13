@@ -2,7 +2,7 @@
 	import Modal from '#lib/components/ui/Modal.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Icon from '#lib/components/ui/Icon.svelte';
-	import { parseChecklist } from '#lib/parseChecklist';
+	import { parseImport } from '#lib/parseImport';
 	import { toasts } from '#lib/components/ui/toast.svelte';
 
 	interface Props {
@@ -14,13 +14,27 @@
 
 	let text = $state('');
 	let busy = $state(false);
+	let fileInput = $state<HTMLInputElement>();
 
 	$effect(() => {
 		if (open) text = initialText;
 	});
 
-	const parsed = $derived(parseChecklist(text));
+	const result = $derived(parseImport(text));
+	const parsed = $derived(result.items);
 	const doneCount = $derived(parsed.filter((p) => p.completed).length);
+
+	async function loadFile(e: Event) {
+		const input = e.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = '';
+		if (!file) return;
+		try {
+			text = await file.text();
+		} catch {
+			toasts.error('Could not read that file');
+		}
+	}
 
 	async function run() {
 		if (!parsed.length || busy) return;
@@ -38,7 +52,7 @@
 	}
 </script>
 
-<Modal bind:open title="Import tasks" subtitle="Paste a checklist — we'll detect checked items" size="lg">
+<Modal bind:open title="Import tasks" subtitle="Paste a checklist or load a Duet JSON export" size="lg">
 	<div class="import">
 		<textarea
 			bind:value={text}
@@ -50,7 +64,9 @@
 			<div class="preview-head">
 				<span>Preview</span>
 				{#if parsed.length}
-					<span class="counts">{parsed.length} tasks · {doneCount} done</span>
+					<span class="counts">
+						{#if result.kind === 'json'}JSON export · {/if}{parsed.length} tasks · {doneCount} done
+					</span>
 				{/if}
 			</div>
 			<div class="preview-list">
@@ -74,6 +90,15 @@
 	</div>
 
 	{#snippet footer()}
+		<input
+			bind:this={fileInput}
+			type="file"
+			accept=".json,.md,.txt,application/json,text/plain,text/markdown"
+			hidden
+			onchange={loadFile}
+		/>
+		<Button variant="ghost" icon="upload" onclick={() => fileInput?.click()}>Choose file…</Button>
+		<span class="spacer"></span>
 		<Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
 		<Button variant="primary" icon="list-plus" loading={busy} disabled={!parsed.length} onclick={run}>
 			Import {parsed.length || ''} task{parsed.length === 1 ? '' : 's'}
@@ -170,6 +195,9 @@
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;
+	}
+	.spacer {
+		flex: 1;
 	}
 	.more {
 		color: var(--text-faint);
