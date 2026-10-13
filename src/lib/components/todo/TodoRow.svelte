@@ -77,7 +77,7 @@
 	const progress = $derived(shows('subtasks') ? subtasks.total : 0);
 	const notes = $derived(shows('notes') && !!todo.description);
 	const images = $derived(shows('attachments') ? todo.attachments.length : 0);
-	const excerpt = $derived(shows('excerpt') ? markdownExcerpt(todo.description, 90) : '');
+	const excerpt = $derived(shows('excerpt') ? markdownExcerpt(todo.description, 400) : '');
 	let menuOpen = $state(false);
 </script>
 
@@ -414,9 +414,11 @@
 		color: var(--accent-text);
 		background: var(--accent-soft);
 	}
+	/* Fills whatever the chips leave, so it grows with the list width; wraps below them if squeezed. */
 	.excerpt {
 		color: var(--text-faint);
-		max-width: 320px;
+		flex: 1 1 160px;
+		min-width: 0;
 	}
 
 	.right {

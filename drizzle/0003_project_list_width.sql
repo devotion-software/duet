@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `list_width` int DEFAULT 820 NOT NULL;

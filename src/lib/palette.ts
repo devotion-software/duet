@@ -28,3 +28,12 @@ export const PROJECT_STYLES: { value: 'soft' | 'solid' | 'outline' | 'glass'; la
 	{ value: 'outline', label: 'Outline' },
 	{ value: 'glass', label: 'Glass' }
 ];
+
+/** Bounds for a project's task list max width, in px. A stored 0 fills the window. */
+export const LIST_WIDTH = { min: 600, max: 2400, step: 20, default: 820 };
+
+/** Snap a requested list width into range; 0 (fill the window) passes through. */
+export function clampListWidth(px: number): number {
+	if (px === 0) return 0;
+	return Math.min(LIST_WIDTH.max, Math.max(LIST_WIDTH.min, Math.round(px)));
+}

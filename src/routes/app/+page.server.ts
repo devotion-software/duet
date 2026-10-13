@@ -9,6 +9,7 @@ import {
 import { publish } from '#lib/server/realtime';
 import { canManage } from '#lib/server/authz';
 import type { ProjectStyle } from '#lib/server/db/app.schema';
+import { clampListWidth } from '#lib/palette';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ parent }) => {
@@ -49,13 +50,15 @@ export const actions: Actions = {
 		if (!canManage(role)) return fail(403, { message: 'Only owners can edit the project' });
 
 		const style = String(form.get('style') ?? 'soft') as ProjectStyle;
+		const listWidth = Number(form.get('listWidth') ?? NaN);
 		await updateProject(id, {
 			name: String(form.get('name') ?? '').trim(),
 			description: String(form.get('description') ?? ''),
 			color: String(form.get('color') ?? '#6366f1'),
 			icon: String(form.get('icon') ?? '📋'),
 			style: STYLES.includes(style) ? style : 'soft',
-			hiddenFields: parseHiddenFields(form.getAll('hidden').join(','))
+			hiddenFields: parseHiddenFields(form.getAll('hidden').join(',')),
+			listWidth: Number.isFinite(listWidth) ? clampListWidth(listWidth) : undefined
 		});
 		publish(id, { type: 'project.updated', payload: { id } });
 		return { success: true };

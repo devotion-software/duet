@@ -400,7 +400,7 @@
 		</div>
 	</header>
 
-	<div class="work">
+	<div class="work" style="--list-width: {data.project.listWidth ? `${data.project.listWidth}px` : 'none'}">
 		{#if canEdit}
 			<div class="quick">
 				<QuickAdd onAdd={addTodo} onPasteMultiline={openImport} />
@@ -648,7 +648,7 @@
 		flex: 1;
 		overflow-y: auto;
 		padding: var(--space-5) var(--space-6) var(--space-16);
-		max-width: 820px;
+		max-width: var(--list-width, 820px);
 		width: 100%;
 		margin: 0 auto;
 	}

@@ -3,7 +3,7 @@
 	import Modal from './ui/Modal.svelte';
 	import Button from './ui/Button.svelte';
 	import TextField from './ui/TextField.svelte';
-	import { PROJECT_COLORS, PROJECT_EMOJI, PROJECT_STYLES } from '#lib/palette';
+	import { LIST_WIDTH, clampListWidth, PROJECT_COLORS, PROJECT_EMOJI, PROJECT_STYLES } from '#lib/palette';
 	import { toasts } from './ui/toast.svelte';
 	import Icon from './ui/Icon.svelte';
 	import { ROW_FIELDS, ROW_FIELD_LABELS, type RowField } from '#lib/types';
@@ -16,6 +16,7 @@
 		icon?: string;
 		style?: string;
 		hiddenFields?: RowField[];
+		listWidth?: number;
 	}
 
 	interface Props {
@@ -31,6 +32,9 @@
 	let icon = $state(project.icon ?? '📋');
 	let style = $state(project.style ?? 'soft');
 	let hidden = $state<RowField[]>(project.hiddenFields ?? []);
+	// Kept separately from `fullWidth` so toggling back restores the last width.
+	let listWidth = $state(project.listWidth || LIST_WIDTH.default);
+	let fullWidth = $state(project.listWidth === 0);
 	let submitting = $state(false);
 
 	// Reset form each time it opens.
@@ -42,6 +46,8 @@
 			icon = project.icon ?? '📋';
 			style = project.style ?? 'soft';
 			hidden = [...(project.hiddenFields ?? [])];
+			listWidth = project.listWidth || LIST_WIDTH.default;
+			fullWidth = project.listWidth === 0;
 		}
 	});
 
@@ -76,6 +82,9 @@
 		<input type="hidden" name="color" value={color} />
 		<input type="hidden" name="icon" value={icon} />
 		<input type="hidden" name="style" value={style} />
+		{#if mode === 'edit'}
+			<input type="hidden" name="listWidth" value={fullWidth ? 0 : listWidth} />
+		{/if}
 		{#each hidden as f (f)}
 			<input type="hidden" name="hidden" value={f} />
 		{/each}
@@ -163,6 +172,43 @@
 		</div>
 
 		{#if mode === 'edit'}
+			<div class="field">
+				<label for="pd-width">List width</label>
+				<div class="width-row">
+					<input
+						type="range"
+						class="width-slider"
+						aria-label="List width"
+						min={LIST_WIDTH.min}
+						max={LIST_WIDTH.max}
+						step={LIST_WIDTH.step}
+						bind:value={listWidth}
+						disabled={fullWidth}
+					/>
+					<div class="width-input" class:disabled={fullWidth}>
+						<input
+							id="pd-width"
+							type="number"
+							min={LIST_WIDTH.min}
+							max={LIST_WIDTH.max}
+							bind:value={listWidth}
+							onchange={() => (listWidth = clampListWidth(listWidth || LIST_WIDTH.default))}
+							disabled={fullWidth}
+						/>
+						<span>px</span>
+					</div>
+					<button
+						type="button"
+						class="field-toggle"
+						class:on={fullWidth}
+						aria-pressed={fullWidth}
+						onclick={() => (fullWidth = !fullWidth)}
+					>
+						<Icon name={fullWidth ? 'check' : 'plus'} size={12} strokeWidth={2.5} />Full width
+					</button>
+				</div>
+			</div>
+
 			<div class="field">
 				<span class="flabel">Show on tasks</span>
 				<div class="fields">
@@ -398,12 +444,61 @@
 		color: var(--text);
 		box-shadow: var(--shadow-xs);
 	}
+	.width-row {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+	}
+	.width-slider {
+		flex: 1;
+		min-width: 0;
+		accent-color: var(--accent);
+	}
+	.width-slider:disabled {
+		opacity: 0.4;
+	}
+	.width-input {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+		padding: var(--space-1) var(--space-2);
+		background: var(--surface);
+		border: 1px solid var(--border-strong);
+		border-radius: var(--radius-md);
+		box-shadow: var(--shadow-xs);
+		font-size: var(--text-sm);
+		color: var(--text-subtle);
+	}
+	.width-input:focus-within {
+		border-color: var(--accent);
+		box-shadow: 0 0 0 3px var(--accent-ring);
+	}
+	.width-input.disabled {
+		opacity: 0.4;
+	}
+	.width-input input {
+		width: 4.5ch;
+		border: none;
+		background: none;
+		outline: none;
+		color: var(--text);
+		font: inherit;
+		text-align: right;
+		appearance: textfield;
+		-moz-appearance: textfield;
+	}
+	.width-input input::-webkit-inner-spin-button,
+	.width-input input::-webkit-outer-spin-button {
+		-webkit-appearance: none;
+		margin: 0;
+	}
 	.fields {
 		display: flex;
 		flex-wrap: wrap;
 		gap: var(--space-2);
 	}
 	.field-toggle {
+		flex-shrink: 0;
 		display: inline-flex;
 		align-items: center;
 		gap: 5px;

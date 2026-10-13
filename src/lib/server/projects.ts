@@ -145,6 +145,7 @@ export async function updateProject(
 	patch: Partial<Pick<CreateProjectInput, 'name' | 'description' | 'color' | 'icon' | 'style'>> & {
 		archived?: boolean;
 		hiddenFields?: RowField[];
+		listWidth?: number;
 	}
 ) {
 	const values: Record<string, unknown> = {};
@@ -156,6 +157,7 @@ export async function updateProject(
 	if (patch.archived !== undefined) values.archived = patch.archived;
 	if (patch.hiddenFields !== undefined)
 		values.hiddenFields = patch.hiddenFields.filter((f) => ROW_FIELDS.includes(f)).join(',');
+	if (patch.listWidth !== undefined) values.listWidth = patch.listWidth;
 	if (Object.keys(values).length === 0) return;
 	await db.update(projects).set(values).where(eq(projects.id, projectId));
 }

@@ -64,6 +64,8 @@ export const projects = mysqlTable(
 		style: mysqlEnum('style', PROJECT_STYLES).notNull().default('soft'),
 		// Comma-separated RowFields hidden from task rows; stored as hidden so new fields show by default.
 		hiddenFields: varchar('hidden_fields', { length: 255 }).notNull().default(''),
+		// Max width of the task list in px; 0 lets it fill the window.
+		listWidth: int('list_width').notNull().default(820),
 		ownerId: varchar('owner_id', { length: 36 })
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),
