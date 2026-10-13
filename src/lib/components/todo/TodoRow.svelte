@@ -36,6 +36,8 @@
 		/** Selection mode: clicking the row selects instead of opening. */
 		selecting?: boolean;
 		selected?: boolean;
+		/** Under the keyboard cursor. */
+		focused?: boolean;
 		onSelect?: (id: string, e: MouseEvent) => void;
 		/** Reserve a gutter for the expand/collapse chevron (project has subtasks). */
 		tree?: boolean;
@@ -66,6 +68,7 @@
 		projectTags = [],
 		selecting = false,
 		selected = false,
+		focused = false,
 		onSelect,
 		tree = false,
 		subtasks = { done: 0, total: 0 },
@@ -225,7 +228,7 @@
 	</button>
 {/snippet}
 
-<div class="row" class:done={todo.completed} class:selected>
+<div class="row" class:done={todo.completed} class:selected class:focused data-todo-id={todo.id}>
 	{#if tree}
 		{#if subtasks.total}
 			<button
@@ -446,6 +449,9 @@
 	}
 	.row.selected {
 		background: var(--accent-soft);
+	}
+	.row.focused {
+		box-shadow: inset 0 0 0 1.5px var(--accent);
 	}
 	.twisty {
 		margin: 2px calc(var(--space-2) * -1) 0 calc(var(--space-1) * -1);

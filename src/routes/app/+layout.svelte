@@ -7,6 +7,8 @@
 	import Avatar from '#lib/components/ui/Avatar.svelte';
 	import ThemeToggle from '#lib/components/ThemeToggle.svelte';
 	import ProjectDialog from '#lib/components/ProjectDialog.svelte';
+	import ShortcutsDialog from '#lib/components/ShortcutsDialog.svelte';
+	import { shortcutAllowed } from '#lib/shortcuts';
 	import { liveCounts } from '#lib/stores/liveCounts.svelte';
 
 	let { data, children } = $props();
@@ -14,6 +16,7 @@
 	let createOpen = $state(false);
 	let menuOpen = $state(false);
 	let sidebarOpen = $state(false);
+	let shortcutsOpen = $state(false);
 
 	const activeSlug = $derived(page.params.slug);
 	const activeProject = $derived(data.projects.find((p) => p.slug === activeSlug));
@@ -23,12 +26,38 @@
 		await goto('/');
 	}
 
+	// App-wide shortcuts: help and project switching. Task shortcuts live on the project page.
+	function onkeydown(e: KeyboardEvent) {
+		if (!shortcutAllowed(e)) return;
+		const projects = data.projects;
+		const index = projects.findIndex((p) => p.slug === activeSlug);
+		let target: (typeof projects)[number] | undefined;
+		if (e.key === '?') {
+			e.preventDefault();
+			shortcutsOpen = true;
+			return;
+		} else if (e.key === '[' || e.key === ']') {
+			if (!projects.length) return;
+			const step = e.key === ']' ? 1 : -1;
+			const from = index < 0 ? (step > 0 ? -1 : 0) : index;
+			target = projects[(from + step + projects.length) % projects.length];
+		} else if (/^[1-9]$/.test(e.key)) {
+			target = projects[Number(e.key) - 1];
+		}
+		if (target && target.slug !== activeSlug) {
+			e.preventDefault();
+			goto(`/app/${target.slug}`);
+		}
+	}
+
 	// Close the mobile sidebar whenever navigation changes the route.
 	$effect(() => {
 		void page.url.pathname;
 		sidebarOpen = false;
 	});
 </script>
+
+<svelte:window {onkeydown} />
 
 <div class="shell">
 	<!-- Mobile top bar -->
@@ -93,6 +122,17 @@
 						<a class="menu-item" href="/app/settings#passkeys" role="menuitem">
 							<Icon name="key" size={16} /> Passkeys
 						</a>
+						<button
+							class="menu-item"
+							role="menuitem"
+							onclick={() => {
+								menuOpen = false;
+								shortcutsOpen = true;
+							}}
+						>
+							<Icon name="keyboard" size={16} /> Keyboard shortcuts
+							<kbd class="menu-kbd">?</kbd>
+						</button>
 						<hr />
 						<button class="menu-item danger" role="menuitem" onclick={signOut}>
 							<Icon name="logout" size={16} /> Sign out
@@ -115,6 +155,7 @@
 </div>
 
 <ProjectDialog bind:open={createOpen} mode="create" />
+<ShortcutsDialog bind:open={shortcutsOpen} />
 
 <style>
 	.shell {
@@ -302,6 +343,16 @@
 	}
 	.menu-item:hover {
 		background: var(--surface-hover);
+	}
+	.menu-kbd {
+		margin-left: auto;
+		font-family: var(--font-mono);
+		font-size: var(--text-xs);
+		color: var(--text-subtle);
+		background: var(--surface-inset);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-xs);
+		padding: 0 6px;
 	}
 	.menu-item.danger {
 		color: var(--danger);

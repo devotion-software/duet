@@ -2,6 +2,7 @@
 	import { browser } from '$app/env';
 	import { page } from '$app/state';
 	import { invalidateAll, replaceState } from '$app/navigation';
+	import { tick } from 'svelte';
 	import { slide } from 'svelte/transition';
 	import { flip } from 'svelte/animate';
 	import { SvelteSet } from 'svelte/reactivity';
@@ -10,7 +11,8 @@
 	import { filterCount, groupTodos, matchesFilter, parseView, viewComparator, type GroupKey, type ViewState } from '#lib/todoView';
 	import { formatTodoForCopy, formatTodosAsChecklist, formatTodosAsJson } from '#lib/todoFormat';
 	import { toasts } from '#lib/components/ui/toast.svelte';
-	import type { Todo, Tag, Category } from '#lib/types';
+	import { onControl, shortcutAllowed } from '#lib/shortcuts';
+	import { isInProgress, type Todo, type Tag, type Category } from '#lib/types';
 
 	import Icon from '#lib/components/ui/Icon.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
@@ -237,6 +239,165 @@
 		anchorId = null;
 	}
 
+	// ── Keyboard navigation ──
+	/** Task under the keyboard cursor; clicks move it too, so arrows carry on from there. */
+	let focusedId = $state<string | null>(null);
+	/** The cursor only shows while the keyboard is in use. */
+	let keyboardNav = $state(false);
+	let quickAdd = $state<ReturnType<typeof QuickAdd>>();
+	let searchInput = $state<HTMLInputElement>();
+
+	async function focusRow(id: string | undefined) {
+		if (!id) return;
+		focusedId = id;
+		keyboardNav = true;
+		// Leave any clicked button so Space/Enter act on the cursor, not the button.
+		if (onControl()) (document.activeElement as HTMLElement).blur();
+		await tick();
+		document.querySelector(`[data-todo-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'nearest' });
+	}
+	/** After the task at `at` leaves its spot, put the cursor on whatever took its place. */
+	async function refocusAt(at: number) {
+		await tick();
+		focusRow((visibleTodos[at] ?? visibleTodos.at(-1))?.id);
+	}
+
+	function onkeydown(e: KeyboardEvent) {
+		if (!shortcutAllowed(e)) return;
+		const order = visibleTodos;
+		const step = e.key === 'ArrowDown' || e.key === 'j' ? 1 : e.key === 'ArrowUp' || e.key === 'k' ? -1 : 0;
+
+		// With the details panel open, up/down step through tasks in the panel.
+		if (selected) {
+			if (!step) return;
+			e.preventDefault();
+			const next = order[order.findIndex((t) => t.id === selected.id) + step];
+			if (next) {
+				selectTodo(next.id);
+				focusRow(next.id);
+			}
+			return;
+		}
+
+		const at = focusedId ? order.findIndex((t) => t.id === focusedId) : -1;
+		const current = at >= 0 ? order[at] : null;
+		const handled = () => e.preventDefault();
+
+		if (step) {
+			handled();
+			const next = at < 0 ? (step > 0 ? order[0] : order.at(-1)) : (order[at + step] ?? current);
+			// Shift-arrows grow the bulk selection as the cursor moves.
+			if (e.shiftKey && canEdit && next) {
+				if (current) selectedIds.add(current.id);
+				selectedIds.add(next.id);
+				anchorId = next.id;
+			}
+			focusRow(next?.id);
+			return;
+		}
+
+		switch (e.key) {
+			case 'Escape':
+				focusedId = null;
+				return;
+			case 'Home':
+				handled();
+				focusRow(order[0]?.id);
+				return;
+			case 'End':
+				handled();
+				focusRow(order.at(-1)?.id);
+				return;
+			case 'n':
+				if (!canEdit) return;
+				handled();
+				quickAdd?.focus();
+				return;
+			case '/':
+				handled();
+				searchInput?.focus();
+				return;
+			case 'h':
+				if (!doneTodos.length) return;
+				handled();
+				showCompleted = !showCompleted;
+				return;
+		}
+
+		if (!current) return;
+		switch (e.key) {
+			case ' ': {
+				if (!canEdit || onControl()) return;
+				handled();
+				const ticking = !current.completed;
+				controller.toggle(current.id);
+				// Ticking a top-level task moves it to "Completed"; keep the cursor in place.
+				if (ticking) refocusAt(at);
+				return;
+			}
+			case 'Enter':
+			case 'o':
+				if (onControl()) return;
+				handled();
+				selectTodo(current.id);
+				return;
+			case 'ArrowLeft': {
+				handled();
+				const kids = childrenShown(current.id);
+				if (kids.length && !isCollapsed(current.id) && !narrowed) toggleCollapse(current.id);
+				else if (current.parentId) focusRow(current.parentId);
+				return;
+			}
+			case 'ArrowRight': {
+				handled();
+				const kids = childrenShown(current.id);
+				if (kids.length && isCollapsed(current.id)) toggleCollapse(current.id);
+				else focusRow(kids[0]?.id);
+				return;
+			}
+			case 'p':
+				if (!canEdit || current.completed) return;
+				handled();
+				controller.setInProgress(current.id, !isInProgress(current));
+				return;
+			case 'a':
+				if (!canEdit) return;
+				// Stop the keystroke from landing in the input that opens.
+				handled();
+				startSubtask(current);
+				return;
+			case 'c':
+				handled();
+				copyTodo(current);
+				return;
+			case 'x':
+				if (!canEdit) return;
+				handled();
+				if (selectedIds.has(current.id)) selectedIds.delete(current.id);
+				else selectedIds.add(current.id);
+				anchorId = current.id;
+				return;
+			case 'Delete':
+			case 'Backspace': {
+				if (!canEdit) return;
+				handled();
+				const kids = controller.withDescendants([current.id]).size - 1;
+				const what = kids ? ` and its ${kids} subtask${kids === 1 ? '' : 's'}` : '';
+				if (!confirm(`Delete "${current.title}"${what}?`)) return;
+				controller.remove(current.id);
+				refocusAt(at);
+				return;
+			}
+		}
+	}
+
+	function onSearchKeydown(e: KeyboardEvent) {
+		if (e.key !== 'Escape') return;
+		// First Escape clears the search, the next one leaves the box.
+		if (search) search = '';
+		else searchInput?.blur();
+	}
+
 	async function addTodo(title: string) {
 		await controller.add({ title });
 	}
@@ -313,6 +474,8 @@
 
 <svelte:head><title>{data.project.name} · Duet</title></svelte:head>
 
+<svelte:window {onkeydown} onpointerdown={() => (keyboardNav = false)} />
+
 <!-- `group` is set on grouped top-level rows only; subtasks aren't grouped, so show all their fields. -->
 {#snippet node(todo: Todo, depth: number, group?: { field: GroupKey; key: string })}
 	{@const kids = childrenShown(todo.id)}
@@ -321,7 +484,10 @@
 		{canEdit}
 		onToggle={(id) => controller.toggle(id)}
 		onSetInProgress={canEdit ? (id, on) => controller.setInProgress(id, on) : undefined}
-		onOpen={(t) => selectTodo(t.id)}
+		onOpen={(t) => {
+			focusedId = t.id;
+			selectTodo(t.id);
+		}}
 		onCopy={copyTodo}
 		onDelete={(id) => controller.remove(id)}
 		onUpdate={canEdit ? (id, patch) => controller.update(id, patch) : undefined}
@@ -331,6 +497,7 @@
 		projectTags={data.tags}
 		{selecting}
 		selected={selectedIds.has(todo.id)}
+		focused={keyboardNav && focusedId === todo.id}
 		onSelect={canEdit ? selectTask : undefined}
 		tree={treeMode}
 		subtasks={subtaskCounts(todo.id)}
@@ -384,7 +551,14 @@
 			{/if}
 			<div class="searchbox">
 				<Icon name="search" size={15} />
-				<input bind:value={search} placeholder="Search tasks" aria-label="Search tasks" />
+				<input
+					bind:this={searchInput}
+					bind:value={search}
+					onkeydown={onSearchKeydown}
+					placeholder="Search tasks"
+					aria-label="Search tasks"
+				/>
+				{#if !search}<kbd class="search-kbd" aria-hidden="true">/</kbd>{/if}
 			</div>
 			{#if canEdit}
 				<Button variant="ghost" size="sm" icon="clipboard" onclick={() => openImport()}>Import</Button>
@@ -445,7 +619,7 @@
 	<div class="work" style="--list-width: {data.project.listWidth ? `${data.project.listWidth}px` : 'none'}">
 		{#if canEdit}
 			<div class="quick">
-				<QuickAdd onAdd={addTodo} onPasteMultiline={openImport} />
+				<QuickAdd bind:this={quickAdd} onAdd={addTodo} onPasteMultiline={openImport} />
 			</div>
 		{/if}
 
@@ -641,6 +815,17 @@
 	}
 	.searchbox input:focus {
 		outline: none;
+	}
+	.search-kbd {
+		font-family: var(--font-mono);
+		font-size: var(--text-xs);
+		color: var(--text-faint);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-xs);
+		padding: 0 5px;
+	}
+	.searchbox:focus-within .search-kbd {
+		display: none;
 	}
 	.icon-btn {
 		display: inline-flex;
