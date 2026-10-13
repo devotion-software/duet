@@ -6,8 +6,10 @@
 		onAdd: (title: string) => Promise<void> | void;
 		onPasteMultiline?: (text: string) => void;
 		disabled?: boolean;
+		/** Match the project's glass style with a frosted, accent-tinted surface. */
+		glass?: boolean;
 	}
-	let { onAdd, onPasteMultiline, disabled = false }: Props = $props();
+	let { onAdd, onPasteMultiline, disabled = false, glass = false }: Props = $props();
 
 	let title = $state('');
 	let busy = $state(false);
@@ -46,7 +48,7 @@
 	}
 </script>
 
-<div class="quick-add" class:disabled>
+<div class="quick-add" class:disabled class:glass>
 	<span class="qa-icon">
 		{#if busy}<Spinner size={18} />{:else}<Icon name="plus" size={20} />{/if}
 	</span>
@@ -82,6 +84,27 @@
 	.quick-add:focus-within {
 		border-color: var(--accent);
 		box-shadow:
+			var(--shadow-sm),
+			0 0 0 3px var(--accent-ring);
+	}
+	.quick-add.glass {
+		background:
+			radial-gradient(
+				120% 220% at 0% 0%,
+				color-mix(in oklab, var(--accent) 14%, transparent),
+				transparent 60%
+			),
+			color-mix(in oklab, var(--surface) 60%, transparent);
+		border-color: color-mix(in oklab, var(--accent) 22%, var(--border));
+		backdrop-filter: blur(12px) saturate(1.4);
+		box-shadow:
+			inset 0 1px 0 rgb(255 255 255 / 0.25),
+			var(--shadow-sm);
+	}
+	.quick-add.glass:focus-within {
+		border-color: var(--accent);
+		box-shadow:
+			inset 0 1px 0 rgb(255 255 255 / 0.25),
 			var(--shadow-sm),
 			0 0 0 3px var(--accent-ring);
 	}

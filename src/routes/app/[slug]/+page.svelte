@@ -752,8 +752,8 @@
 		ondrop={onListDrop}
 	>
 		{#if canEdit}
-			<div class="quick">
-				<QuickAdd bind:this={quickAdd} onAdd={addTodo} onPasteMultiline={openImport} />
+			<div class="quick" class:glass={data.project.style === 'glass'}>
+				<QuickAdd bind:this={quickAdd} glass={data.project.style === 'glass'} onAdd={addTodo} onPasteMultiline={openImport} />
 			</div>
 		{/if}
 
@@ -1089,10 +1089,14 @@
 		top: var(--topbar-height, 0px);
 		z-index: var(--z-base);
 		padding: var(--space-5) 0 var(--space-3);
-		margin-bottom: var(--space-2);
 		background-color: var(--bg);
 		background-image: var(--bg-gradient);
 		background-attachment: fixed;
+	}
+	/* Glass projects frost the rows scrolling beneath instead of covering them. */
+	.quick.glass {
+		background: color-mix(in oklab, var(--bg) 55%, transparent);
+		backdrop-filter: blur(12px) saturate(1.4);
 	}
 	.work.no-quick {
 		padding-top: var(--space-5);
