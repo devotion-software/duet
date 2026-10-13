@@ -114,10 +114,14 @@
 						</Button>
 					</div>
 				</label>
-				<label class="field">
+				<div class="field">
 					<span>Email</span>
-					<input value={data.user.email} readonly class="readonly" />
-				</label>
+					<div class="readonly" title="Your email can't be changed">
+						<Icon name="lock" size={14} />
+						<span class="readonly-value">{data.user.email}</span>
+					</div>
+					<p class="hint">Used to sign in, so it can't be changed.</p>
+				</div>
 			</div>
 		</div>
 	</section>
@@ -350,8 +354,27 @@
 		box-shadow: 0 0 0 3px var(--accent-ring);
 	}
 	.readonly {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		height: 38px;
+		padding: 0 var(--space-3);
+		border: 1px dashed var(--border-strong);
+		border-radius: var(--radius-md);
+		background: var(--surface-inset);
 		color: var(--text-muted);
-		background: var(--surface-inset) !important;
+		cursor: default;
+	}
+	.readonly-value {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.hint {
+		margin: 0;
+		font-size: var(--text-xs);
+		color: var(--text-muted);
 	}
 	.pdefaults {
 		display: flex;
