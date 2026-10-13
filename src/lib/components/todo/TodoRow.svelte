@@ -260,6 +260,12 @@
 		class:progress={inProgress}
 		disabled={!canEdit}
 		onclick={() => onToggle(todo.id)}
+		oncontextmenu={(e) => {
+			// Right-click toggles in progress; starting a done task reopens it.
+			if (!onSetInProgress || !canEdit) return;
+			e.preventDefault();
+			onSetInProgress(todo.id, !inProgress);
+		}}
 		aria-label={todo.completed ? 'Mark as not done' : 'Mark as done'}
 		aria-pressed={todo.completed}
 		title={inProgress ? 'In progress' : undefined}
