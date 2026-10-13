@@ -236,6 +236,9 @@
 		else selectedIds.add(id);
 		anchorId = id;
 	}
+	function selectAll() {
+		for (const t of visibleTodos) selectedIds.add(t.id);
+	}
 	function clearSelection() {
 		selectedIds.clear();
 		selectMode = false;
@@ -565,6 +568,9 @@
 				>
 					{selecting ? 'Done' : 'Select'}
 				</Button>
+				{#if selecting && !selectedIds.size && visibleTodos.length}
+					<Button variant="ghost" size="sm" onclick={selectAll}>Select all</Button>
+				{/if}
 			{/if}
 			<div class="searchbox">
 				<Icon name="search" size={15} />
@@ -751,7 +757,7 @@
 		tags={data.tags}
 		onApply={(patch) => controller.bulkUpdate([...selectedIds], patch)}
 		onDelete={() => controller.bulkRemove([...selectedIds])}
-		onSelectAll={() => visibleTodos.forEach((t) => selectedIds.add(t.id))}
+		onSelectAll={selectAll}
 		onClear={clearSelection}
 		onCreateTag={createTag}
 		onCreateCategory={createCategory}
