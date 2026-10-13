@@ -54,6 +54,13 @@
 		group?: { field: GroupKey; key: string };
 		/** Fields the project has chosen not to show on rows. */
 		hiddenFields?: RowField[];
+		/** Drag to reorder; the row is draggable only when this is set. */
+		onDragStart?: (todo: Todo, e: DragEvent) => void;
+		onDragEnd?: () => void;
+		/** This row is the one being dragged. */
+		dragged?: boolean;
+		/** A drag would land just above or below this row. */
+		dropPos?: 'before' | 'after' | null;
 	}
 	let {
 		todo,
@@ -80,7 +87,11 @@
 		onAddSubtask,
 		onOutdent,
 		group,
-		hiddenFields = []
+		hiddenFields = [],
+		onDragStart,
+		onDragEnd,
+		dragged = false,
+		dropPos = null
 	}: Props = $props();
 
 	function onBodyClick(e: MouseEvent) {
@@ -243,7 +254,20 @@
 	</button>
 {/snippet}
 
-<div class="row" class:done={todo.completed} class:skipped={todo.notDoing} class:selected class:focused data-todo-id={todo.id}>
+<!-- svelte-ignore a11y_no_static_element_interactions (Alt-arrows are the keyboard way to reorder) -->
+<div
+	class="row {dropPos ? `drop-${dropPos}` : ''}"
+	class:done={todo.completed}
+	class:skipped={todo.notDoing}
+	class:selected
+	class:focused
+	class:dragged
+	data-todo-id={todo.id}
+	data-group={group?.key}
+	draggable={!!onDragStart && !menuOpen}
+	ondragstart={(e) => onDragStart?.(todo, e)}
+	ondragend={() => onDragEnd?.()}
+>
 	{#if tree}
 		{#if subtasks.total}
 			<button
@@ -486,6 +510,18 @@
 	}
 	.row.focused {
 		box-shadow: inset 0 0 0 1.5px var(--accent);
+	}
+	.row[draggable='true'] {
+		-webkit-user-drag: element;
+	}
+	.row.dragged {
+		opacity: 0.4;
+	}
+	.row.drop-before {
+		box-shadow: inset 0 2px 0 var(--accent);
+	}
+	.row.drop-after {
+		box-shadow: inset 0 -2px 0 var(--accent);
 	}
 	.twisty {
 		margin: 2px calc(var(--space-2) * -1) 0 calc(var(--space-1) * -1);

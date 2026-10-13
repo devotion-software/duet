@@ -24,8 +24,16 @@ export function dialogOpen(): boolean {
 }
 
 /** Whether a keydown should be considered for single-key app shortcuts at all. */
-export function shortcutAllowed(e: KeyboardEvent): boolean {
-	return !e.defaultPrevented && !e.metaKey && !e.ctrlKey && !e.altKey && !e.isComposing && !isTyping(e) && !dialogOpen();
+export function shortcutAllowed(e: KeyboardEvent, allowAlt = false): boolean {
+	return (
+		!e.defaultPrevented &&
+		!e.metaKey &&
+		!e.ctrlKey &&
+		(allowAlt || !e.altKey) &&
+		!e.isComposing &&
+		!isTyping(e) &&
+		!dialogOpen()
+	);
 }
 
 export const SHORTCUTS: { title: string; items: { keys: string[]; label: string }[] }[] = [
@@ -48,6 +56,7 @@ export const SHORTCUTS: { title: string; items: { keys: string[]; label: string 
 			{ keys: ['↑', '↓'], label: 'Move between tasks (also k / j)' },
 			{ keys: ['Home', 'End'], label: 'First / last task' },
 			{ keys: ['←', '→'], label: 'Collapse / expand subtasks' },
+			{ keys: ['Alt', '↑ ↓'], label: 'Move task up / down (manual sort)' },
 			{ keys: ['Space'], label: 'Tick / untick task' },
 			{ keys: ['Enter'], label: 'Open task details (also o)' },
 			{ keys: ['p'], label: 'Toggle in progress' },

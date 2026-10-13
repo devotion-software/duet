@@ -418,6 +418,16 @@ export class TodosController {
 		}
 	}
 
+	/** Move an open task next to an open sibling, then save the siblings' new order. */
+	move(id: string, targetId: string, pos: 'before' | 'after') {
+		const siblings = [...this.children.values()].find((list) => list.some((t) => t.id === id)) ?? [];
+		const ids = siblings.filter((t) => !t.completed && t.id !== id).map((t) => t.id);
+		const at = ids.indexOf(targetId);
+		if (at < 0) return;
+		ids.splice(pos === 'before' ? at : at + 1, 0, id);
+		return this.reorderOpen(ids);
+	}
+
 	/** Apply an event received over SSE (ignores our own echoes). */
 	applyEvent(event: RealtimeEvent) {
 		if (event.origin && event.origin === this.clientId) return;

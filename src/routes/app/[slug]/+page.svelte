@@ -202,6 +202,64 @@
 		return roots.flatMap((t) => [t, ...(isCollapsed(t.id) ? [] : visibleRows(childrenShown(t.id)))]);
 	}
 
+	// ── Reordering (manual sort only) ──
+	// Open tasks move among their open siblings; under a grouping, only within their group.
+	const canReorder = $derived(canEdit && view.sort === 'manual' && !view.reverse);
+	let dragging = $state<{ id: string; group?: string } | null>(null);
+	let dropTarget = $state<{ id: string; pos: 'before' | 'after' } | null>(null);
+
+	function onRowDragStart(todo: Todo, e: DragEvent) {
+		dragging = { id: todo.id, group: (e.currentTarget as HTMLElement).dataset.group };
+		e.dataTransfer!.effectAllowed = 'move';
+		// Firefox won't start a drag without some data.
+		e.dataTransfer!.setData('text/plain', todo.title);
+	}
+	function onRowDragEnd() {
+		dragging = null;
+		dropTarget = null;
+	}
+
+	/** Where the pointer would drop the dragged task, or null if it can't go there. */
+	function dropAt(e: DragEvent) {
+		const el = (e.target as Element).closest<HTMLElement>('[data-todo-id]');
+		const drag = dragging && controller.items.find((t) => t.id === dragging!.id);
+		const target = el && controller.items.find((t) => t.id === el.dataset.todoId);
+		if (!el || !drag || !target || target.id === drag.id || target.completed) return null;
+		// Same parent, and top-level tasks stay within their group.
+		if (target.parentId !== drag.parentId || (!drag.parentId && el.dataset.group !== dragging!.group)) return null;
+		const rect = el.getBoundingClientRect();
+		return { id: target.id, pos: e.clientY < rect.top + rect.height / 2 ? ('before' as const) : ('after' as const) };
+	}
+	function onListDragOver(e: DragEvent) {
+		if (!dragging) return;
+		dropTarget = dropAt(e);
+		if (!dropTarget) return;
+		e.preventDefault();
+		e.dataTransfer!.dropEffect = 'move';
+	}
+	function onListDragLeave(e: DragEvent) {
+		if (!(e.currentTarget as Element).contains(e.relatedTarget as Node | null)) dropTarget = null;
+	}
+	function onListDrop(e: DragEvent) {
+		if (!dragging) return;
+		e.preventDefault();
+		const drop = dropAt(e);
+		const id = dragging.id;
+		onRowDragEnd();
+		if (drop) controller.move(id, drop.id, drop.pos);
+	}
+
+	/** Swap a task with its open neighbour in the list it's shown in. */
+	function nudge(todo: Todo, step: number) {
+		const list = todo.parentId
+			? childrenShown(todo.parentId)
+			: (openGroups.find((g) => g.todos.includes(todo))?.todos ?? []);
+		const open = list.filter((t) => !t.completed);
+		const next = open[open.indexOf(todo) + step];
+		if (next) controller.move(todo.id, next.id, step > 0 ? 'after' : 'before');
+		focusRow(todo.id);
+	}
+
 	// ── Multi-select for bulk edits ──
 	let selectMode = $state(false);
 	const selectedIds = new SvelteSet<string>();
@@ -269,9 +327,17 @@
 	}
 
 	function onkeydown(e: KeyboardEvent) {
+		const step = e.key === 'ArrowDown' || e.key === 'j' ? 1 : e.key === 'ArrowUp' || e.key === 'k' ? -1 : 0;
+		// Alt-arrows move the task under the cursor.
+		if (e.altKey && step && !selected && shortcutAllowed(e, true)) {
+			const current = controller.items.find((t) => t.id === focusedId);
+			if (!canReorder || !current || current.completed) return;
+			e.preventDefault();
+			nudge(current, step);
+			return;
+		}
 		if (!shortcutAllowed(e)) return;
 		const order = visibleTodos;
-		const step = e.key === 'ArrowDown' || e.key === 'j' ? 1 : e.key === 'ArrowUp' || e.key === 'k' ? -1 : 0;
 
 		// With the details panel open, up/down step through tasks in the panel.
 		if (selected) {
@@ -521,6 +587,10 @@
 		onOutdent={canEdit ? outdent : undefined}
 		{group}
 		hiddenFields={data.project.hiddenFields}
+		onDragStart={canReorder && !todo.completed ? onRowDragStart : undefined}
+		onDragEnd={onRowDragEnd}
+		dragged={dragging?.id === todo.id}
+		dropPos={dropTarget?.id === todo.id ? dropTarget.pos : null}
 	/>
 	{#if (kids.length || addingTo === todo.id) && !isCollapsed(todo.id)}
 		<div class="subtasks" class:capped={depth >= MAX_INDENT} transition:slide={{ duration: 150 }}>
@@ -644,7 +714,15 @@
 		</div>
 	</header>
 
-	<div class="work" class:no-quick={!canEdit} style="--list-width: {data.project.listWidth ? `${data.project.listWidth}px` : 'none'}">
+	<div
+		class="work"
+		class:no-quick={!canEdit}
+		style="--list-width: {data.project.listWidth ? `${data.project.listWidth}px` : 'none'}"
+		role="presentation"
+		ondragover={onListDragOver}
+		ondragleave={onListDragLeave}
+		ondrop={onListDrop}
+	>
 		{#if canEdit}
 			<div class="quick">
 				<QuickAdd bind:this={quickAdd} onAdd={addTodo} onPasteMultiline={openImport} />
