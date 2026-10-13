@@ -19,10 +19,13 @@ import {
 import { clampListWidth } from '#lib/palette';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ parent }) => {
+export const load: PageServerLoad = async ({ parent, cookies }) => {
 	const { projects } = await parent();
 	// Archived projects stay out of the overview, like they do in the sidebar.
-	return getHomeOverview(projects.filter((p) => p.status !== 'archived'));
+	const overview = await getHomeOverview(projects.filter((p) => p.status !== 'archived'));
+	// Folder groups folded away on the home page, independent of the sidebar's.
+	const collapsedFolders = (cookies.get('duet-home-collapsed') ?? '').split(',').filter(Boolean);
+	return { ...overview, collapsedFolders };
 };
 
 const STYLES: ProjectStyle[] = ['soft', 'solid', 'outline', 'glass'];

@@ -12,13 +12,39 @@
 	let createOpen = $state(false);
 
 	const projectById = $derived(new Map(data.projects.map((p) => [p.id, p])));
-	// Current projects in the same order as the sidebar, folders flattened.
-	const projects = $derived(
-		buildSidebar(data.folders, data.projects)
-			.flatMap((i) => (i.type === 'folder' ? i.projectIds : [i.id]))
-			.map((id) => projectById.get(id)!)
-			.filter((p) => p.status !== 'archived')
-	);
+	const folderById = $derived(new Map(data.folders.map((f) => [f.id, f])));
+	const isCurrent = (id: string) => projectById.get(id)!.status !== 'archived';
+	// Current projects grouped as in the sidebar: each folder is a group, and runs of
+	// unfoldered projects between them share an unnamed one. Empty groups are dropped.
+	const groups = $derived.by(() => {
+		const out: {
+			id: string;
+			folder: (typeof data.folders)[number] | null;
+			projectIds: string[];
+		}[] = [];
+		for (const item of buildSidebar(data.folders, data.projects)) {
+			if (item.type === 'folder') {
+				const projectIds = item.projectIds.filter(isCurrent);
+				out.push({ id: item.id, folder: folderById.get(item.id)!, projectIds });
+			} else if (isCurrent(item.id)) {
+				const last = out.at(-1);
+				if (last && !last.folder) last.projectIds.push(item.id);
+				else out.push({ id: `loose-${item.id}`, folder: null, projectIds: [item.id] });
+			}
+		}
+		return out
+			.filter((g) => g.projectIds.length)
+			.map((g) => ({ ...g, projects: g.projectIds.map((id) => projectById.get(id)!) }));
+	});
+	const projects = $derived(groups.flatMap((g) => g.projects));
+
+	let collapsedFolders = $derived(new Set(data.collapsedFolders));
+	function toggleFolder(id: string) {
+		const next = new Set(collapsedFolders);
+		if (!next.delete(id)) next.add(id);
+		collapsedFolders = next;
+		document.cookie = `duet-home-collapsed=${[...next].join(',')}; path=/app; max-age=31536000; samesite=lax`;
+	}
 	const totals = $derived(
 		projects.reduce(
 			(t, p) => {
@@ -110,41 +136,63 @@
 		<section class="section">
 			<h2><Icon name="folder" size={16} /> Projects</h2>
 			{#if projects.length}
-				<div class="grid">
-					{#each projects as p (p.id)}
-						{@const s = data.stats[p.id]}
-						{@const total = s.open + s.done}
-						<a class="card style-{p.style}" href="/app/{p.slug}" style="--accent: {p.color}">
-							<div class="card-head">
-								<span class="c-icon project-tile style-{p.style}"><ProjectIcon icon={p.icon} iconUrl={p.iconUrl} /></span>
-								<span class="c-name truncate">{p.name}</span>
-								<ProjectStatusBadge status={p.status} />
-							</div>
-							{#if p.description}
-								<p class="c-desc" title={p.description}>{p.description}</p>
-							{/if}
-							<div class="c-foot">
-								<div class="stats">
-									<span class="stat"><strong>{s.open}</strong> to do</span>
-									<span class="stat"><strong>{s.done}</strong> done</span>
-									{#if s.urgent}
-										<span class="stat urgent"><strong>{s.urgent}</strong> urgent</span>
-									{/if}
-								</div>
-								<div
-									class="bar"
-									role="progressbar"
-									aria-label="{p.name} progress"
-									aria-valuemin={0}
-									aria-valuemax={total}
-									aria-valuenow={s.done}
+				{#each groups as g (g.id)}
+					{@const folded = !!g.folder && collapsedFolders.has(g.id)}
+					<div class="group">
+						{#if g.folder}
+							<h3>
+								<button
+									type="button"
+									class="group-head"
+									aria-expanded={!folded}
+									onclick={() => toggleFolder(g.id)}
 								>
-									<span style="width: {total ? (s.done / total) * 100 : 0}%"></span>
-								</div>
+									<Icon name={folded ? 'chevron-right' : 'chevron-down'} size={14} />
+									<Icon name="folder" size={15} />
+									<span class="truncate">{g.folder.name}</span>
+									<span class="group-count">{g.projects.length}</span>
+								</button>
+							</h3>
+						{/if}
+						{#if !folded}
+							<div class="grid">
+								{#each g.projects as p (p.id)}
+									{@const s = data.stats[p.id]}
+									{@const total = s.open + s.done}
+									<a class="card style-{p.style}" href="/app/{p.slug}" style="--accent: {p.color}">
+										<div class="card-head">
+											<span class="c-icon project-tile style-{p.style}"><ProjectIcon icon={p.icon} iconUrl={p.iconUrl} /></span>
+											<span class="c-name truncate">{p.name}</span>
+											<ProjectStatusBadge status={p.status} />
+										</div>
+										{#if p.description}
+											<p class="c-desc" title={p.description}>{p.description}</p>
+										{/if}
+										<div class="c-foot">
+											<div class="stats">
+												<span class="stat"><strong>{s.open}</strong> to do</span>
+												<span class="stat"><strong>{s.done}</strong> done</span>
+												{#if s.urgent}
+													<span class="stat urgent"><strong>{s.urgent}</strong> urgent</span>
+												{/if}
+											</div>
+											<div
+												class="bar"
+												role="progressbar"
+												aria-label="{p.name} progress"
+												aria-valuemin={0}
+												aria-valuemax={total}
+												aria-valuenow={s.done}
+											>
+												<span style="width: {total ? (s.done / total) * 100 : 0}%"></span>
+											</div>
+										</div>
+									</a>
+								{/each}
 							</div>
-						</a>
-					{/each}
-				</div>
+						{/if}
+					</div>
+				{/each}
 			{:else}
 				<p class="none">All your projects are archived.</p>
 			{/if}
@@ -326,6 +374,44 @@
 		display: grid;
 		place-items: center;
 		font-size: 12px;
+	}
+
+	/* Project groups */
+	.group + .group {
+		margin-top: var(--space-5);
+	}
+	.group h3 {
+		margin-bottom: var(--space-3);
+	}
+	.group-head {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		max-width: 100%;
+		margin-left: calc(-1 * var(--space-2));
+		padding: var(--space-1) var(--space-2);
+		border-radius: var(--radius-md);
+		font: inherit;
+		font-size: var(--text-sm);
+		font-weight: var(--weight-semibold);
+		color: var(--text-muted);
+		transition: background var(--transition-fast);
+	}
+	.group-head:hover {
+		background: var(--surface-hover);
+		color: var(--text);
+	}
+	.group-head :global(svg) {
+		flex-shrink: 0;
+		color: var(--text-subtle);
+	}
+	.group-count {
+		padding: 0 var(--space-2);
+		border-radius: var(--radius-full);
+		background: var(--surface-inset);
+		color: var(--text-subtle);
+		font-size: var(--text-xs);
+		font-weight: var(--weight-medium);
 	}
 
 	/* Project cards */
