@@ -144,6 +144,12 @@
 	}
 	function onkeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') onClose();
+		else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+			e.preventDefault();
+			// Blurring the focused field fires its onblur save before closing.
+			(document.activeElement as HTMLElement | null)?.blur();
+			onClose();
+		}
 	}
 
 	// ── Image attachments ──
