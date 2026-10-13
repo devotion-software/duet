@@ -12,15 +12,48 @@
 		onOpen: (todo: Todo) => void;
 		onCopy: (todo: Todo) => void;
 		onDelete: (id: string) => void;
+		/** Selection mode: clicking the row selects instead of opening. */
+		selecting?: boolean;
+		selected?: boolean;
+		onSelect?: (id: string, e: MouseEvent) => void;
 	}
-	let { todo, canEdit, onToggle, onOpen, onCopy, onDelete }: Props = $props();
+	let {
+		todo,
+		canEdit,
+		onToggle,
+		onOpen,
+		onCopy,
+		onDelete,
+		selecting = false,
+		selected = false,
+		onSelect
+	}: Props = $props();
+
+	function onBodyClick(e: MouseEvent) {
+		// Cmd/Ctrl/Shift-click starts (or extends) a selection without a mode switch.
+		if (onSelect && (selecting || e.metaKey || e.ctrlKey || e.shiftKey)) {
+			e.preventDefault();
+			onSelect(todo.id, e);
+		} else onOpen(todo);
+	}
 
 	const deadline = $derived(deadlineInfo(todo.deadline));
 	const excerpt = $derived(markdownExcerpt(todo.description, 90));
 	let menuOpen = $state(false);
 </script>
 
-<div class="row" class:done={todo.completed}>
+<div class="row" class:done={todo.completed} class:selected>
+	{#if selecting}
+		<button
+			class="select"
+			class:on={selected}
+			onclick={(e) => onSelect?.(todo.id, e)}
+			aria-label={selected ? 'Deselect task' : 'Select task'}
+			aria-pressed={selected}
+		>
+			{#if selected}<Icon name="check" size={12} strokeWidth={3} />{/if}
+		</button>
+	{/if}
 	<button
 		class="check"
 		class:on={todo.completed}
@@ -32,7 +65,11 @@
 		{#if todo.completed}<Icon name="check" size={13} strokeWidth={3} />{/if}
 	</button>
 
-	<button class="body" onclick={() => onOpen(todo)}>
+	<button
+		class="body"
+		onclick={onBodyClick}
+		onmousedown={(e) => e.shiftKey && onSelect && e.preventDefault()}
+	>
 		<div class="title-line">
 			{#if todo.urgency && !todo.completed}
 				<span
@@ -145,6 +182,28 @@
 	}
 	.row:hover {
 		background: var(--surface-hover);
+	}
+	.row.selected {
+		background: var(--accent-soft);
+	}
+	.select {
+		margin-top: 2px;
+		width: 18px;
+		height: 18px;
+		flex-shrink: 0;
+		border-radius: 5px;
+		border: 1.8px solid var(--border-strong);
+		display: grid;
+		place-items: center;
+		color: var(--accent-contrast);
+		transition: all var(--transition-fast);
+	}
+	.select:hover {
+		border-color: var(--accent);
+	}
+	.select.on {
+		background: var(--accent);
+		border-color: var(--accent);
 	}
 	.check {
 		margin-top: 1px;

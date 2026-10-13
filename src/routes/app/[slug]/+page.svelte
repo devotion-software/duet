@@ -4,6 +4,7 @@
 	import { invalidateAll, replaceState } from '$app/navigation';
 	import { slide } from 'svelte/transition';
 	import { flip } from 'svelte/animate';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { TodosController } from '#lib/stores/todos.svelte';
 	import { formatTodoForCopy, formatTodosAsChecklist, formatTodosAsJson } from '#lib/todoFormat';
 	import { toasts } from '#lib/components/ui/toast.svelte';
@@ -14,6 +15,7 @@
 	import QuickAdd from '#lib/components/todo/QuickAdd.svelte';
 	import TodoRow from '#lib/components/todo/TodoRow.svelte';
 	import TodoDetail from '#lib/components/todo/TodoDetail.svelte';
+	import BulkBar from '#lib/components/todo/BulkBar.svelte';
 	import ImportDialog from '#lib/components/todo/ImportDialog.svelte';
 	import MembersDialog from '#lib/components/todo/MembersDialog.svelte';
 	import ProjectDialog from '#lib/components/ProjectDialog.svelte';
@@ -74,6 +76,38 @@
 	const doneTodos = $derived(
 		controller.done.filter((t) => t.title.toLowerCase().includes(search.toLowerCase().trim()))
 	);
+
+	// ── Multi-select for bulk edits ──
+	let selectMode = $state(false);
+	const selectedIds = new SvelteSet<string>();
+	let anchorId: string | null = null;
+	const selecting = $derived(canEdit && (selectMode || selectedIds.size > 0));
+	const visibleTodos = $derived([...openTodos, ...(showCompleted ? doneTodos : [])]);
+	const selectedTodos = $derived(controller.items.filter((t) => selectedIds.has(t.id)));
+
+	// Drop selections for tasks that disappear (deleted, or a project switch).
+	$effect(() => {
+		const ids = new Set(controller.items.map((t) => t.id));
+		for (const id of selectedIds) if (!ids.has(id)) selectedIds.delete(id);
+	});
+
+	function selectTask(id: string, e: MouseEvent) {
+		const order = visibleTodos.map((t) => t.id);
+		const from = anchorId ? order.indexOf(anchorId) : -1;
+		const to = order.indexOf(id);
+		if (e.shiftKey && from >= 0 && to >= 0) {
+			// Shift-click selects the whole range from the last clicked task.
+			const [a, b] = from < to ? [from, to] : [to, from];
+			for (const rid of order.slice(a, b + 1)) selectedIds.add(rid);
+		} else if (selectedIds.has(id)) selectedIds.delete(id);
+		else selectedIds.add(id);
+		anchorId = id;
+	}
+	function clearSelection() {
+		selectedIds.clear();
+		selectMode = false;
+		anchorId = null;
+	}
 
 	async function addTodo(title: string) {
 		await controller.add({ title });
@@ -163,6 +197,17 @@
 		</div>
 
 		<div class="head-actions">
+			{#if canEdit && controller.items.length}
+				<Button
+					variant={selecting ? 'subtle' : 'ghost'}
+					size="sm"
+					icon="check-circle"
+					title="Select tasks to edit together (or Cmd/Ctrl-click a task)"
+					onclick={() => (selecting ? clearSelection() : (selectMode = true))}
+				>
+					{selecting ? 'Done' : 'Select'}
+				</Button>
+			{/if}
 			<div class="searchbox">
 				<Icon name="search" size={15} />
 				<input bind:value={search} placeholder="Search tasks" aria-label="Search tasks" />
@@ -258,6 +303,9 @@
 							onOpen={(t) => selectTodo(t.id)}
 							onCopy={copyTodo}
 							onDelete={(id) => controller.remove(id)}
+							{selecting}
+							selected={selectedIds.has(todo.id)}
+							onSelect={canEdit ? selectTask : undefined}
 						/>
 					</div>
 				{/each}
@@ -280,6 +328,9 @@
 										onOpen={(t) => selectTodo(t.id)}
 										onCopy={copyTodo}
 										onDelete={(id) => controller.remove(id)}
+										{selecting}
+										selected={selectedIds.has(todo.id)}
+										onSelect={canEdit ? selectTask : undefined}
 									/>
 								</div>
 							{/each}
@@ -307,6 +358,21 @@
 		onCreateCategory={createCategory}
 		onAddAttachment={(file) => controller.addAttachment(selected!.id, file)}
 		onRemoveAttachment={(id) => controller.removeAttachment(selected!.id, id)}
+	/>
+{/if}
+
+{#if selecting && selectedIds.size}
+	<BulkBar
+		selected={selectedTodos}
+		totalVisible={visibleTodos.length}
+		members={data.members}
+		categories={data.categories}
+		tags={data.tags}
+		onApply={(patch) => controller.bulkUpdate([...selectedIds], patch)}
+		onDelete={() => controller.bulkRemove([...selectedIds])}
+		onSelectAll={() => visibleTodos.forEach((t) => selectedIds.add(t.id))}
+		onClear={clearSelection}
+		onCreateTag={createTag}
 	/>
 {/if}
 

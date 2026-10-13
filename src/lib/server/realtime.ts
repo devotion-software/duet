@@ -9,6 +9,8 @@ export interface RealtimeEvent {
 		| 'todo.created'
 		| 'todo.updated'
 		| 'todo.deleted'
+		| 'todos.updated'
+		| 'todos.deleted'
 		| 'todos.imported'
 		| 'todos.reordered'
 		| 'tag.changed'

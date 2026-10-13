@@ -13,6 +13,17 @@ export interface NewTodoInput {
 	tagIds?: string[];
 }
 
+export interface BulkPatchInput {
+	categoryId?: string | null;
+	assigneeId?: string | null;
+	deadline?: string | null;
+	urgency?: string | null;
+	size?: string | null;
+	completed?: boolean;
+	addTagIds?: string[];
+	removeTagIds?: string[];
+}
+
 function sortOpen(a: Todo, b: Todo) {
 	return b.sortOrder - a.sortOrder || b.createdAt.getTime() - a.createdAt.getTime();
 }
@@ -160,6 +171,39 @@ export class TodosController {
 		}
 	}
 
+	/** Apply one change to many todos. Not optimistic: the server owns the tag merge. */
+	async bulkUpdate(ids: string[], patch: BulkPatchInput): Promise<boolean> {
+		try {
+			const res = await this.#fetch(`${this.#base()}/todos/bulk`, {
+				method: 'PATCH',
+				body: JSON.stringify({ ids, patch })
+			});
+			const { todos } = await res.json();
+			for (const t of todos as Record<string, unknown>[]) this.#replace(hydrateTodo(t));
+			return true;
+		} catch (e) {
+			toasts.error((e as Error).message);
+			return false;
+		}
+	}
+
+	async bulkRemove(ids: string[]): Promise<boolean> {
+		const gone = new Set(ids);
+		const prev = this.items;
+		this.items = this.items.filter((t) => !gone.has(t.id));
+		try {
+			await this.#fetch(`${this.#base()}/todos/bulk`, {
+				method: 'DELETE',
+				body: JSON.stringify({ ids })
+			});
+			return true;
+		} catch (e) {
+			this.items = prev;
+			toasts.error((e as Error).message);
+			return false;
+		}
+	}
+
 	async remove(id: string) {
 		const idx = this.items.findIndex((t) => t.id === id);
 		if (idx < 0) return;
@@ -247,6 +291,15 @@ export class TodosController {
 			case 'todo.updated':
 				if (event.payload) this.#replace(hydrateTodo(event.payload as Record<string, unknown>));
 				break;
+			case 'todos.updated':
+				for (const t of (event.payload as Record<string, unknown>[]) ?? [])
+					this.#replace(hydrateTodo(t));
+				break;
+			case 'todos.deleted': {
+				const ids = new Set((event.payload as { ids: string[] })?.ids ?? []);
+				this.items = this.items.filter((t) => !ids.has(t.id));
+				break;
+			}
 			case 'todo.deleted': {
 				const id = (event.payload as { id: string })?.id;
 				if (id) this.items = this.items.filter((t) => t.id !== id);
