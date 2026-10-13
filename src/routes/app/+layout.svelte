@@ -7,6 +7,7 @@
 	import Avatar from '#lib/components/ui/Avatar.svelte';
 	import ThemeToggle from '#lib/components/ThemeToggle.svelte';
 	import ProjectDialog from '#lib/components/ProjectDialog.svelte';
+	import { liveCounts } from '#lib/stores/liveCounts.svelte';
 
 	let { data, children } = $props();
 
@@ -64,6 +65,7 @@
 				<p class="no-projects">No projects yet.<br />Create your first one above.</p>
 			{:else}
 				{#each data.projects as p (p.id)}
+					{@const openCount = liveCounts[p.id] ?? p.openCount}
 					<a
 						href="/app/{p.slug}"
 						class="p-link"
@@ -72,8 +74,8 @@
 					>
 						<span class="p-icon">{p.icon}</span>
 						<span class="p-name truncate">{p.name}</span>
-						{#if p.openCount > 0}
-							<span class="p-count">{p.openCount}</span>
+						{#if openCount > 0}
+							<span class="p-count">{openCount}</span>
 						{/if}
 					</a>
 				{/each}

@@ -29,6 +29,13 @@
       "when": 1791906712749,
       "tag": "0003_project_list_width",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1791907350922,
+      "tag": "0004_project_count_subtasks",
+      "breakpoints": true
     }
   ]
 }

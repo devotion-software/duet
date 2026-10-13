@@ -58,7 +58,8 @@ export const actions: Actions = {
 			icon: String(form.get('icon') ?? '📋'),
 			style: STYLES.includes(style) ? style : 'soft',
 			hiddenFields: parseHiddenFields(form.getAll('hidden').join(',')),
-			listWidth: Number.isFinite(listWidth) ? clampListWidth(listWidth) : undefined
+			listWidth: Number.isFinite(listWidth) ? clampListWidth(listWidth) : undefined,
+			countSubtasks: form.has('countSubtasks') ? form.get('countSubtasks') === 'true' : undefined
 		});
 		publish(id, { type: 'project.updated', payload: { id } });
 		return { success: true };

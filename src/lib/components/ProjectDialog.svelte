@@ -17,6 +17,7 @@
 		style?: string;
 		hiddenFields?: RowField[];
 		listWidth?: number;
+		countSubtasks?: boolean;
 	}
 
 	interface Props {
@@ -35,6 +36,7 @@
 	// Kept separately from `fullWidth` so toggling back restores the last width.
 	let listWidth = $state(project.listWidth || LIST_WIDTH.default);
 	let fullWidth = $state(project.listWidth === 0);
+	let countSubtasks = $state(project.countSubtasks ?? true);
 	let submitting = $state(false);
 
 	// Reset form each time it opens.
@@ -48,6 +50,7 @@
 			hidden = [...(project.hiddenFields ?? [])];
 			listWidth = project.listWidth || LIST_WIDTH.default;
 			fullWidth = project.listWidth === 0;
+			countSubtasks = project.countSubtasks ?? true;
 		}
 	});
 
@@ -84,6 +87,7 @@
 		<input type="hidden" name="style" value={style} />
 		{#if mode === 'edit'}
 			<input type="hidden" name="listWidth" value={fullWidth ? 0 : listWidth} />
+			<input type="hidden" name="countSubtasks" value={countSubtasks} />
 		{/if}
 		{#each hidden as f (f)}
 			<input type="hidden" name="hidden" value={f} />
@@ -222,6 +226,24 @@
 							onclick={() => (hidden = on ? [...hidden, f] : hidden.filter((h) => h !== f))}
 						>
 							<Icon name={on ? 'check' : 'plus'} size={12} strokeWidth={2.5} />{ROW_FIELD_LABELS[f]}
+						</button>
+					{/each}
+				</div>
+			</div>
+
+			<div class="field">
+				<span class="flabel">Sidebar task count</span>
+				<div class="fields">
+					{#each [{ value: false, label: 'Top-level tasks' }, { value: true, label: 'All tasks' }] as opt (opt.label)}
+						{@const on = countSubtasks === opt.value}
+						<button
+							type="button"
+							class="field-toggle"
+							class:on
+							aria-pressed={on}
+							onclick={() => (countSubtasks = opt.value)}
+						>
+							{#if on}<Icon name="check" size={12} strokeWidth={2.5} />{/if}{opt.label}
 						</button>
 					{/each}
 				</div>

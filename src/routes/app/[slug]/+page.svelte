@@ -23,6 +23,7 @@
 	import ImportDialog from '#lib/components/todo/ImportDialog.svelte';
 	import MembersDialog from '#lib/components/todo/MembersDialog.svelte';
 	import ProjectDialog from '#lib/components/ProjectDialog.svelte';
+	import { liveCounts } from '#lib/stores/liveCounts.svelte';
 
 	let { data } = $props();
 
@@ -35,6 +36,14 @@
 	// Reconcile with server data whenever the project changes or a refetch lands.
 	$effect(() => {
 		controller.reset(data.project.id, data.todos as unknown as Todo[]);
+	});
+
+	// Keep the sidebar's count in step with ticks and SSE updates.
+	$effect(() => {
+		const id = data.project.id;
+		const open = data.project.countSubtasks ? controller.open : controller.openRoots;
+		liveCounts[id] = open.length;
+		return () => delete liveCounts[id];
 	});
 
 	// Live updates via SSE, re-subscribing per project.

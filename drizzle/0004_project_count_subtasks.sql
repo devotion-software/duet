@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `count_subtasks` boolean DEFAULT true NOT NULL;

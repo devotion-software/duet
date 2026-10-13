@@ -66,6 +66,8 @@ export const projects = mysqlTable(
 		hiddenFields: varchar('hidden_fields', { length: 255 }).notNull().default(''),
 		// Max width of the task list in px; 0 lets it fill the window.
 		listWidth: int('list_width').notNull().default(820),
+		// Whether the sidebar's open-task count includes subtasks, or only top-level tasks.
+		countSubtasks: boolean('count_subtasks').notNull().default(true),
 		ownerId: varchar('owner_id', { length: 36 })
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),

@@ -23,6 +23,8 @@ export interface ProjectSummary {
 	style: ProjectStyle;
 	archived: boolean;
 	role: Role;
+	countSubtasks: boolean;
+	/** Open tasks, counting subtasks only if the project's `countSubtasks` is set. */
 	openCount: number;
 	totalCount: number;
 }
@@ -50,6 +52,7 @@ export async function listUserProjects(userId: string): Promise<ProjectSummary[]
 				.select({
 					projectId: todos.projectId,
 					open: sql<number>`sum(case when ${todos.completed} = false then 1 else 0 end)`,
+					openRoots: sql<number>`sum(case when ${todos.completed} = false and ${todos.parentId} is null then 1 else 0 end)`,
 					total: sql<number>`count(*)`
 				})
 				.from(todos)
@@ -71,7 +74,8 @@ export async function listUserProjects(userId: string): Promise<ProjectSummary[]
 			style: r.project.style,
 			archived: r.project.archived,
 			role: r.role,
-			openCount: Number(c?.open ?? 0),
+			countSubtasks: r.project.countSubtasks,
+			openCount: Number((r.project.countSubtasks ? c?.open : c?.openRoots) ?? 0),
 			totalCount: Number(c?.total ?? 0)
 		};
 	});
@@ -146,6 +150,7 @@ export async function updateProject(
 		archived?: boolean;
 		hiddenFields?: RowField[];
 		listWidth?: number;
+		countSubtasks?: boolean;
 	}
 ) {
 	const values: Record<string, unknown> = {};
@@ -158,6 +163,7 @@ export async function updateProject(
 	if (patch.hiddenFields !== undefined)
 		values.hiddenFields = patch.hiddenFields.filter((f) => ROW_FIELDS.includes(f)).join(',');
 	if (patch.listWidth !== undefined) values.listWidth = patch.listWidth;
+	if (patch.countSubtasks !== undefined) values.countSubtasks = patch.countSubtasks;
 	if (Object.keys(values).length === 0) return;
 	await db.update(projects).set(values).where(eq(projects.id, projectId));
 }
