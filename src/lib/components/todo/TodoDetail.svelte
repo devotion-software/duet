@@ -4,6 +4,7 @@
 	import Avatar from '#lib/components/ui/Avatar.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Spinner from '#lib/components/ui/Spinner.svelte';
+	import ImageViewer from '#lib/components/ui/ImageViewer.svelte';
 	import Markdown from '#lib/components/Markdown.svelte';
 	import SubtaskAdd from '#lib/components/todo/SubtaskAdd.svelte';
 	import { toDateInput } from '#lib/date';
@@ -144,6 +145,8 @@
 
 	// ── Image attachments ──
 	let uploading = $state(false);
+	let viewing = $state<number | null>(null);
+	const viewerImages = $derived(todo.attachments.map((a) => ({ src: a.url, name: a.name })));
 	let dragging = $state(false);
 
 	async function uploadFiles(files: Iterable<File>) {
@@ -423,11 +426,11 @@
 
 				{#if todo.attachments.length}
 					<div class="img-grid">
-						{#each todo.attachments as att (att.id)}
+						{#each todo.attachments as att, i (att.id)}
 							<div class="thumb">
-								<a href={att.url} target="_blank" rel="noreferrer">
+								<button class="thumb-open" onclick={() => (viewing = i)} aria-label="View image">
 									<img src={att.url} alt={att.name ?? 'attachment'} loading="lazy" />
-								</a>
+								</button>
 								{#if canEdit}
 									<button
 										class="thumb-del"
@@ -440,6 +443,7 @@
 							</div>
 						{/each}
 					</div>
+					<ImageViewer images={viewerImages} bind:index={viewing} />
 				{/if}
 
 				{#if canEdit}
@@ -912,6 +916,12 @@
 		overflow: hidden;
 		border: 1px solid var(--border);
 		background: var(--surface-inset);
+	}
+	.thumb-open {
+		display: block;
+		width: 100%;
+		height: 100%;
+		cursor: zoom-in;
 	}
 	.thumb img {
 		width: 100%;

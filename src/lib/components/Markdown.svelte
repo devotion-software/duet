@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { renderMarkdown } from '#lib/markdown';
+	import ImageViewer, { type ViewerImage } from '#lib/components/ui/ImageViewer.svelte';
 
 	interface Props {
 		source: string | null | undefined;
@@ -7,6 +8,18 @@
 	let { source }: Props = $props();
 
 	let html = $state('');
+	let container = $state<HTMLDivElement>();
+	let images = $state<ViewerImage[]>([]);
+	let viewing = $state<number | null>(null);
+
+	/** Open embedded images in the viewer, unless they're wrapped in a link. */
+	function onclick(e: MouseEvent) {
+		const target = e.target as HTMLElement;
+		if (!(target instanceof HTMLImageElement) || target.closest('a') || !container) return;
+		const all = [...container.querySelectorAll('img')].filter((i) => !i.closest('a'));
+		images = all.map((i) => ({ src: i.currentSrc || i.src, name: i.alt || null }));
+		viewing = all.indexOf(target);
+	}
 
 	$effect(() => {
 		let cancelled = false;
@@ -19,9 +32,11 @@
 	});
 </script>
 
-<div class="markdown">
+<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+<div class="markdown" bind:this={container} {onclick}>
 	{@html html}
 </div>
+<ImageViewer {images} bind:index={viewing} />
 
 <style>
 	.markdown {
@@ -123,6 +138,8 @@
 		font-weight: var(--weight-semibold);
 	}
 	.markdown :global(img) {
+		max-width: 100%;
+		cursor: zoom-in;
 		border-radius: var(--radius-md);
 		border: 1px solid var(--border);
 	}
