@@ -3,6 +3,7 @@
 	import { enhance } from '$app/forms';
 	import { authClient } from '#lib/auth-client';
 	import { theme, THEMES, type Theme } from '#lib/theme.svelte';
+	import { confirmDelete } from '#lib/confirmDelete.svelte';
 	import { toasts } from '#lib/components/ui/toast.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Avatar from '#lib/components/ui/Avatar.svelte';
@@ -130,7 +131,7 @@
 	<section class="card">
 		<div class="card-head">
 			<h2>Appearance</h2>
-			<p>Choose how Duet looks on this device.</p>
+			<p>Choose how Duet looks and behaves on this device.</p>
 		</div>
 		<div class="theme-grid">
 			{#each THEMES as t (t)}
@@ -141,6 +142,14 @@
 				</button>
 			{/each}
 		</div>
+		<label class="check">
+			<input
+				type="checkbox"
+				checked={confirmDelete.value}
+				onchange={(e) => confirmDelete.set(e.currentTarget.checked)}
+			/>
+			Ask before deleting a task
+		</label>
 	</section>
 
 	<!-- Project defaults -->
@@ -404,6 +413,17 @@
 		background: var(--surface-raised);
 		color: var(--text);
 		box-shadow: var(--shadow-xs);
+	}
+	.check {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-2);
+		margin-top: var(--space-4);
+		font-size: var(--text-sm);
+		cursor: pointer;
+	}
+	.check input {
+		accent-color: var(--accent);
 	}
 	.theme-grid {
 		display: grid;

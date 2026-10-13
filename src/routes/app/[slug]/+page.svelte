@@ -28,7 +28,9 @@
 	import SecretsDialog from '#lib/components/SecretsDialog.svelte';
 	import ProjectIcon from '#lib/components/ProjectIcon.svelte';
 	import ProjectStatusBadge from '#lib/components/ProjectStatusBadge.svelte';
+	import DeleteTaskDialog from '#lib/components/todo/DeleteTaskDialog.svelte';
 	import { liveCounts } from '#lib/stores/liveCounts.svelte';
+	import { confirmDelete } from '#lib/confirmDelete.svelte';
 
 	let { data } = $props();
 
@@ -321,6 +323,22 @@
 		document.querySelector(`[data-todo-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'nearest' });
 	}
 	/** After the task at `at` leaves its spot, put the cursor on whatever took its place. */
+	// Deleting a task asks first, unless the user ticked "Don't ask again".
+	let pendingDelete = $state<{ todo: Todo; after?: () => void } | null>(null);
+	const pendingSubtasks = $derived(
+		pendingDelete ? controller.withDescendants([pendingDelete.todo.id]).size - 1 : 0
+	);
+
+	function requestDelete(todo: Todo, after?: () => void) {
+		if (confirmDelete.value) pendingDelete = { todo, after };
+		else deleteTodo(todo.id, after);
+	}
+
+	function deleteTodo(id: string, after?: () => void) {
+		controller.remove(id);
+		after?.();
+	}
+
 	async function refocusAt(at: number) {
 		await tick();
 		focusRow((visibleTodos[at] ?? visibleTodos.at(-1))?.id);
@@ -460,11 +478,7 @@
 			case 'Backspace': {
 				if (!canEdit) return;
 				handled();
-				const kids = controller.withDescendants([current.id]).size - 1;
-				const what = kids ? ` and its ${kids} subtask${kids === 1 ? '' : 's'}` : '';
-				if (!confirm(`Delete "${current.title}"${what}?`)) return;
-				controller.remove(current.id);
-				refocusAt(at);
+				requestDelete(current, () => refocusAt(at));
 				return;
 			}
 		}
@@ -575,7 +589,7 @@
 			selectTodo(t.id);
 		}}
 		onCopy={copyTodo}
-		onDelete={(id) => controller.remove(id)}
+		onDelete={() => requestDelete(todo)}
 		onUpdate={canEdit ? (id, patch) => controller.update(id, patch) : undefined}
 		onCreateTag={createTag}
 		members={data.members}
@@ -817,7 +831,7 @@
 		onToggle={(id) => controller.toggle(id)}
 		onSetInProgress={(id, on) => controller.setInProgress(id, on)}
 		onNotDoing={(id) => controller.toggle(id, true)}
-		onDelete={(id) => { controller.remove(id); selectTodo(null); }}
+		onDelete={() => requestDelete(selected!, () => selectTodo(null))}
 		onCopy={copyTodo}
 		onClose={() => selectTodo(null)}
 		onCreateTag={createTag}
@@ -848,6 +862,16 @@
 	/>
 {/if}
 
+<DeleteTaskDialog
+	todo={pendingDelete?.todo ?? null}
+	subtasks={pendingSubtasks}
+	onConfirm={(todo) => {
+		const after = pendingDelete?.after;
+		pendingDelete = null;
+		deleteTodo(todo.id, after);
+	}}
+	onCancel={() => (pendingDelete = null)}
+/>
 <ImportDialog bind:open={importOpen} initialText={importText} onImport={(t, g) => controller.importText(t, g)} />
 <MembersDialog
 	bind:open={membersOpen}

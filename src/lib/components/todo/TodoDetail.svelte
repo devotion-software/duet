@@ -10,6 +10,7 @@
 	import TodoHistory from '#lib/components/todo/TodoHistory.svelte';
 	import { toDateInput } from '#lib/date';
 	import { Copied } from '#lib/copied.svelte';
+	import { dialogOpen } from '#lib/shortcuts';
 	import {
 		URGENCIES,
 		SIZES,
@@ -149,6 +150,8 @@
 		if (cat) onUpdate({ categoryId: cat.id });
 	}
 	function onkeydown(e: KeyboardEvent) {
+		// A dialog on top (e.g. delete confirmation) owns Escape.
+		if (e.defaultPrevented || dialogOpen()) return;
 		if (e.key === 'Escape') onClose();
 		else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
 			e.preventDefault();
