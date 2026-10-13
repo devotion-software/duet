@@ -88,10 +88,17 @@ export class ParentError extends Error {}
 /**
  * Set completion while keeping the tree consistent: completing a task completes
  * its whole subtree (and stops any progress on it), reopening one reopens its
- * ancestors. Returns every id whose state was considered (the requested ids
- * plus the cascade).
+ * ancestors. With `notDoing`, the tasks (and any open subtasks) are closed as
+ * not doing rather than done. Returns every id whose state was considered (the
+ * requested ids plus the cascade).
  */
-async function setCompleted(conn: Conn, projectId: string, ids: string[], completed: boolean) {
+async function setCompleted(
+	conn: Conn,
+	projectId: string,
+	ids: string[],
+	completed: boolean,
+	notDoing = false
+) {
 	const tree = await loadTree(conn, projectId);
 	const targets = completed
 		? subtreeLevels(tree, ids).flat()
@@ -102,10 +109,12 @@ async function setCompleted(conn: Conn, projectId: string, ids: string[], comple
 			.update(todos)
 			.set(
 				completed
-					? { completed, completedAt: new Date(), startedAt: null }
-					: { completed, completedAt: null }
+					? { completed, completedAt: new Date(), startedAt: null, notDoing }
+					: { completed, completedAt: null, notDoing: false }
 			)
 			.where(and(inArray(todos.id, targets), eq(todos.completed, !completed)));
+		// Already-closed tasks that were asked for directly switch between done and not doing.
+		if (completed) await conn.update(todos).set({ notDoing }).where(inArray(todos.id, ids));
 	}
 	return targets;
 }
@@ -196,6 +205,7 @@ export interface TodoItem {
 	description: string | null;
 	completed: boolean;
 	completedAt: Date | null;
+	notDoing: boolean;
 	startedAt: Date | null;
 	deadline: Date | null;
 	urgency: Urgency | null;
@@ -282,6 +292,7 @@ export async function listTodos(projectId: string): Promise<TodoItem[]> {
 		description: r.todo.description,
 		completed: r.todo.completed,
 		completedAt: r.todo.completedAt,
+		notDoing: r.todo.notDoing,
 		startedAt: r.todo.startedAt,
 		deadline: r.todo.deadline,
 		urgency: r.todo.urgency,
@@ -398,6 +409,8 @@ export interface BulkPatch {
 	urgency?: Urgency | null;
 	size?: Size | null;
 	completed?: boolean;
+	/** With `completed`, close as not doing rather than done. */
+	notDoing?: boolean;
 	inProgress?: boolean;
 	/** Tags are added/removed per todo rather than replaced wholesale. */
 	addTagIds?: string[];
@@ -428,7 +441,8 @@ export async function bulkUpdateTodos(projectId: string, todoIds: string[], patc
 			.set({ ...values, updatedAt: new Date() })
 			.where(inArray(todos.id, ids));
 		if (patch.completed !== undefined) {
-			for (const id of await setCompleted(tx, projectId, ids, patch.completed)) touched.add(id);
+			for (const id of await setCompleted(tx, projectId, ids, patch.completed, patch.notDoing))
+				touched.add(id);
 		}
 		if (patch.inProgress !== undefined) {
 			for (const id of await setInProgress(tx, projectId, ids, patch.inProgress)) touched.add(id);
@@ -458,8 +472,13 @@ export async function bulkDeleteTodos(projectId: string, todoIds: string[]) {
 }
 
 /** Returns every id whose completion may have changed (subtree or ancestors). */
-export async function toggleTodo(projectId: string, todoId: string, completed: boolean) {
-	return db.transaction((tx) => setCompleted(tx, projectId, [todoId], completed));
+export async function toggleTodo(
+	projectId: string,
+	todoId: string,
+	completed: boolean,
+	notDoing = false
+) {
+	return db.transaction((tx) => setCompleted(tx, projectId, [todoId], completed, notDoing));
 }
 
 /** Delete a todo and its subtasks; returns every deleted id. */

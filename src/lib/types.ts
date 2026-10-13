@@ -86,6 +86,8 @@ export interface Todo {
 	description: string | null;
 	completed: boolean;
 	completedAt: Date | null;
+	/** Closed without being done; always paired with `completed`. */
+	notDoing: boolean;
 	/** Set while the task is being worked on; cleared on completion. */
 	startedAt: Date | null;
 	deadline: Date | null;
@@ -109,6 +111,7 @@ export function hydrateTodo(raw: Record<string, unknown>): Todo {
 		...(raw as unknown as Todo),
 		parentId: (raw.parentId as string | null) ?? null,
 		completedAt: d(raw.completedAt),
+		notDoing: !!raw.notDoing,
 		startedAt: d(raw.startedAt),
 		deadline: d(raw.deadline),
 		createdAt: d(raw.createdAt) ?? new Date(),

@@ -21,7 +21,7 @@ export function formatTodoForCopy(todo: Todo, projectName?: string, all: Todo[] 
 	lines.push(`# ${todo.title}`);
 	const meta: string[] = [];
 	if (projectName) meta.push(`**Project:** ${projectName}`);
-	meta.push(`**Status:** ${todo.completed ? 'Done' : isInProgress(todo) ? 'In progress' : 'Open'}`);
+	meta.push(`**Status:** ${todo.notDoing ? 'Not doing' : todo.completed ? 'Done' : isInProgress(todo) ? 'In progress' : 'Open'}`);
 	if (todo.category) meta.push(`**Category:** ${todo.category.name}`);
 	if (todo.assignee) meta.push(`**Assignee:** ${todo.assignee.name}`);
 	if (todo.deadline) meta.push(`**Deadline:** ${fmtDate(todo.deadline)}`);

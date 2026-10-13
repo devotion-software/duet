@@ -23,6 +23,8 @@
 		canEdit: boolean;
 		onToggle: (id: string) => void;
 		onSetInProgress?: (id: string, inProgress: boolean) => void;
+		/** Close an open task without doing it. */
+		onNotDoing?: (id: string) => void;
 		onOpen: (todo: Todo) => void;
 		/** `quick` is set by the inline icon, which copies just the title for bare tasks. */
 		onCopy: (todo: Todo, quick?: boolean) => void;
@@ -58,6 +60,7 @@
 		canEdit,
 		onToggle,
 		onSetInProgress,
+		onNotDoing,
 		onOpen,
 		onCopy,
 		onDelete,
@@ -228,7 +231,7 @@
 	</button>
 {/snippet}
 
-<div class="row" class:done={todo.completed} class:selected class:focused data-todo-id={todo.id}>
+<div class="row" class:done={todo.completed} class:skipped={todo.notDoing} class:selected class:focused data-todo-id={todo.id}>
 	{#if tree}
 		{#if subtasks.total}
 			<button
@@ -257,6 +260,7 @@
 	<button
 		class="check"
 		class:on={todo.completed}
+		class:skipped={todo.notDoing}
 		class:progress={inProgress}
 		disabled={!canEdit}
 		onclick={() => onToggle(todo.id)}
@@ -268,9 +272,10 @@
 		}}
 		aria-label={todo.completed ? 'Mark as not done' : 'Mark as done'}
 		aria-pressed={todo.completed}
-		title={inProgress ? 'In progress' : undefined}
+		title={inProgress ? 'In progress' : todo.notDoing ? 'Not doing' : undefined}
 	>
-		{#if todo.completed}<Icon name="check" size={13} strokeWidth={3} />{/if}
+		{#if todo.notDoing}<Icon name="x" size={12} strokeWidth={3} />
+		{:else if todo.completed}<Icon name="check" size={13} strokeWidth={3} />{/if}
 	</button>
 
 	<button
@@ -389,6 +394,17 @@
 									>
 										<Icon name="clock" size={15} />
 										{inProgress ? 'Stop progress' : 'Mark in progress'}
+									</button>
+								{/if}
+								{#if onNotDoing && !todo.completed}
+									<button
+										class="menu-item"
+										onclick={() => {
+											menuOpen = false;
+											onNotDoing(todo.id);
+										}}
+									>
+										<Icon name="ban" size={15} /> Not doing
 									</button>
 								{/if}
 								{#if onAddSubtask}
@@ -511,6 +527,12 @@
 		background: var(--accent);
 		border-color: var(--accent);
 	}
+	/* Struck out rather than ticked: closed without being done. */
+	.check.skipped {
+		background: var(--surface-inset);
+		border-color: var(--border-strong);
+		color: var(--text-subtle);
+	}
 	/* Half-filled ring: started but not done. */
 	.check.progress {
 		border-color: var(--accent);
@@ -550,6 +572,9 @@
 	.done .title {
 		color: var(--text-subtle);
 		text-decoration: line-through;
+	}
+	.skipped .title {
+		color: var(--text-faint);
 	}
 	.meta {
 		display: flex;

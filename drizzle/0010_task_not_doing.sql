@@ -1,0 +1,1 @@
+ALTER TABLE `todos` ADD `not_doing` boolean DEFAULT false NOT NULL;

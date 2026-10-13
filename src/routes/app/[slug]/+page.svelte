@@ -363,6 +363,13 @@
 				handled();
 				controller.setInProgress(current.id, !isInProgress(current));
 				return;
+			case 'w':
+				if (!canEdit || current.completed) return;
+				handled();
+				controller.toggle(current.id, true);
+				// Like ticking, this moves a top-level task to "Completed".
+				refocusAt(at);
+				return;
 			case 'a':
 				if (!canEdit) return;
 				// Stop the keystroke from landing in the input that opens.
@@ -487,6 +494,7 @@
 		{canEdit}
 		onToggle={(id) => controller.toggle(id)}
 		onSetInProgress={canEdit ? (id, on) => controller.setInProgress(id, on) : undefined}
+		onNotDoing={canEdit ? (id) => controller.toggle(id, true) : undefined}
 		onOpen={(t) => {
 			focusedId = t.id;
 			selectTodo(t.id);
@@ -718,6 +726,7 @@
 		onUpdate={(patch) => controller.update(selected!.id, patch)}
 		onToggle={(id) => controller.toggle(id)}
 		onSetInProgress={(id, on) => controller.setInProgress(id, on)}
+		onNotDoing={(id) => controller.toggle(id, true)}
 		onDelete={(id) => { controller.remove(id); selectTodo(null); }}
 		onCopy={copyTodo}
 		onClose={() => selectTodo(null)}

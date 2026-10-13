@@ -11,9 +11,10 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
 	const body = await request.json().catch(() => null);
 	const completed = !!body?.completed;
+	const notDoing = !!body?.notDoing;
 
 	// Completing cascades to subtasks; reopening cascades to ancestors.
-	const touched = new Set(await toggleTodo(params.projectId, params.todoId, completed));
+	const touched = new Set(await toggleTodo(params.projectId, params.todoId, completed, notDoing));
 	const todos = (await listTodos(params.projectId)).filter((t) => touched.has(t.id));
 	publish(params.projectId, {
 		type: 'todos.updated',

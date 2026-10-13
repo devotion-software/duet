@@ -45,7 +45,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 		...('deadline' in patch ? { deadline: asDate(patch.deadline) } : {}),
 		...('urgency' in patch ? { urgency: asEnum<Urgency>(patch.urgency, URGENCIES) } : {}),
 		...('size' in patch ? { size: asEnum<Size>(patch.size, SIZES) } : {}),
-		...('completed' in patch ? { completed: !!patch.completed } : {}),
+		...('completed' in patch ? { completed: !!patch.completed, notDoing: !!patch.notDoing } : {}),
 		...('inProgress' in patch ? { inProgress: !!patch.inProgress } : {}),
 		addTagIds: addTagIds.filter((id) => validTags.has(id)),
 		removeTagIds: removeTagIds.filter((id) => validTags.has(id))

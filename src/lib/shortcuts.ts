@@ -51,6 +51,7 @@ export const SHORTCUTS: { title: string; items: { keys: string[]; label: string 
 			{ keys: ['Space'], label: 'Tick / untick task' },
 			{ keys: ['Enter'], label: 'Open task details (also o)' },
 			{ keys: ['p'], label: 'Toggle in progress' },
+			{ keys: ['w'], label: "Mark as not doing (won't do)" },
 			{ keys: ['a'], label: 'Add a subtask' },
 			{ keys: ['c'], label: 'Copy task for AI' },
 			{ keys: ['x'], label: 'Select task for bulk edit' },

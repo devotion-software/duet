@@ -241,6 +241,11 @@
 			<Icon name={allDone ? 'circle' : 'check-circle'} size={14} />
 			{allDone ? 'Reopen' : 'Complete'}
 		</button>
+		{#if !allDone}
+			<button class="ctl" disabled={busy} onclick={() => apply({ completed: true, notDoing: true })}>
+				<Icon name="ban" size={14} /> Not doing
+			</button>
+		{/if}
 		<button class="ctl danger" disabled={busy} onclick={deleteSelected}>
 			<Icon name="trash" size={14} /> Delete
 		</button>

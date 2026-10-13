@@ -195,6 +195,8 @@ export const todos = mysqlTable(
 		description: text('description'),
 		completed: boolean('completed').notNull().default(false),
 		completedAt: timestamp('completed_at', { fsp: 3 }),
+		// Closed without being done; only meaningful while `completed` is set.
+		notDoing: boolean('not_doing').notNull().default(false),
 		// Set while a task is being worked on; cleared when it's completed.
 		startedAt: timestamp('started_at', { fsp: 3 }),
 		categoryId: varchar('category_id', { length: 36 }).references(() => categories.id, {

@@ -34,6 +34,7 @@
 		onUpdate: (patch: Partial<NewTodoInput>) => void;
 		onToggle: (id: string) => void;
 		onSetInProgress: (id: string, inProgress: boolean) => void;
+		onNotDoing: (id: string) => void;
 		onDelete: (id: string) => void;
 		onCopy: (todo: Todo) => void;
 		onClose: () => void;
@@ -61,6 +62,7 @@
 		onUpdate,
 		onToggle,
 		onSetInProgress,
+		onNotDoing,
 		onDelete,
 		onCopy,
 		onClose,
@@ -192,12 +194,15 @@
 				<button
 					class="check"
 					class:on={todo.completed}
+					class:skipped={todo.notDoing}
 					disabled={!canEdit}
 					onclick={() => onToggle(todo.id)}
 					aria-label="Toggle complete"
+					title={todo.completed ? 'Reopen' : undefined}
 				>
-					{#if todo.completed}<Icon name="check" size={13} strokeWidth={3} />{/if}
-					<span>{todo.completed ? 'Completed' : 'Mark done'}</span>
+					{#if todo.notDoing}<Icon name="ban" size={13} />
+					{:else if todo.completed}<Icon name="check" size={13} strokeWidth={3} />{/if}
+					<span>{todo.notDoing ? 'Not doing' : todo.completed ? 'Completed' : 'Mark done'}</span>
 				</button>
 				{#if !todo.completed}
 					<button
@@ -210,6 +215,15 @@
 					>
 						<Icon name="clock" size={13} />
 						<span>{inProgress ? 'In progress' : 'Start'}</span>
+					</button>
+					<button
+						class="check"
+						disabled={!canEdit}
+						onclick={() => onNotDoing(todo.id)}
+						title="Close without doing it"
+					>
+						<Icon name="ban" size={13} />
+						<span>Not doing</span>
 					</button>
 				{/if}
 			</div>
@@ -393,12 +407,14 @@
 								<button
 									class="sub-check"
 									class:on={sub.completed}
+									class:skipped={sub.notDoing}
 									disabled={!canEdit}
 									onclick={() => onToggle(sub.id)}
 									aria-label={sub.completed ? 'Mark as not done' : 'Mark as done'}
 									aria-pressed={sub.completed}
 								>
-									{#if sub.completed}<Icon name="check" size={10} strokeWidth={3} />{/if}
+									{#if sub.notDoing}<Icon name="x" size={9} strokeWidth={3} />
+									{:else if sub.completed}<Icon name="check" size={10} strokeWidth={3} />{/if}
 								</button>
 								<button class="sub-title" onclick={() => onOpenTask(sub.id)}>{sub.title}</button>
 								<Icon name="chevron-right" size={14} />
@@ -560,6 +576,11 @@
 		border-color: var(--accent);
 		color: var(--accent-contrast);
 	}
+	.check.skipped {
+		background: var(--surface-inset);
+		border-color: var(--border-strong);
+		color: var(--text-muted);
+	}
 	.check.progress.on {
 		background: var(--accent-soft);
 		color: var(--accent-text);
@@ -671,6 +692,11 @@
 	.sub-check.on {
 		background: var(--accent);
 		border-color: var(--accent);
+	}
+	.sub-check.skipped {
+		background: var(--surface-inset);
+		border-color: var(--border-strong);
+		color: var(--text-subtle);
 	}
 	.sub-title {
 		flex: 1;

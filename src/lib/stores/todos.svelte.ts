@@ -24,6 +24,8 @@ export interface BulkPatchInput {
 	urgency?: string | null;
 	size?: string | null;
 	completed?: boolean;
+	/** With `completed`, close as not doing rather than done. */
+	notDoing?: boolean;
 	inProgress?: boolean;
 	addTagIds?: string[];
 	removeTagIds?: string[];
@@ -82,7 +84,7 @@ export class TodosController {
 	}
 
 	/** Mirror the server's cascade: done → whole subtree, reopened → ancestors. */
-	#cascadeCompleted(id: string, completed: boolean): Todo[] {
+	#cascadeCompleted(id: string, completed: boolean, notDoing = false): Todo[] {
 		const affected = completed
 			? [...this.withDescendants([id])].map((i) => this.items.find((t) => t.id === i)!)
 			: [this.items.find((t) => t.id === id)!, ...this.ancestorsOf(id)];
@@ -90,6 +92,7 @@ export class TodosController {
 		for (const t of changed) {
 			t.completed = completed;
 			t.completedAt = completed ? new Date() : null;
+			t.notDoing = completed && notDoing;
 		}
 		return changed;
 	}
@@ -140,6 +143,7 @@ export class TodosController {
 			description: input.description ?? null,
 			completed: false,
 			completedAt: null,
+			notDoing: false,
 			startedAt: null,
 			deadline: input.deadline ? new Date(input.deadline) : null,
 			urgency: (input.urgency as Todo['urgency']) ?? null,
@@ -179,13 +183,17 @@ export class TodosController {
 		}
 	}
 
-	async toggle(id: string) {
+	/** Close an open task (as done, or as not doing), or reopen a closed one. */
+	async toggle(id: string, notDoing = false) {
 		const todo = this.items.find((t) => t.id === id);
 		if (!todo) return;
 		const nextCompleted = !todo.completed;
-		const snapshot = this.#cascadeCompleted(id, nextCompleted).map((t) => ({ ...t }));
+		// Reopening forgets which closed tasks were not doing; keep that in case it fails.
+		const wasNotDoing = new Set(this.items.filter((t) => t.notDoing).map((t) => t.id));
+		const snapshot = this.#cascadeCompleted(id, nextCompleted, notDoing).map((t) => ({ ...t }));
+		const verb = notDoing ? 'Not doing' : 'Completed';
 		const toastId = nextCompleted
-			? toasts.success(`Completed “${todo.title}”`, 6000, {
+			? toasts.success(`${verb} “${todo.title}”`, 6000, {
 					label: 'Undo',
 					run: () => this.#undoComplete(snapshot)
 				})
@@ -193,7 +201,7 @@ export class TodosController {
 		try {
 			const res = await this.#fetch(`${this.#base()}/todos/${id}/toggle`, {
 				method: 'POST',
-				body: JSON.stringify({ completed: nextCompleted })
+				body: JSON.stringify({ completed: nextCompleted, notDoing })
 			});
 			const { todos } = await res.json();
 			for (const t of (todos ?? []) as Record<string, unknown>[]) this.#replace(hydrateTodo(t));
@@ -204,6 +212,7 @@ export class TodosController {
 				if (cur) {
 					cur.completed = !nextCompleted;
 					cur.completedAt = !nextCompleted ? new Date() : null;
+					cur.notDoing = wasNotDoing.has(t.id);
 				}
 			}
 			toasts.error((e as Error).message);
@@ -217,6 +226,7 @@ export class TodosController {
 			if (!cur) continue;
 			cur.completed = false;
 			cur.completedAt = null;
+			cur.notDoing = false;
 			cur.startedAt = prev.startedAt;
 		}
 		const started = closed.filter((t) => t.startedAt).map((t) => t.id);
@@ -297,7 +307,8 @@ export class TodosController {
 			for (const t of todos as Record<string, unknown>[]) this.#replace(hydrateTodo(t));
 			if (closing.length) {
 				const n = ids.length;
-				toasts.success(`Completed ${n} task${n === 1 ? '' : 's'}`, 6000, {
+				const verb = patch.notDoing ? 'Not doing' : 'Completed';
+				toasts.success(`${verb} ${n} task${n === 1 ? '' : 's'}`, 6000, {
 					label: 'Undo',
 					run: () => this.#undoComplete(closing)
 				});
