@@ -484,14 +484,20 @@
 		importText = text;
 		importOpen = true;
 	}
-	function copyTodo(todo: Todo, quick = false) {
+	function copyTodo(todo: Todo, quick = false): Promise<boolean> {
 		const bare =
 			!todo.description?.trim() && !todo.attachments.length && !controller.childrenOf(todo.id).length;
 		const text = quick && bare ? todo.title : formatTodoForCopy(todo, data.project.name, controller.items);
-		navigator.clipboard
-			.writeText(text)
-			.then(() => toasts.success('Task copied to clipboard'))
-			.catch(() => toasts.error('Could not copy'));
+		return navigator.clipboard.writeText(text).then(
+			() => {
+				toasts.success('Task copied to clipboard');
+				return true;
+			},
+			() => {
+				toasts.error('Could not copy');
+				return false;
+			}
+		);
 	}
 
 	function exportToClipboard() {

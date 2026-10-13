@@ -9,6 +9,7 @@
 	import SubtaskAdd from '#lib/components/todo/SubtaskAdd.svelte';
 	import TodoHistory from '#lib/components/todo/TodoHistory.svelte';
 	import { toDateInput } from '#lib/date';
+	import { Copied } from '#lib/copied.svelte';
 	import {
 		URGENCIES,
 		SIZES,
@@ -37,7 +38,7 @@
 		onSetInProgress: (id: string, inProgress: boolean) => void;
 		onNotDoing: (id: string) => void;
 		onDelete: (id: string) => void;
-		onCopy: (todo: Todo) => void;
+		onCopy: (todo: Todo) => Promise<boolean>;
 		onClose: () => void;
 		onCreateTag: (name: string) => Promise<Tag | null>;
 		onCreateCategory: (name: string) => Promise<Category | null>;
@@ -79,6 +80,11 @@
 	}: Props = $props();
 
 	const inProgress = $derived(isInProgress(todo));
+
+	const copied = new Copied<'head' | 'cta'>();
+	async function copy(button: 'head' | 'cta') {
+		if (await onCopy(todo)) copied.mark(button);
+	}
 	const subtasksDone = $derived(subtasks.filter((t) => t.completed).length);
 	function optionLabel(t: Todo, depth: number) {
 		const title = t.title.length > 60 ? `${t.title.slice(0, 59)}…` : t.title;
@@ -235,8 +241,8 @@
 				{/if}
 			</div>
 			<div class="head-actions">
-				<button class="icon-act" title="Copy for AI" onclick={() => onCopy(todo)}>
-					<Icon name="copy" size={17} />
+				<button class="icon-act" title="Copy for AI" onclick={() => copy('head')}>
+					<Icon name={copied.icon('head')} size={17} />
 				</button>
 				{#if canEdit}
 					<button class="icon-act danger" title="Delete" onclick={() => onDelete(todo.id)}>
@@ -529,7 +535,7 @@
 			</div>
 
 			<div class="copy-cta">
-				<Button variant="subtle" icon="copy" full onclick={() => onCopy(todo)}>
+				<Button variant="subtle" icon={copied.icon('cta')} full onclick={() => copy('cta')}>
 					Copy whole task for AI
 				</Button>
 			</div>

@@ -6,6 +6,7 @@
 	import Icon from './ui/Icon.svelte';
 	import Spinner from './ui/Spinner.svelte';
 	import { toasts } from './ui/toast.svelte';
+	import { Copied } from '#lib/copied.svelte';
 
 	interface Secret {
 		id: string;
@@ -19,6 +20,7 @@
 	let { open = $bindable(), projectId }: Props = $props();
 
 	let secrets = $state<Secret[]>([]);
+	const copied = new Copied<string>();
 	let loading = $state(false);
 	// Decrypted values, only held while the dialog is open.
 	const revealed = new SvelteMap<string, string>();
@@ -96,6 +98,7 @@
 		try {
 			await navigator.clipboard.writeText(await fetchValue(s.id));
 			toasts.success(`Copied ${s.name}`);
+			copied.mark(s.id);
 		} catch (err) {
 			toasts.error((err as Error).message);
 		} finally {
@@ -260,7 +263,7 @@
 									<Icon name={v !== undefined ? 'eye-off' : 'eye'} size={16} />
 								</button>
 								<button class="icon-btn" title="Copy" onclick={() => copy(s)}>
-									<Icon name="copy" size={16} />
+									<Icon name={copied.icon(s.id)} size={16} />
 								</button>
 								<button class="icon-btn" title="Edit" onclick={() => startEdit(s)}>
 									<Icon name="pencil" size={16} />

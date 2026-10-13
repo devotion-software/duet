@@ -3,6 +3,7 @@
 	import Avatar from '#lib/components/ui/Avatar.svelte';
 	import { deadlineInfo, toDateInput } from '#lib/date';
 	import { markdownExcerpt } from '#lib/markdown';
+	import { Copied } from '#lib/copied.svelte';
 	import {
 		URGENCIES,
 		SIZES,
@@ -27,7 +28,7 @@
 		onNotDoing?: (id: string) => void;
 		onOpen: (todo: Todo) => void;
 		/** `quick` is set by the inline icon, which copies just the title for bare tasks. */
-		onCopy: (todo: Todo, quick?: boolean) => void;
+		onCopy: (todo: Todo, quick?: boolean) => Promise<boolean>;
 		onDelete: (id: string) => void;
 		/** Quick edits from the menu; the field submenus show only when this is set. */
 		onUpdate?: (id: string, patch: Partial<NewTodoInput>) => void;
@@ -93,6 +94,8 @@
 		dragged = false,
 		dropPos = null
 	}: Props = $props();
+
+	const copied = new Copied();
 
 	function onBodyClick(e: MouseEvent) {
 		// Cmd/Ctrl/Shift-click starts (or extends) a selection without a mode switch.
@@ -380,8 +383,13 @@
 			<Avatar name={assignee.name} image={assignee.image} size={22} />
 		{/if}
 		<div class="actions" class:open={menuOpen}>
-			<button class="act" title="Copy for AI" onclick={() => onCopy(todo, true)} aria-label="Copy task">
-				<Icon name="copy" size={15} />
+			<button
+				class="act"
+				title="Copy for AI"
+				onclick={async () => (await onCopy(todo, true)) && copied.mark(true)}
+				aria-label="Copy task"
+			>
+				<Icon name={copied.icon(true)} size={15} />
 			</button>
 			{#if canEdit}
 				<div class="menu-host" bind:this={menuHost}>
