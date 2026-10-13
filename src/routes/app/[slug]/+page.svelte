@@ -85,7 +85,6 @@
 	let settingsOpen = $state(false);
 	let secretsOpen = $state(false);
 	let projectMenuOpen = $state(false);
-	let exportMenuOpen = $state(false);
 
 	const selected = $derived(selectedId ? controller.items.find((t) => t.id === selectedId) : null);
 
@@ -420,7 +419,7 @@
 	}
 
 	function exportToClipboard() {
-		exportMenuOpen = false;
+		projectMenuOpen = false;
 		const all = controller.items;
 		navigator.clipboard
 			.writeText(formatTodosAsChecklist(all))
@@ -428,7 +427,7 @@
 			.catch(() => toasts.error('Could not copy'));
 	}
 	function exportToFile() {
-		exportMenuOpen = false;
+		projectMenuOpen = false;
 		const json = formatTodosAsJson(controller.items, data.project);
 		const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
 		const a = document.createElement('a');
@@ -571,27 +570,6 @@
 				{#if !search}<kbd class="search-kbd" aria-hidden="true">/</kbd>{/if}
 			</div>
 			{#if canEdit}
-				<Button variant="ghost" size="sm" icon="clipboard" onclick={() => openImport()}>Import</Button>
-			{/if}
-			{#if controller.items.length}
-				<div class="menu-host">
-					<Button variant="ghost" size="sm" icon="download" onclick={() => (exportMenuOpen = !exportMenuOpen)}>
-						Export
-					</Button>
-					{#if exportMenuOpen}
-						<button class="menu-scrim" aria-label="Close" onclick={() => (exportMenuOpen = false)}></button>
-						<div class="menu">
-							<button class="menu-item" onclick={exportToClipboard}>
-								<Icon name="copy" size={15} /> Copy as checklist
-							</button>
-							<button class="menu-item" onclick={exportToFile}>
-								<Icon name="download" size={15} /> Download JSON file
-							</button>
-						</div>
-					{/if}
-				</div>
-			{/if}
-			{#if canEdit}
 				<Button variant="ghost" size="sm" icon="key" title="Keys & secrets" onclick={() => (secretsOpen = true)}>
 					Keys
 				</Button>
@@ -599,7 +577,7 @@
 			<Button variant="ghost" size="sm" icon="users" onclick={() => (membersOpen = true)}>
 				{data.members.length}
 			</Button>
-			{#if canManage}
+			{#if canManage || canEdit || controller.items.length}
 				<div class="menu-host">
 					<button class="icon-btn" aria-label="Project menu" onclick={() => (projectMenuOpen = !projectMenuOpen)}>
 						<Icon name="more-horizontal" size={18} />
@@ -607,26 +585,44 @@
 					{#if projectMenuOpen}
 						<button class="menu-scrim" aria-label="Close" onclick={() => (projectMenuOpen = false)}></button>
 						<div class="menu">
-							<button class="menu-item" onclick={() => { projectMenuOpen = false; settingsOpen = true; }}>
-								<Icon name="settings" size={15} /> Project settings
-							</button>
-							<button class="menu-item" onclick={() => { projectMenuOpen = false; membersOpen = true; }}>
-								<Icon name="users" size={15} /> Members
-							</button>
-							<button class="menu-item" onclick={() => { projectMenuOpen = false; secretsOpen = true; }}>
-								<Icon name="key" size={15} /> Keys & secrets
-							</button>
-							<hr />
-							<form method="POST" action="/app?/deleteProject">
-								<input type="hidden" name="id" value={data.project.id} />
-								<button
-									class="menu-item danger"
-									type="submit"
-									onclick={(e) => { if (!confirm('Delete this project and all its tasks? This cannot be undone.')) e.preventDefault(); }}
-								>
-									<Icon name="trash" size={15} /> Delete project
+							{#if canManage}
+								<button class="menu-item" onclick={() => { projectMenuOpen = false; settingsOpen = true; }}>
+									<Icon name="settings" size={15} /> Project settings
 								</button>
-							</form>
+								<button class="menu-item" onclick={() => { projectMenuOpen = false; membersOpen = true; }}>
+									<Icon name="users" size={15} /> Members
+								</button>
+								<button class="menu-item" onclick={() => { projectMenuOpen = false; secretsOpen = true; }}>
+									<Icon name="key" size={15} /> Keys & secrets
+								</button>
+							{/if}
+							{#if canManage && (canEdit || controller.items.length)}<hr />{/if}
+							{#if canEdit}
+								<button class="menu-item" onclick={() => { projectMenuOpen = false; openImport(); }}>
+									<Icon name="clipboard" size={15} /> Import tasks
+								</button>
+							{/if}
+							{#if controller.items.length}
+								<button class="menu-item" onclick={exportToClipboard}>
+									<Icon name="copy" size={15} /> Copy as checklist
+								</button>
+								<button class="menu-item" onclick={exportToFile}>
+									<Icon name="download" size={15} /> Download JSON file
+								</button>
+							{/if}
+							{#if canManage}
+								<hr />
+								<form method="POST" action="/app?/deleteProject">
+									<input type="hidden" name="id" value={data.project.id} />
+									<button
+										class="menu-item danger"
+										type="submit"
+										onclick={(e) => { if (!confirm('Delete this project and all its tasks? This cannot be undone.')) e.preventDefault(); }}
+									>
+										<Icon name="trash" size={15} /> Delete project
+									</button>
+								</form>
+							{/if}
 						</div>
 					{/if}
 				</div>
