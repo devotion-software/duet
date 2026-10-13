@@ -644,7 +644,7 @@
 		</div>
 	</header>
 
-	<div class="work" style="--list-width: {data.project.listWidth ? `${data.project.listWidth}px` : 'none'}">
+	<div class="work" class:no-quick={!canEdit} style="--list-width: {data.project.listWidth ? `${data.project.listWidth}px` : 'none'}">
 		{#if canEdit}
 			<div class="quick">
 				<QuickAdd bind:this={quickAdd} onAdd={addTodo} onPasteMultiline={openImport} />
@@ -940,13 +940,25 @@
 	.work {
 		flex: 1;
 		overflow-y: auto;
-		padding: var(--space-5) var(--space-6) var(--space-16);
+		padding: 0 var(--space-6) var(--space-16);
 		max-width: var(--list-width, 820px);
 		width: 100%;
 		margin: 0 auto;
 	}
+	/* Pinned while the list scrolls; it supplies .work's top padding so it sits flush when stuck,
+	   and repaints the page background so rows scroll out of sight beneath it. */
 	.quick {
-		margin-bottom: var(--space-5);
+		position: sticky;
+		top: 0;
+		z-index: var(--z-sticky);
+		padding: var(--space-5) 0 var(--space-3);
+		margin-bottom: var(--space-2);
+		background-color: var(--bg);
+		background-image: var(--bg-gradient);
+		background-attachment: fixed;
+	}
+	.work.no-quick {
+		padding-top: var(--space-5);
 	}
 	.list {
 		display: flex;
@@ -1054,7 +1066,13 @@
 			padding: var(--space-4);
 		}
 		.work {
-			padding: var(--space-4) var(--space-4) var(--space-16);
+			padding: 0 var(--space-4) var(--space-16);
+		}
+		.quick {
+			padding-top: var(--space-4);
+		}
+		.work.no-quick {
+			padding-top: var(--space-4);
 		}
 		.searchbox input {
 			width: 100px;
