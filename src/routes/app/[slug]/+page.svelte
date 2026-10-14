@@ -69,8 +69,8 @@
 	});
 
 	let search = $state('');
-	let showCompleted = $state(true);
-	let showNotDoing = $state(true);
+	let showCompleted = $state(false);
+	let showNotDoing = $state(false);
 	// Deep-link support: /app/slug?task=<id> opens that task's detail.
 	let selectedId = $state<string | null>(page.url.searchParams.get('task'));
 
