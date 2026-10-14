@@ -504,9 +504,6 @@
 						<a class="menu-item" href="/app/settings" role="menuitem">
 							<Icon name="settings" size={16} /> Settings
 						</a>
-						<a class="menu-item" href="/app/settings#passkeys" role="menuitem">
-							<Icon name="key" size={16} /> Passkeys
-						</a>
 						<button
 							class="menu-item"
 							role="menuitem"
