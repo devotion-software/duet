@@ -740,11 +740,11 @@
 				{#if !search}<kbd class="search-kbd" aria-hidden="true">/</kbd>{/if}
 			</div>
 			{#if canEdit}
-				<Button variant="ghost" size="sm" icon="key" title="Keys & secrets" onclick={() => (secretsOpen = true)}>
+				<Button class="btn-keys" variant="ghost" size="sm" icon="key" title="Keys & secrets" onclick={() => (secretsOpen = true)}>
 					Keys
 				</Button>
 			{/if}
-			<Button variant="ghost" size="sm" icon="users" onclick={() => (membersOpen = true)}>
+			<Button class="btn-members" variant="ghost" size="sm" icon="users" onclick={() => (membersOpen = true)}>
 				{data.members.length}
 			</Button>
 			{#if canManage || canEdit || controller.items.length}
@@ -1050,7 +1050,10 @@
 	.head-actions {
 		display: flex;
 		align-items: center;
+		flex-wrap: wrap;
+		justify-content: flex-end;
 		gap: var(--space-2);
+		min-width: 0;
 	}
 	.searchbox {
 		display: flex;
@@ -1313,6 +1316,10 @@
 		}
 		.searchbox input {
 			width: 100px;
+		}
+		.btn-keys,
+		.btn-members {
+			display: none;
 		}
 	}
 </style>
