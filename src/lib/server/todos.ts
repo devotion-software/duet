@@ -18,6 +18,11 @@ import type { ImportItem, ImportRef } from '#lib/parseImport';
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type Conn = typeof db | Tx;
 
+// `description` is a TEXT column (65,535-byte capacity); cap well under the worst-case
+// utf8mb4 limit (~16,383 chars at 4 bytes/char) so an oversized value is silently
+// truncated instead of throwing an uncaught "Data too long" error from MySQL.
+const MAX_DESCRIPTION_LEN = 15000;
+
 /** Live (not deleted) todos in the project. */
 const liveIn = (projectId: string) => and(eq(todos.projectId, projectId), isNull(todos.deletedAt));
 
@@ -360,7 +365,7 @@ export async function createTodo(projectId: string, userId: string, input: TodoI
 		projectId,
 		parentId,
 		title: input.title.trim().slice(0, 500),
-		description: input.description?.trim() || null,
+		description: input.description?.trim().slice(0, MAX_DESCRIPTION_LEN) || null,
 		categoryId: input.categoryId || null,
 		assigneeId: input.assigneeId || null,
 		deadline: input.deadline ?? null,
@@ -406,7 +411,8 @@ export async function updateTodo(
 			}
 		}
 		if (input.title !== undefined) values.title = input.title.trim().slice(0, 500);
-		if (input.description !== undefined) values.description = input.description?.trim() || null;
+		if (input.description !== undefined)
+			values.description = input.description?.trim().slice(0, MAX_DESCRIPTION_LEN) || null;
 		if (input.categoryId !== undefined) values.categoryId = input.categoryId || null;
 		if (input.assigneeId !== undefined) values.assigneeId = input.assigneeId || null;
 		if (input.deadline !== undefined) values.deadline = input.deadline;
@@ -756,7 +762,7 @@ export async function importTodos(projectId: string, userId: string, items: Impo
 				projectId,
 				parentId: i.parentIndex != null ? (ids[i.parentIndex] ?? null) : null,
 				title: i.title.trim().slice(0, 500),
-				description: i.description?.trim() || null,
+				description: i.description?.trim().slice(0, MAX_DESCRIPTION_LEN) || null,
 				completed: i.completed,
 				completedAt: i.completed ? (i.completedAt ?? now) : null,
 				deadline: i.deadline ?? null,

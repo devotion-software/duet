@@ -15,8 +15,20 @@ import {
 import { user } from './db/auth.schema';
 import { newId, newToken, slugify } from './ids';
 import { putObject, deleteObject } from './storage';
+import { sendProjectInviteEmail } from './email';
 import { buildSidebar, type ProjectFolder, type SidebarItem } from '../sidebar';
 import { LIST_WIDTH } from '../palette';
+
+// `description` is a TEXT column (65,535-byte capacity); cap well under the worst-case
+// utf8mb4 limit (~16,383 chars at 4 bytes/char) so an oversized value is silently
+// truncated instead of throwing an uncaught "Data too long" error from MySQL.
+const MAX_DESCRIPTION_LEN = 15000;
+
+/** `icon` is varchar(16); truncate by code point so a surrogate pair (e.g. an emoji)
+ *  can't be split in half, and fall back to the default when empty. */
+function truncateIcon(icon: string | null | undefined): string {
+	return Array.from(icon || '📋').slice(0, 16).join('') || '📋';
+}
 
 export interface ProjectSummary {
 	id: string;
@@ -182,10 +194,10 @@ export async function createProject(userId: string, input: CreateProjectInput) {
 		id,
 		slug,
 		name: input.name.trim().slice(0, 160),
-		description: input.description?.trim() || null,
+		description: input.description?.trim().slice(0, MAX_DESCRIPTION_LEN) || null,
 		color: input.color || '#6366f1',
 		accentGradient: input.accentGradient || null,
-		icon: input.icon || '📋',
+		icon: truncateIcon(input.icon),
 		font: input.font || 'sans',
 		status: input.status || 'not_started',
 		ownerId: userId
@@ -218,10 +230,11 @@ export async function updateProject(
 ) {
 	const values: Record<string, unknown> = {};
 	if (patch.name !== undefined) values.name = patch.name.trim().slice(0, 160);
-	if (patch.description !== undefined) values.description = patch.description?.trim() || null;
+	if (patch.description !== undefined)
+		values.description = patch.description?.trim().slice(0, MAX_DESCRIPTION_LEN) || null;
 	if (patch.color !== undefined) values.color = patch.color;
 	if (patch.accentGradient !== undefined) values.accentGradient = patch.accentGradient || null;
-	if (patch.icon !== undefined) values.icon = patch.icon;
+	if (patch.icon !== undefined) values.icon = truncateIcon(patch.icon);
 	if (patch.font !== undefined) values.font = patch.font;
 	if (patch.status !== undefined) values.status = patch.status;
 	if (patch.hiddenFields !== undefined)
@@ -457,7 +470,9 @@ export async function addMemberByEmail(
 	projectId: string,
 	inviterId: string,
 	email: string,
-	role: Role
+	role: Role,
+	/** Request origin, used to build the absolute invite-acceptance link in the email. */
+	origin: string
 ): Promise<AddMemberResult> {
 	const normalized = email.trim().toLowerCase();
 
@@ -496,7 +511,57 @@ export async function addMemberByEmail(
 		.insert(projectInvites)
 		.values({ id: newId(), projectId, email: normalized, role, token, invitedById: inviterId, expiresAt })
 		.onDuplicateKeyUpdate({ set: { role, token, expiresAt } });
+
+	const [[inviter], [project]] = await Promise.all([
+		db.select({ name: user.name }).from(user).where(eq(user.id, inviterId)).limit(1),
+		db.select({ name: projects.name }).from(projects).where(eq(projects.id, projectId)).limit(1)
+	]);
+	await sendProjectInviteEmail({
+		email: normalized,
+		inviterName: inviter?.name || 'A teammate',
+		projectName: project?.name || 'a project',
+		url: `${origin}/invite/${token}`
+	});
 	return { status: 'invited', email: normalized };
+}
+
+export type RedeemInviteResult =
+	| { status: 'ok'; slug: string }
+	| { status: 'invalid' }
+	| { status: 'wrong-email'; email: string };
+
+/** Accept a pending invite for the signed-in user. The invite's email must match the
+ *  signed-in account's email — invite links aren't bearer tokens for arbitrary accounts. */
+export async function redeemInvite(
+	token: string,
+	userId: string,
+	userEmail: string
+): Promise<RedeemInviteResult> {
+	const [invite] = await db
+		.select()
+		.from(projectInvites)
+		.where(eq(projectInvites.token, token))
+		.limit(1);
+	if (!invite || invite.expiresAt < new Date()) return { status: 'invalid' };
+	if (invite.email.toLowerCase() !== userEmail.trim().toLowerCase()) {
+		return { status: 'wrong-email', email: invite.email };
+	}
+
+	const [project] = await db
+		.select({ slug: projects.slug })
+		.from(projects)
+		.where(eq(projects.id, invite.projectId))
+		.limit(1);
+	if (!project) return { status: 'invalid' };
+
+	const already = await getMembership(userId, invite.projectId);
+	if (!already) {
+		await db
+			.insert(projectMembers)
+			.values({ id: newId(), projectId: invite.projectId, userId, role: invite.role });
+	}
+	await db.delete(projectInvites).where(eq(projectInvites.id, invite.id));
+	return { status: 'ok', slug: project.slug };
 }
 
 export async function updateMemberRole(projectId: string, userId: string, role: Role) {

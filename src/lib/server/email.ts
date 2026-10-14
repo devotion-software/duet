@@ -31,18 +31,42 @@ const INTRO: Record<OtpType, string> = {
 
 export async function sendOtpEmail({ email, otp, type }: OtpEmail): Promise<void> {
 	const subject = SUBJECTS[type] ?? 'Your Duet code';
-	const from = process.env.EMAIL_FROM || 'Duet <no-reply@duet.local>';
 	const html = renderOtpHtml(otp, INTRO[type] ?? INTRO['sign-in']);
 	const text = `${INTRO[type] ?? ''}\n\nYour code is ${otp}\nIt expires in 10 minutes.\n\nIf you didn't request this, you can ignore this email.`;
 
-	const msg = { from, to: email, subject, html, text };
+	await deliver({ to: email, subject, html, text }, `code: ${otp}  (valid 10 min)`);
+}
 
+interface ProjectInvite {
+	email: string;
+	inviterName: string;
+	projectName: string;
+	/** Absolute URL to the invite-acceptance page. */
+	url: string;
+}
+
+export async function sendProjectInviteEmail({
+	email,
+	inviterName,
+	projectName,
+	url
+}: ProjectInvite): Promise<void> {
+	const subject = `${inviterName} invited you to “${projectName}” on Duet`;
+	const html = renderInviteHtml({ inviterName, projectName, url });
+	const text = `${inviterName} invited you to join "${projectName}" on Duet.\n\nAccept the invite: ${url}\n\nThis invite expires in 14 days.`;
+
+	await deliver({ to: email, subject, html, text }, `invite link: ${url}`);
+}
+
+async function deliver(msg: Omit<Message, 'from'>, consoleBody: string): Promise<void> {
+	const from = process.env.EMAIL_FROM || 'Duet <no-reply@duet.local>';
+	const full: Message = { from, ...msg };
 	if (process.env.RESEND_API_KEY) {
-		await sendViaResend(msg);
+		await sendViaResend(full);
 	} else if (process.env.SMTP_HOST) {
-		await sendViaSmtp(msg);
+		await sendViaSmtp(full);
 	} else {
-		logToConsole(email, subject, otp);
+		logToConsole(full.to, full.subject, consoleBody);
 	}
 }
 
@@ -99,16 +123,60 @@ async function sendViaSmtp(msg: Message): Promise<void> {
 	await transport.sendMail(msg);
 }
 
-function logToConsole(email: string, subject: string, otp: string): void {
+function logToConsole(email: string, subject: string, body: string): void {
 	const line = '─'.repeat(44);
 	console.log(
 		`\n┌${line}┐\n` +
 			`│  📨  ${subject.padEnd(36)}│\n` +
 			`│  to: ${email.padEnd(37)}│\n` +
-			`│  code: ${otp}  (valid 10 min)`.padEnd(45) +
+			`│  ${body}`.padEnd(45) +
 			`│\n` +
 			`└${line}┘\n`
 	);
+}
+
+function escapeHtml(s: string): string {
+	return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+}
+
+function renderInviteHtml({
+	inviterName,
+	projectName,
+	url
+}: {
+	inviterName: string;
+	projectName: string;
+	url: string;
+}): string {
+	const inviter = escapeHtml(inviterName);
+	const project = escapeHtml(projectName);
+	return `<!doctype html>
+<html>
+	<body style="margin:0;background:#f6f7f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#16181d;">
+		<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f7f9;padding:32px 16px;">
+			<tr><td align="center">
+				<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:440px;background:#ffffff;border:1px solid #e6e8ec;border-radius:16px;overflow:hidden;">
+					<tr><td style="padding:32px 32px 8px;">
+						<div style="display:inline-flex;align-items:center;gap:10px;">
+							<span style="display:inline-block;width:28px;height:28px;background:#6366f1;border-radius:8px;"></span>
+							<span style="font-size:20px;font-weight:700;letter-spacing:-0.02em;">Duet</span>
+						</div>
+					</td></tr>
+					<tr><td style="padding:16px 32px 4px;font-size:15px;color:#5b6270;line-height:1.5;">
+						<strong>${inviter}</strong> invited you to join <strong>${project}</strong> on Duet.
+					</td></tr>
+					<tr><td style="padding:20px 32px;">
+						<a href="${url}" style="display:inline-block;width:100%;box-sizing:border-box;text-align:center;background:#6366f1;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;padding:14px 20px;border-radius:10px;">Accept invite</a>
+					</td></tr>
+					<tr><td style="padding:4px 32px 32px;font-size:13px;color:#878e9c;line-height:1.5;">
+						This invite expires in 14 days. If you weren't expecting this, you can safely ignore this email.
+					</td></tr>
+				</table>
+				<p style="max-width:440px;margin:16px auto 0;font-size:12px;color:#aab0bc;text-align:center;">Sent by Duet</p>
+			</td></tr>
+		</table>
+	</body>
+</html>`;
 }
 
 function renderOtpHtml(otp: string, intro: string): string {
