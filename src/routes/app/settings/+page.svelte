@@ -277,7 +277,7 @@
 	</section>
 
 	<!-- Passkeys -->
-	<section class="card" id="passkeys">
+	<section class="card span-2" id="passkeys">
 		<div class="card-head row-between">
 			<div>
 				<h2>Passkeys</h2>
@@ -358,19 +358,24 @@
 
 <style>
 	.settings {
-		max-width: 680px;
+		max-width: 1040px;
 		width: 100%;
 		margin: 0 auto;
 		padding: var(--space-8) var(--space-6) var(--space-16);
-		display: flex;
-		flex-direction: column;
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		align-items: start;
 		gap: var(--space-5);
 	}
 	.s-head {
+		grid-column: 1 / -1;
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-3);
 		margin-bottom: var(--space-2);
+	}
+	.card.span-2 {
+		grid-column: 1 / -1;
 	}
 	.back {
 		display: inline-flex;
@@ -655,6 +660,13 @@
 	.signout {
 		border-top: 1px solid var(--border-subtle);
 		padding-top: var(--space-4);
+	}
+
+	@media (max-width: 820px) {
+		.settings {
+			grid-template-columns: minmax(0, 1fr);
+			max-width: 680px;
+		}
 	}
 
 	@media (max-width: 560px) {
