@@ -290,6 +290,17 @@
 							<option value={c.id}>{c.name}</option>
 						{/each}
 					</select>
+					{#if canEdit}
+						<form
+							class="add-inline"
+							onsubmit={(e) => {
+								e.preventDefault();
+								addCategory();
+							}}
+						>
+							<input bind:value={newCatName} placeholder="+ add a category" maxlength="80" />
+						</form>
+					{/if}
 				</label>
 
 				<label class="attr">
@@ -387,18 +398,6 @@
 					{/if}
 				</div>
 			</div>
-
-			{#if canEdit && categories.length === 0}
-				<form
-					class="add-inline standalone"
-					onsubmit={(e) => {
-						e.preventDefault();
-						addCategory();
-					}}
-				>
-					<input bind:value={newCatName} placeholder="+ add a category" maxlength="80" />
-				</form>
-			{/if}
 
 			<!-- Subtasks -->
 			{#if subtasks.length || canEdit}
@@ -824,10 +823,6 @@
 		outline: none;
 		border-color: var(--accent);
 		border-style: solid;
-	}
-	.add-inline.standalone input {
-		width: 100%;
-		border-radius: var(--radius-sm);
 	}
 	.desc-head {
 		display: flex;
