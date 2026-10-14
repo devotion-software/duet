@@ -309,7 +309,7 @@
 		</button>
 		<span class="topbar-title">
 			{#if activeProject}
-				<span class="tb-icon"><ProjectIcon icon={activeProject.icon} iconUrl={activeProject.iconUrl} /></span>{activeProject.name}
+				<span class="tb-icon"><ProjectIcon icon={activeProject.icon} iconUrl={activeProject.iconUrl} /></span><span class="tb-name">{activeProject.name}</span>
 			{:else}
 				<Logo size={22} />
 			{/if}
@@ -1065,16 +1065,25 @@
 			backdrop-filter: blur(10px);
 			border-bottom: 1px solid var(--border);
 		}
+		.topbar .icon-btn {
+			flex: 0 0 auto;
+		}
 		.topbar-title {
 			display: flex;
 			align-items: center;
 			gap: var(--space-2);
+			min-width: 0;
+			flex: 1;
+			justify-content: center;
 			font-weight: var(--weight-semibold);
+		}
+		.tb-name {
 			overflow: hidden;
 			text-overflow: ellipsis;
 			white-space: nowrap;
 		}
 		.tb-icon {
+			flex: 0 0 auto;
 			font-size: 18px;
 		}
 		.scrim {
