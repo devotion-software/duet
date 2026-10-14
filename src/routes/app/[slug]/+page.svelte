@@ -716,6 +716,7 @@
 		<div class="head-actions">
 			{#if canEdit && controller.items.length}
 				<Button
+					class="btn-select"
 					variant={selecting ? 'subtle' : 'ghost'}
 					size="sm"
 					icon="check-circle"
@@ -1317,8 +1318,18 @@
 		.searchbox input {
 			width: 100px;
 		}
-		:global(.btn-keys),
-		:global(.btn-members) {
+		.project .proj-head .head-actions :global(.btn-keys),
+		.project .proj-head .head-actions :global(.btn-members) {
+			display: none;
+		}
+	}
+
+	@media (max-width: 350px) {
+		.project .proj-head .head-actions :global(.btn-select) {
+			width: 30px;
+			padding: 0;
+		}
+		.project .proj-head .head-actions :global(.btn-select) :global(.label) {
 			display: none;
 		}
 	}
