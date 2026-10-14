@@ -6,6 +6,7 @@
 	import ProjectStatusBadge from '#lib/components/ProjectStatusBadge.svelte';
 	import { buildSidebar } from '#lib/sidebar';
 	import { deadlineInfo } from '#lib/date';
+	import { fontStyle } from '#lib/font';
 
 	let { data } = $props();
 
@@ -181,7 +182,7 @@
 								{#each g.projects as p (p.id)}
 									{@const s = data.stats[p.id]}
 									{@const total = s.open + s.done}
-									<a class="card font-{p.font}" href="/app/{p.slug}" style="--accent: {p.color}">
+									<a class="card" href="/app/{p.slug}" style="--accent: {p.color};{fontStyle(p.font)}">
 										<div class="card-head">
 											<span class="c-icon project-tile"><ProjectIcon icon={p.icon} iconUrl={p.iconUrl} /></span>
 											<span class="c-name truncate">{p.name}</span>

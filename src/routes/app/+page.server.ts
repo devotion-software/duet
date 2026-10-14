@@ -11,14 +11,10 @@ import {
 import { getHomeOverview } from '#lib/server/home';
 import { publish } from '#lib/server/realtime';
 import { canManage } from '#lib/server/authz';
-import {
-	PROJECT_STATUSES,
-	PROJECT_FONTS,
-	type ProjectStatus,
-	type ProjectFont
-} from '#lib/server/db/app.schema';
+import { PROJECT_STATUSES, type ProjectStatus } from '#lib/server/db/app.schema';
 import { clampListWidth } from '#lib/palette';
 import { sanitizeColor, sanitizeGradient } from '#lib/color';
+import { sanitizeFont } from '#lib/font';
 import type { Actions, PageServerLoad } from './$types';
 
 /** Pull a safe solid accent + optional gradient out of the submitted form. */
@@ -38,10 +34,9 @@ export const load: PageServerLoad = async ({ parent, cookies }) => {
 	return { ...overview, collapsedFolders };
 };
 
-/** The submitted font, or undefined if missing/invalid. */
-function fontFrom(form: FormData): ProjectFont | undefined {
-	const font = String(form.get('font') ?? '') as ProjectFont;
-	return PROJECT_FONTS.includes(font) ? font : undefined;
+/** The submitted font — a preset keyword or custom family name — or undefined if invalid. */
+function fontFrom(form: FormData): string | undefined {
+	return sanitizeFont(String(form.get('font') ?? '')) ?? undefined;
 }
 
 /** The submitted status, or undefined if missing/invalid. */

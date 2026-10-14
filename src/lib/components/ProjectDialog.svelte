@@ -4,8 +4,16 @@
 	import Modal from './ui/Modal.svelte';
 	import Button from './ui/Button.svelte';
 	import TextField from './ui/TextField.svelte';
-	import { LIST_WIDTH, PROJECT_COLORS, PROJECT_EMOJI, PROJECT_FONT_OPTIONS } from '#lib/palette';
+	import { LIST_WIDTH, PROJECT_COLORS, PROJECT_EMOJI } from '#lib/palette';
 	import { isValidColor, isGradient } from '#lib/color';
+	import {
+		FONT_PRESET_OPTIONS,
+		GOOGLE_FONTS,
+		fontStyle,
+		googleFontsHref,
+		isPreset,
+		isValidFont
+	} from '#lib/font';
 	import { toasts } from './ui/toast.svelte';
 	import Icon from './ui/Icon.svelte';
 	import ProjectIcon from './ProjectIcon.svelte';
@@ -90,7 +98,10 @@
 	let iconUrl = $state<string | null>(project.iconUrl ?? null);
 	let iconPicker = $state<HTMLDetailsElement>();
 	let fileInput = $state<HTMLInputElement>();
+	// `font` is the applied value: a preset keyword or a custom family name. `fontText` is
+	// what's typed in the custom box; it feeds `font` once it's a valid family.
 	let font = $state(project.font ?? 'sans');
+	let fontText = $state(isPreset(project.font ?? 'sans') ? '' : (project.font ?? ''));
 	let status = $state<ProjectStatus>(project.status ?? 'not_started');
 	let hidden = $state<RowField[]>(project.hiddenFields ?? []);
 	let listWidth = $state<number | null>(project.listWidthSetting ?? null);
@@ -98,6 +109,18 @@
 	let submitting = $state(false);
 
 	const colorValid = $derived(isValidColor(colorText));
+	// Empty custom box is fine (a preset is in use); a typed value must be a valid family.
+	const fontValid = $derived(fontText.trim() === '' || isValidFont(fontText));
+	// Load the chosen custom font while the dialog is open so the preview renders in it.
+	// Debounced off `font` so typing a name letter-by-letter doesn't fire a Google Fonts
+	// request (and a tab-loader flash) on every keystroke.
+	let previewFont = $state(font);
+	$effect(() => {
+		const f = font;
+		const t = setTimeout(() => (previewFont = f), 350);
+		return () => clearTimeout(t);
+	});
+	const previewFontHref = $derived(open ? googleFontsHref([previewFont]) : null);
 
 	/** The gradient CSS the builder currently describes. */
 	const gradientCss = $derived.by(() => {
@@ -169,6 +192,19 @@
 		gradStops = gradStops.map((s, j) => (j === i ? value : s));
 	}
 
+	/** Select a built-in font preset, clearing any typed custom family. */
+	function pickFontPreset(value: string) {
+		font = value;
+		fontText = '';
+	}
+
+	/** Apply the typed custom family to `font` once it's valid. */
+	function onFontInput(value: string) {
+		fontText = value;
+		const trimmed = value.trim();
+		if (trimmed && isValidFont(trimmed)) font = trimmed.replace(/\s+/g, ' ');
+	}
+
 	/** Apply a preset / native-picker / typed solid colour, switching back to solid mode. */
 	function pickSolid(value: string) {
 		color = value;
@@ -201,7 +237,11 @@
 			// Untracked so picking a file doesn't re-run this reset.
 			untrack(() => setIconFile(null));
 			iconUrl = project.iconUrl ?? null;
-			font = project.font ?? 'sans';
+			// Use a local, not the `font` state, so this reset effect doesn't take a
+			// dependency on `font` (which would re-run the whole reset on every keystroke).
+			const initialFont = project.font ?? 'sans';
+			font = initialFont;
+			fontText = isPreset(initialFont) ? '' : initialFont;
 			status = project.status ?? 'not_started';
 			hidden = [...(project.hiddenFields ?? [])];
 			listWidth = project.listWidthSetting ?? null;
@@ -298,6 +338,14 @@
 	const action = $derived(mode === 'create' ? '/app?/createProject' : '/app?/updateProject');
 </script>
 
+<svelte:head>
+	{#if previewFontHref}
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+		<link rel="stylesheet" href={previewFontHref} />
+	{/if}
+</svelte:head>
+
 <Modal bind:open title={mode === 'create' ? 'New project' : 'Project settings'} size="xl">
 	<form
 		method="POST"
@@ -342,7 +390,7 @@
 		{/each}
 
 		<!-- Live preview -->
-		<div class="preview project-surface font-{font}">
+		<div class="preview project-surface" style={fontStyle(font)}>
 			<span class="prev-icon project-tile"><ProjectIcon {icon} {iconUrl} /></span>
 			<div class="prev-text">
 				<strong>{name || 'Project name'}</strong>
@@ -520,20 +568,46 @@
 			{/if}
 		</div>
 
-		<div class="field">
+		<div class="field wide">
 			<span class="flabel">Font</span>
 			<div class="segmented">
-				{#each PROJECT_FONT_OPTIONS as f (f.value)}
+				{#each FONT_PRESET_OPTIONS as f (f.value)}
 					<button
 						type="button"
-						class="seg font-{f.value}"
+						class="seg"
 						class:sel={font === f.value}
-						onclick={() => (font = f.value)}
+						style={fontStyle(f.value)}
+						onclick={() => pickFontPreset(f.value)}
 					>
 						{f.label}
 					</button>
 				{/each}
 			</div>
+			<div class="font-text" class:invalid={!fontValid}>
+				<input
+					type="text"
+					value={fontText}
+					list="pd-google-fonts"
+					spellcheck="false"
+					autocapitalize="off"
+					autocomplete="off"
+					placeholder="Any font name — Google Fonts or one you have installed"
+					aria-label="Custom font family"
+					oninput={(e) => onFontInput(e.currentTarget.value)}
+				/>
+				{#if fontText.trim()}
+					<span class="font-status">{fontValid ? 'Valid' : 'Invalid'}</span>
+				{/if}
+			</div>
+			<datalist id="pd-google-fonts">
+				{#each GOOGLE_FONTS as g (g)}
+					<option value={g}></option>
+				{/each}
+			</datalist>
+			<p class="font-hint">
+				Pick a preset, or type any font — popular Google Fonts suggest as you type and load
+				automatically.
+			</p>
 		</div>
 
 		<div class="field">
@@ -870,6 +944,45 @@
 	}
 	.color-text.invalid .color-status {
 		color: var(--danger);
+	}
+	.font-text {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		margin-top: var(--space-3);
+	}
+	.font-text input {
+		flex: 1;
+		min-width: 0;
+		background: var(--surface);
+		border: 1px solid var(--border-strong);
+		border-radius: var(--radius-md);
+		padding: var(--space-2) var(--space-3);
+		color: var(--text);
+		font-size: var(--text-sm);
+		box-shadow: var(--shadow-xs);
+	}
+	.font-text input:focus {
+		outline: none;
+		border-color: var(--accent);
+		box-shadow: 0 0 0 3px var(--accent-ring);
+	}
+	.font-text.invalid input {
+		border-color: var(--danger);
+	}
+	.font-status {
+		flex-shrink: 0;
+		font-size: var(--text-xs);
+		font-weight: var(--weight-medium);
+		color: var(--success);
+	}
+	.font-text.invalid .font-status {
+		color: var(--danger);
+	}
+	.font-hint {
+		margin: var(--space-2) 0 0;
+		font-size: var(--text-xs);
+		color: var(--text-subtle);
 	}
 	.grad {
 		display: flex;

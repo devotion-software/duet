@@ -168,21 +168,10 @@ samp {
 }
 
 /* ── Per-project fonts ───────────────────────────────────────────────────────
-   Applied with a `font-<name>` class wherever a project's own content is shown.
-   font-family must be set directly (not via --font-sans) so it overrides the
-   value already resolved on <body>. */
-.font-sans {
-	font-family: var(--font-sans);
-}
-.font-serif {
-	font-family: var(--font-serif);
-}
-.font-mono {
-	font-family: var(--font-mono);
-}
-.font-rounded {
-	font-family: var(--font-rounded);
-}
+   A project's typeface is applied inline as `font-family` (see src/lib/font.ts →
+   fontStyle) wherever its own content is shown — the sidebar row, home card and the
+   project subtree — so a custom family set inline overrides the <body> value and
+   cascades to the content below it. */
 
 /* ── App-wide style ──────────────────────────────────────────────────────────
    One surface treatment for the whole app, chosen in Appearance settings and

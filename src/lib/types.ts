@@ -4,8 +4,8 @@ export type Size = 'xs' | 's' | 'm' | 'l' | 'xl';
 /** The single, app-wide surface treatment (set in Appearance settings). */
 export type AppStyle = 'soft' | 'solid' | 'outline' | 'glass';
 export const APP_STYLES: AppStyle[] = ['soft', 'solid', 'outline', 'glass'];
-/** A project's chosen typeface. */
-export type ProjectFont = 'sans' | 'serif' | 'mono' | 'rounded';
+/** A project's chosen typeface: a preset keyword or any custom font-family name. */
+export type ProjectFont = string;
 export type ProjectStatus = 'not_started' | 'in_progress' | 'live' | 'archived';
 export type RowField =
 	| 'urgency'

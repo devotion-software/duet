@@ -32,6 +32,7 @@
 	import { liveCounts } from '#lib/stores/liveCounts.svelte';
 	import { confirmDelete } from '#lib/confirmDelete.svelte';
 	import { sanitizeColor, sanitizeGradient } from '#lib/color';
+	import { fontStyle } from '#lib/font';
 
 	let { data } = $props();
 
@@ -43,7 +44,11 @@
 	const accentStyle = $derived.by(() => {
 		const color = sanitizeColor(data.project.color) ?? '#6366f1';
 		const gradient = sanitizeGradient(data.project.accentGradient);
-		return `--accent: ${color};` + (gradient ? ` --accent-gradient: ${gradient};` : '');
+		return (
+			`--accent: ${color};` +
+			(gradient ? ` --accent-gradient: ${gradient};` : '') +
+			fontStyle(data.project.font)
+		);
 	});
 
 	const controller = new TodosController(data.project.id, data.todos as unknown as Todo[]);
@@ -689,7 +694,7 @@
 	{/if}
 {/snippet}
 
-<div class="project font-{data.project.font}" style={accentStyle}>
+<div class="project" style={accentStyle}>
 	<header class="proj-head project-surface">
 		<div class="title-area">
 			<span class="proj-icon project-tile"><ProjectIcon icon={data.project.icon} iconUrl={data.project.iconUrl} /></span>

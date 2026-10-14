@@ -21,8 +21,13 @@
 		type SidebarItem
 	} from '#lib/sidebar';
 	import { sanitizeColor, sanitizeGradient } from '#lib/color';
+	import { fontStyle, googleFontsHref } from '#lib/font';
 
 	let { data, children } = $props();
+
+	// One stylesheet loading every custom (Google) font any of the user's projects use, so
+	// the sidebar, home cards and the open project all render in their chosen typeface.
+	const fontsHref = $derived(googleFontsHref(data.projects.map((p) => p.font)));
 
 	/** Inline `--accent` (+ `--accent-gradient`) declarations for a project, sanitised so
 	 *  they're safe to drop into a style attribute or a <style> tag. Empty if the colour
@@ -275,6 +280,11 @@
 
 <svelte:head>
 	{@html rootAccentStyle}
+	{#if fontsHref}
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+		<link rel="stylesheet" href={fontsHref} />
+	{/if}
 </svelte:head>
 
 {#snippet projectLink(p: (typeof data.projects)[number], folderId: string | null = null)}
@@ -282,12 +292,12 @@
 	{@const movable = p.status !== 'archived'}
 	<a
 		href="/app/{p.slug}"
-		class="p-link font-{p.font} {movable ? dropClass(p.id) : ''}"
+		class="p-link {movable ? dropClass(p.id) : ''}"
 		class:active={p.slug === activeSlug}
 		class:archived={p.status === 'archived'}
 		class:nested={!!folderId}
 		class:dragged={dragging?.id === p.id}
-		style={accentVars(p)}
+		style={accentVars(p) + fontStyle(p.font)}
 		title={collapsed ? (openCount > 0 ? `${p.name} (${openCount})` : p.name) : undefined}
 		draggable={movable}
 		data-drop-id={movable ? p.id : undefined}

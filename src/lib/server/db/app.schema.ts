@@ -23,9 +23,10 @@ export type Urgency = (typeof URGENCIES)[number];
 export const SIZES = ['xs', 's', 'm', 'l', 'xl'] as const;
 export type Size = (typeof SIZES)[number];
 
-// Typeface a project owner can pick; themes the project's name and content.
-export const PROJECT_FONTS = ['sans', 'serif', 'mono', 'rounded'] as const;
-export type ProjectFont = (typeof PROJECT_FONTS)[number];
+// Typeface a project owner can pick; themes the project's name and content. Stored as a
+// free string: one of the built-in preset keywords (sans/serif/mono/rounded) or any custom
+// font-family name (loaded from Google Fonts when it's one). See src/lib/font.ts.
+export type ProjectFont = string;
 
 // Lifecycle of a project; archived ones are tucked away in the sidebar.
 export const PROJECT_STATUSES = ['not_started', 'in_progress', 'live', 'archived'] as const;
@@ -73,7 +74,7 @@ export const projects = mysqlTable(
 		icon: varchar('icon', { length: 16 }).notNull().default('📋'),
 		// Storage key of an uploaded image/SVG icon; when set it's shown instead of `icon`.
 		iconKey: varchar('icon_key', { length: 255 }),
-		font: mysqlEnum('font', PROJECT_FONTS).notNull().default('sans'),
+		font: varchar('font', { length: 120 }).notNull().default('sans'),
 		// Comma-separated RowFields hidden from task rows; stored as hidden so new fields show by default.
 		hiddenFields: varchar('hidden_fields', { length: 255 }).notNull().default(''),
 		// Max width of the task list in px; 0 lets it fill the window, null uses each
