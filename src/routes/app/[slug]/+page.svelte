@@ -473,7 +473,8 @@
 				return;
 			case 'c':
 				handled();
-				copyTodo(current);
+				if (selecting && selectedIds.size) copySelected();
+				else copyTodo(current);
 				return;
 			case 'x':
 				if (!canEdit) return;
@@ -513,6 +514,20 @@
 		return navigator.clipboard.writeText(text).then(
 			() => {
 				toasts.success('Task copied to clipboard');
+				return true;
+			},
+			() => {
+				toasts.error('Could not copy');
+				return false;
+			}
+		);
+	}
+
+	function copySelected(): Promise<boolean> {
+		const todos = selectedTodos;
+		return navigator.clipboard.writeText(formatTodosAsChecklist(todos)).then(
+			() => {
+				toasts.success(`Copied ${todos.length} task${todos.length === 1 ? '' : 's'} to clipboard`);
 				return true;
 			},
 			() => {
@@ -877,6 +892,7 @@
 		tags={data.tags}
 		onApply={(patch) => controller.bulkUpdate([...selectedIds], patch)}
 		onDelete={() => controller.bulkRemove([...selectedIds])}
+		onCopy={copySelected}
 		onSelectAll={selectAll}
 		onClear={clearSelection}
 		onCreateTag={createTag}

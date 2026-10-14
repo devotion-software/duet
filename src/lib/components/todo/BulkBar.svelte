@@ -2,6 +2,7 @@
 	import { fly } from 'svelte/transition';
 	import Icon from '#lib/components/ui/Icon.svelte';
 	import Spinner from '#lib/components/ui/Spinner.svelte';
+	import { Copied } from '#lib/copied.svelte';
 	import { toDateInput } from '#lib/date';
 	import {
 		URGENCIES,
@@ -24,6 +25,7 @@
 		tags: Tag[];
 		onApply: (patch: BulkPatchInput) => Promise<boolean>;
 		onDelete: () => Promise<boolean>;
+		onCopy: () => Promise<boolean>;
 		onSelectAll: () => void;
 		onClear: () => void;
 		onCreateTag: (name: string) => Promise<Tag | null>;
@@ -37,6 +39,7 @@
 		tags,
 		onApply,
 		onDelete,
+		onCopy,
 		onSelectAll,
 		onClear,
 		onCreateTag,
@@ -48,6 +51,7 @@
 	const KEEP = '__keep';
 
 	let busy = $state(false);
+	const copied = new Copied();
 	let popover = $state<'category' | 'deadline' | 'tags' | null>(null);
 	let newTagName = $state('');
 	let newCatName = $state('');
@@ -281,6 +285,14 @@
 	</div>
 
 	<div class="actions">
+		<button
+			class="ctl"
+			disabled={busy}
+			title="Copy selected as checklist"
+			onclick={async () => (await onCopy()) && copied.mark(true)}
+		>
+			<Icon name={copied.icon(true)} size={14} /> Copy
+		</button>
 		<button class="ctl" disabled={busy} onclick={() => apply({ inProgress: !allStarted })}>
 			<Icon name="clock" size={14} />
 			{allStarted ? 'Stop' : 'Start'}
