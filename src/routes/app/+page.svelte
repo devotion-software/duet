@@ -364,6 +364,9 @@
 		flex-direction: column;
 		gap: 2px;
 	}
+	.u-title {
+		overflow-wrap: anywhere;
+	}
 	.u-parent {
 		display: flex;
 		align-items: center;

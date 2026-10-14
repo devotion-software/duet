@@ -624,6 +624,7 @@
 		font-size: var(--text-base);
 		color: var(--text);
 		line-height: var(--leading-snug);
+		overflow-wrap: anywhere;
 	}
 	.done .title {
 		color: var(--text-subtle);

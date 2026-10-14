@@ -719,6 +719,7 @@
 		font-size: var(--text-sm);
 		color: var(--text);
 		padding: var(--space-1) 0;
+		overflow-wrap: anywhere;
 	}
 	.sub.done .sub-title {
 		color: var(--text-subtle);
@@ -737,6 +738,7 @@
 		min-height: 2em;
 		flex-shrink: 0;
 		letter-spacing: var(--tracking-tight);
+		overflow-wrap: anywhere;
 	}
 	.title-input:focus {
 		outline: none;
