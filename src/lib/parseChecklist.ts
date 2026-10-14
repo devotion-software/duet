@@ -1,6 +1,8 @@
 export interface ParsedItem {
 	title: string;
 	completed: boolean;
+	/** Overflow past the title's max length, if the line was too long. */
+	description?: string;
 	/** Heading the item was listed under, if any. */
 	group?: string;
 	/** Index of the item this one is indented under, if any. */
@@ -69,9 +71,12 @@ export function parseChecklist(text: string): ParsedItem[] {
 		while (stack.length && stack[stack.length - 1][0] >= indents[i]) stack.pop();
 		const parent = stack[stack.length - 1]?.[1];
 		stack.push([indents[i], items.length]);
+		const title = line.slice(0, 500);
+		const overflow = line.slice(500).trim();
 		items.push({
-			title: line.slice(0, 500),
+			title,
 			completed,
+			...(overflow ? { description: overflow } : {}),
 			...(group ? { group } : {}),
 			...(parent !== undefined ? { parent } : {})
 		});

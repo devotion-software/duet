@@ -61,8 +61,11 @@
 		placeholder="Add a task — press Enter to save, paste a list to import"
 		aria-label="Add a task"
 		autocomplete="off"
+		maxlength="500"
 	/>
-	{#if title.trim()}
+	{#if title.length > 400}
+		<span class="char-count" class:limit={title.length >= 500}>{title.length}/500</span>
+	{:else if title.trim()}
 		<kbd>↵</kbd>
 	{/if}
 </div>
@@ -127,6 +130,15 @@
 	}
 	input::placeholder {
 		color: var(--text-faint);
+	}
+	.char-count {
+		flex-shrink: 0;
+		font-size: var(--text-xs);
+		font-weight: var(--weight-medium);
+		color: var(--text-faint);
+	}
+	.char-count.limit {
+		color: var(--danger);
 	}
 	kbd {
 		font-family: var(--font-mono);

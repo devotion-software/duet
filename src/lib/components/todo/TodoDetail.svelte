@@ -266,15 +266,21 @@
 					{/each}
 				</nav>
 			{/if}
-			<textarea
-				class="title-input"
-				bind:this={titleEl}
-				bind:value={title}
-				onblur={saveTitle}
-				rows="1"
-				readonly={!canEdit}
-				placeholder="Task title"
-			></textarea>
+			<div class="title-wrap">
+				<textarea
+					class="title-input"
+					bind:this={titleEl}
+					bind:value={title}
+					onblur={saveTitle}
+					rows="1"
+					readonly={!canEdit}
+					placeholder="Task title"
+					maxlength="500"
+				></textarea>
+				{#if title.length > 400}
+					<span class="char-count" class:limit={title.length >= 500}>{title.length}/500</span>
+				{/if}
+			</div>
 
 			<!-- Attributes grid -->
 			<div class="attrs">
@@ -725,6 +731,10 @@
 		color: var(--text-subtle);
 		text-decoration: line-through;
 	}
+	.title-wrap {
+		position: relative;
+		flex-shrink: 0;
+	}
 	.title-input {
 		font-size: var(--text-xl);
 		font-weight: var(--weight-semibold);
@@ -742,6 +752,17 @@
 	}
 	.title-input:focus {
 		outline: none;
+	}
+	.char-count {
+		position: absolute;
+		right: 0;
+		bottom: calc(-1 * var(--space-4));
+		font-size: var(--text-xs);
+		font-weight: var(--weight-medium);
+		color: var(--text-faint);
+	}
+	.char-count.limit {
+		color: var(--danger);
 	}
 	.attrs {
 		display: grid;

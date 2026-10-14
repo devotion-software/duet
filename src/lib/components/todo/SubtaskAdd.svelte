@@ -45,6 +45,9 @@
 		autocomplete="off"
 		maxlength="500"
 	/>
+	{#if title.length > 400}
+		<span class="char-count" class:limit={title.length >= 500}>{title.length}/500</span>
+	{/if}
 </div>
 
 <style>
@@ -71,5 +74,14 @@
 	}
 	input::placeholder {
 		color: var(--text-faint);
+	}
+	.char-count {
+		flex-shrink: 0;
+		font-size: var(--text-xs);
+		font-weight: var(--weight-medium);
+		color: var(--text-faint);
+	}
+	.char-count.limit {
+		color: var(--danger);
 	}
 </style>

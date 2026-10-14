@@ -75,14 +75,19 @@ export function parseExportJson(text: string): ImportItem[] | null {
 	for (const raw of list) {
 		if (!raw || typeof raw !== 'object') continue;
 		const t = raw as Record<string, unknown>;
-		const title = str(t.title, 500);
-		if (!title) continue;
+		const fullTitle = typeof t.title === 'string' ? t.title.trim() : '';
+		if (!fullTitle) continue;
+		const title = fullTitle.slice(0, 500);
+		const overflow = fullTitle.slice(500).trim();
 		const completed = t.completed === true;
+		const description = str(t.description, 65_535);
 		items.push({
 			title,
 			completed,
 			completedAt: completed ? date(t.completedAt) : null,
-			description: str(t.description, 65_535),
+			description: overflow
+				? [overflow, description].filter(Boolean).join('\n\n').slice(0, 65_535)
+				: description,
 			deadline: date(t.deadline),
 			urgency: oneOf(t.urgency, URGENCIES),
 			size: oneOf(t.size, SIZES),
@@ -116,8 +121,8 @@ export function parseImport(text: string, groupAs: GroupAs = 'category'): Parsed
 	const refs = new Map(
 		groups.map((name, i) => [name, { name, color: TAG_COLORS[i % TAG_COLORS.length] }])
 	);
-	const items = parsed.map(({ title, completed, group, parent }): ImportItem => {
-		const base = { title, completed, parentIndex: parent ?? null };
+	const items = parsed.map(({ title, completed, description, group, parent }): ImportItem => {
+		const base = { title, completed, description: description ?? null, parentIndex: parent ?? null };
 		const r = group ? refs.get(group) : undefined;
 		if (!r || groupAs === 'none') return base;
 		return groupAs === 'category' ? { ...base, category: r } : { ...base, tags: [r] };
