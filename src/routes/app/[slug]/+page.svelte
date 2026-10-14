@@ -473,7 +473,7 @@
 				return;
 			case 'c':
 				handled();
-				if (selecting && selectedIds.size) copySelected();
+				if (selecting && selectedIds.size) copySelectedForAI();
 				else copyTodo(current);
 				return;
 			case 'x':
@@ -528,6 +528,24 @@
 		return navigator.clipboard.writeText(formatTodosAsChecklist(todos)).then(
 			() => {
 				toasts.success(`Copied ${todos.length} task${todos.length === 1 ? '' : 's'} to clipboard`);
+				return true;
+			},
+			() => {
+				toasts.error('Could not copy');
+				return false;
+			}
+		);
+	}
+
+	function copySelectedForAI(): Promise<boolean> {
+		const todos = selectedTodos;
+		// One doc: each task's full AI markdown, split by an h1 rule.
+		const text = todos
+			.map((t) => formatTodoForCopy(t, data.project.name, controller.items))
+			.join('\n\n---\n\n');
+		return navigator.clipboard.writeText(text).then(
+			() => {
+				toasts.success(`Copied ${todos.length} task${todos.length === 1 ? '' : 's'} for AI`);
 				return true;
 			},
 			() => {
@@ -893,6 +911,7 @@
 		onApply={(patch) => controller.bulkUpdate([...selectedIds], patch)}
 		onDelete={() => controller.bulkRemove([...selectedIds])}
 		onCopy={copySelected}
+		onCopyForAI={copySelectedForAI}
 		onSelectAll={selectAll}
 		onClear={clearSelection}
 		onCreateTag={createTag}

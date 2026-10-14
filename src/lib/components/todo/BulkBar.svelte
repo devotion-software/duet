@@ -26,6 +26,7 @@
 		onApply: (patch: BulkPatchInput) => Promise<boolean>;
 		onDelete: () => Promise<boolean>;
 		onCopy: () => Promise<boolean>;
+		onCopyForAI: () => Promise<boolean>;
 		onSelectAll: () => void;
 		onClear: () => void;
 		onCreateTag: (name: string) => Promise<Tag | null>;
@@ -40,6 +41,7 @@
 		onApply,
 		onDelete,
 		onCopy,
+		onCopyForAI,
 		onSelectAll,
 		onClear,
 		onCreateTag,
@@ -51,7 +53,7 @@
 	const KEEP = '__keep';
 
 	let busy = $state(false);
-	const copied = new Copied();
+	const copied = new Copied<'list' | 'ai'>();
 	let popover = $state<'category' | 'deadline' | 'tags' | null>(null);
 	let newTagName = $state('');
 	let newCatName = $state('');
@@ -289,9 +291,17 @@
 			class="ctl"
 			disabled={busy}
 			title="Copy selected as checklist"
-			onclick={async () => (await onCopy()) && copied.mark(true)}
+			onclick={async () => (await onCopy()) && copied.mark('list')}
 		>
-			<Icon name={copied.icon(true)} size={14} /> Copy
+			<Icon name={copied.icon('list')} size={14} /> Copy
+		</button>
+		<button
+			class="ctl"
+			disabled={busy}
+			title="Copy all selected as one doc for AI"
+			onclick={async () => (await onCopyForAI()) && copied.mark('ai')}
+		>
+			<Icon name={copied.icon('ai')} size={14} /> Copy for AI
 		</button>
 		<button class="ctl" disabled={busy} onclick={() => apply({ inProgress: !allStarted })}>
 			<Icon name="clock" size={14} />
