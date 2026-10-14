@@ -13,8 +13,9 @@ import { publish } from '#lib/server/realtime';
 import { canManage } from '#lib/server/authz';
 import {
 	PROJECT_STATUSES,
+	PROJECT_FONTS,
 	type ProjectStatus,
-	type ProjectStyle
+	type ProjectFont
 } from '#lib/server/db/app.schema';
 import { clampListWidth } from '#lib/palette';
 import type { Actions, PageServerLoad } from './$types';
@@ -28,7 +29,11 @@ export const load: PageServerLoad = async ({ parent, cookies }) => {
 	return { ...overview, collapsedFolders };
 };
 
-const STYLES: ProjectStyle[] = ['soft', 'solid', 'outline', 'glass'];
+/** The submitted font, or undefined if missing/invalid. */
+function fontFrom(form: FormData): ProjectFont | undefined {
+	const font = String(form.get('font') ?? '') as ProjectFont;
+	return PROJECT_FONTS.includes(font) ? font : undefined;
+}
 
 /** The submitted status, or undefined if missing/invalid. */
 function statusFrom(form: FormData): ProjectStatus | undefined {
@@ -68,13 +73,12 @@ export const actions: Actions = {
 		const iconError = iconFile && validateIconFile(iconFile);
 		if (iconError) return fail(400, { message: iconError });
 
-		const style = String(form.get('style') ?? 'soft') as ProjectStyle;
 		const { id, slug } = await createProject(locals.user.id, {
 			name,
 			description: String(form.get('description') ?? ''),
 			color: String(form.get('color') ?? '#6366f1'),
 			icon: String(form.get('icon') ?? '📋'),
-			style: STYLES.includes(style) ? style : 'soft',
+			font: fontFrom(form) ?? 'sans',
 			status: statusFrom(form)
 		});
 		if (iconFile) await setProjectIcon(id, iconFile);
@@ -93,13 +97,12 @@ export const actions: Actions = {
 		const iconError = iconFile && validateIconFile(iconFile);
 		if (iconError) return fail(400, { message: iconError });
 
-		const style = String(form.get('style') ?? 'soft') as ProjectStyle;
 		await updateProject(id, {
 			name: String(form.get('name') ?? '').trim(),
 			description: String(form.get('description') ?? ''),
 			color: String(form.get('color') ?? '#6366f1'),
 			icon: String(form.get('icon') ?? '📋'),
-			style: STYLES.includes(style) ? style : 'soft',
+			font: fontFrom(form) ?? 'sans',
 			status: statusFrom(form),
 			hiddenFields: parseHiddenFields(form.getAll('hidden').join(',')),
 			listWidth: listWidthFrom(form),

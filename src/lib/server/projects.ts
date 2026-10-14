@@ -8,7 +8,7 @@ import {
 	todos,
 	ROW_FIELDS,
 	type Role,
-	type ProjectStyle,
+	type ProjectFont,
 	type ProjectStatus,
 	type RowField
 } from './db/app.schema';
@@ -27,7 +27,7 @@ export interface ProjectSummary {
 	icon: string;
 	/** Uploaded image icon, shown in place of the emoji `icon` when set. */
 	iconUrl: string | null;
-	style: ProjectStyle;
+	font: ProjectFont;
 	status: ProjectStatus;
 	role: Role;
 	/** The user's sidebar folder for the project, if any. */
@@ -105,7 +105,7 @@ export async function listUserProjects(
 			color: r.project.color,
 			icon: r.project.icon,
 			iconUrl: projectIconUrl(r.project),
-			style: r.project.style,
+			font: r.project.font,
 			status: r.project.status,
 			role: r.role,
 			folderId: r.folderId,
@@ -164,7 +164,7 @@ interface CreateProjectInput {
 	description?: string | null;
 	color?: string;
 	icon?: string;
-	style?: ProjectStyle;
+	font?: ProjectFont;
 	status?: ProjectStatus;
 }
 
@@ -180,7 +180,7 @@ export async function createProject(userId: string, input: CreateProjectInput) {
 		description: input.description?.trim() || null,
 		color: input.color || '#6366f1',
 		icon: input.icon || '📋',
-		style: input.style || 'soft',
+		font: input.font || 'sans',
 		status: input.status || 'not_started',
 		ownerId: userId
 	});
@@ -198,7 +198,7 @@ export async function createProject(userId: string, input: CreateProjectInput) {
 
 export async function updateProject(
 	projectId: string,
-	patch: Partial<Pick<CreateProjectInput, 'name' | 'description' | 'color' | 'icon' | 'style' | 'status'>> & {
+	patch: Partial<Pick<CreateProjectInput, 'name' | 'description' | 'color' | 'icon' | 'font' | 'status'>> & {
 		hiddenFields?: RowField[];
 		/** null resets these to the account default. */
 		listWidth?: number | null;
@@ -210,7 +210,7 @@ export async function updateProject(
 	if (patch.description !== undefined) values.description = patch.description?.trim() || null;
 	if (patch.color !== undefined) values.color = patch.color;
 	if (patch.icon !== undefined) values.icon = patch.icon;
-	if (patch.style !== undefined) values.style = patch.style;
+	if (patch.font !== undefined) values.font = patch.font;
 	if (patch.status !== undefined) values.status = patch.status;
 	if (patch.hiddenFields !== undefined)
 		values.hiddenFields = patch.hiddenFields.filter((f) => ROW_FIELDS.includes(f)).join(',');

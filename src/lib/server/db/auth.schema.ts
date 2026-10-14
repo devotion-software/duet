@@ -21,6 +21,8 @@ export const user = mysqlTable("user", {
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
   theme: text("theme").default("system"),
+  // The single, app-wide surface style (soft/solid/outline/glass).
+  appStyle: text("app_style").default("soft").notNull(),
   defaultListWidth: int("default_list_width").default(820).notNull(),
   defaultCountSubtasks: boolean("default_count_subtasks").default(true).notNull(),
 });

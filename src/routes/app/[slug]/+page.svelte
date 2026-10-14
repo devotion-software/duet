@@ -636,10 +636,10 @@
 	{/if}
 {/snippet}
 
-<div class="project" style="--accent: {data.project.color}">
-	<header class="proj-head project-surface style-{data.project.style}">
+<div class="project font-{data.project.font}" style="--accent: {data.project.color}">
+	<header class="proj-head project-surface">
 		<div class="title-area">
-			<span class="proj-icon project-tile style-{data.project.style}"><ProjectIcon icon={data.project.icon} iconUrl={data.project.iconUrl} /></span>
+			<span class="proj-icon project-tile"><ProjectIcon icon={data.project.icon} iconUrl={data.project.iconUrl} /></span>
 			<div class="titles">
 				<div class="title-row">
 					<h1>{data.project.name}</h1>
@@ -752,8 +752,8 @@
 		ondrop={onListDrop}
 	>
 		{#if canEdit}
-			<div class="quick" class:glass={data.project.style === 'glass'}>
-				<QuickAdd bind:this={quickAdd} glass={data.project.style === 'glass'} onAdd={addTodo} onPasteMultiline={openImport} />
+			<div class="quick" class:glass={data.appStyle === 'glass'}>
+				<QuickAdd bind:this={quickAdd} glass={data.appStyle === 'glass'} onAdd={addTodo} onPasteMultiline={openImport} />
 			</div>
 		{/if}
 
@@ -844,7 +844,6 @@
 {#if selected}
 	<TodoDetail
 		accent={data.project.color}
-		projectStyle={data.project.style}
 		todo={selected}
 		{canEdit}
 		members={data.members}

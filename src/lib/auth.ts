@@ -43,6 +43,13 @@ export const auth = betterAuth({
 				defaultValue: 'system',
 				input: true
 			},
+			// App-wide surface style (soft/solid/outline/glass), set in Appearance settings.
+			appStyle: {
+				type: 'string',
+				required: false,
+				defaultValue: 'soft',
+				input: true
+			},
 			// Account-wide fallbacks for projects whose own setting is left on "Default".
 			// Saved through the settings page action, which validates them.
 			defaultListWidth: {

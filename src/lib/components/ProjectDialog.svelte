@@ -4,7 +4,7 @@
 	import Modal from './ui/Modal.svelte';
 	import Button from './ui/Button.svelte';
 	import TextField from './ui/TextField.svelte';
-	import { LIST_WIDTH, PROJECT_COLORS, PROJECT_EMOJI, PROJECT_STYLES } from '#lib/palette';
+	import { LIST_WIDTH, PROJECT_COLORS, PROJECT_EMOJI, PROJECT_FONT_OPTIONS } from '#lib/palette';
 	import { toasts } from './ui/toast.svelte';
 	import Icon from './ui/Icon.svelte';
 	import ProjectIcon from './ProjectIcon.svelte';
@@ -26,7 +26,7 @@
 		color?: string;
 		icon?: string;
 		iconUrl?: string | null;
-		style?: string;
+		font?: string;
 		status?: ProjectStatus;
 		hiddenFields?: RowField[];
 		/** The project's own settings; null follows the user's account defaults. */
@@ -71,7 +71,7 @@
 	let iconUrl = $state<string | null>(project.iconUrl ?? null);
 	let iconPicker = $state<HTMLDetailsElement>();
 	let fileInput = $state<HTMLInputElement>();
-	let style = $state(project.style ?? 'soft');
+	let font = $state(project.font ?? 'sans');
 	let status = $state<ProjectStatus>(project.status ?? 'not_started');
 	let hidden = $state<RowField[]>(project.hiddenFields ?? []);
 	let listWidth = $state<number | null>(project.listWidthSetting ?? null);
@@ -88,7 +88,7 @@
 			// Untracked so picking a file doesn't re-run this reset.
 			untrack(() => setIconFile(null));
 			iconUrl = project.iconUrl ?? null;
-			style = project.style ?? 'soft';
+			font = project.font ?? 'sans';
 			status = project.status ?? 'not_started';
 			hidden = [...(project.hiddenFields ?? [])];
 			listWidth = project.listWidthSetting ?? null;
@@ -217,7 +217,7 @@
 		{/if}
 		<input type="hidden" name="color" value={color} />
 		<input type="hidden" name="icon" value={icon} />
-		<input type="hidden" name="style" value={style} />
+		<input type="hidden" name="font" value={font} />
 		<input type="hidden" name="status" value={status} />
 		{#if mode === 'edit'}
 			<input type="hidden" name="listWidth" value={listWidth ?? ''} />
@@ -228,8 +228,8 @@
 		{/each}
 
 		<!-- Live preview -->
-		<div class="preview project-surface style-{style}">
-			<span class="prev-icon project-tile style-{style}"><ProjectIcon {icon} {iconUrl} /></span>
+		<div class="preview project-surface font-{font}">
+			<span class="prev-icon project-tile"><ProjectIcon {icon} {iconUrl} /></span>
 			<div class="prev-text">
 				<strong>{name || 'Project name'}</strong>
 				<small>{description || 'A short description'}</small>
@@ -312,16 +312,16 @@
 		</div>
 
 		<div class="field">
-			<span class="flabel">Style</span>
+			<span class="flabel">Font</span>
 			<div class="segmented">
-				{#each PROJECT_STYLES as s (s.value)}
+				{#each PROJECT_FONT_OPTIONS as f (f.value)}
 					<button
 						type="button"
-						class="seg"
-						class:sel={style === s.value}
-						onclick={() => (style = s.value)}
+						class="seg font-{f.value}"
+						class:sel={font === f.value}
+						onclick={() => (font = f.value)}
 					>
-						{s.label}
+						{f.label}
 					</button>
 				{/each}
 			</div>

@@ -1,7 +1,11 @@
 export type Role = 'owner' | 'editor' | 'viewer';
 export type Urgency = 'low' | 'medium' | 'high' | 'urgent';
 export type Size = 'xs' | 's' | 'm' | 'l' | 'xl';
-export type ProjectStyle = 'soft' | 'solid' | 'outline' | 'glass';
+/** The single, app-wide surface treatment (set in Appearance settings). */
+export type AppStyle = 'soft' | 'solid' | 'outline' | 'glass';
+export const APP_STYLES: AppStyle[] = ['soft', 'solid', 'outline', 'glass'];
+/** A project's chosen typeface. */
+export type ProjectFont = 'sans' | 'serif' | 'mono' | 'rounded';
 export type ProjectStatus = 'not_started' | 'in_progress' | 'live' | 'archived';
 export type RowField =
 	| 'urgency'

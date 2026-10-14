@@ -167,9 +167,27 @@ samp {
 	white-space: nowrap;
 }
 
-/* ── Project styles ────────────────────────────────────────────────────────
-   One treatment per ProjectStyle, shared by every place a project is shown.
-   Pair with a `style-<name>` class under an element that sets --accent.
+/* ── Per-project fonts ───────────────────────────────────────────────────────
+   Applied with a `font-<name>` class wherever a project's own content is shown.
+   font-family must be set directly (not via --font-sans) so it overrides the
+   value already resolved on <body>. */
+.font-sans {
+	font-family: var(--font-sans);
+}
+.font-serif {
+	font-family: var(--font-serif);
+}
+.font-mono {
+	font-family: var(--font-mono);
+}
+.font-rounded {
+	font-family: var(--font-rounded);
+}
+
+/* ── App-wide style ──────────────────────────────────────────────────────────
+   One surface treatment for the whole app, chosen in Appearance settings and
+   reflected as `data-style` on <html>. Every place a project is shown pairs a
+   `.project-tile`/`.project-surface` class with an element that sets --accent.
    .project-tile    the icon tile; carries most of the style's identity.
    .project-surface a header band; kept to a light wash so content stays legible.
                     Its divider should use var(--project-border, <fallback>). */
@@ -179,20 +197,20 @@ samp {
 	flex-shrink: 0;
 	border-radius: var(--radius-md);
 }
-.project-tile.style-soft {
+:root[data-style='soft'] .project-tile {
 	background: var(--accent-soft);
 }
-.project-tile.style-solid {
+:root[data-style='solid'] .project-tile {
 	background: var(--accent);
 	box-shadow:
 		inset 0 -1px 0 rgb(0 0 0 / 0.12),
 		var(--shadow-xs);
 }
-.project-tile.style-outline {
+:root[data-style='outline'] .project-tile {
 	background: var(--surface);
 	box-shadow: inset 0 0 0 1.5px var(--accent);
 }
-.project-tile.style-glass {
+:root[data-style='glass'] .project-tile {
 	background: linear-gradient(
 		145deg,
 		color-mix(in oklab, var(--accent) 26%, var(--surface)),
@@ -201,8 +219,8 @@ samp {
 	box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 22%, transparent);
 }
 
-.project-surface.style-soft,
-.project-surface.style-solid {
+:root[data-style='soft'] .project-surface,
+:root[data-style='solid'] .project-surface {
 	background: linear-gradient(
 		180deg,
 		color-mix(in oklab, var(--accent) 8%, transparent),
@@ -210,13 +228,13 @@ samp {
 	);
 	--project-border: color-mix(in oklab, var(--accent) 22%, var(--border));
 }
-.project-surface.style-solid {
+:root[data-style='solid'] .project-surface {
 	box-shadow: inset 0 3px 0 var(--accent);
 }
-.project-surface.style-outline {
+:root[data-style='outline'] .project-surface {
 	--project-border: color-mix(in oklab, var(--accent) 55%, var(--border));
 }
-.project-surface.style-glass {
+:root[data-style='glass'] .project-surface {
 	background:
 		radial-gradient(
 			120% 160% at 0% 0%,

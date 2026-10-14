@@ -3,6 +3,8 @@
 	import { enhance } from '$app/forms';
 	import { authClient } from '#lib/auth-client';
 	import { theme, THEMES, type Theme } from '#lib/theme.svelte';
+	import { APP_STYLE_OPTIONS } from '#lib/palette';
+	import type { AppStyle } from '#lib/types';
 	import { confirmDelete } from '#lib/confirmDelete.svelte';
 	import { toasts } from '#lib/components/ui/toast.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
@@ -31,6 +33,29 @@
 		light: { label: 'Light', icon: 'sun' },
 		dark: { label: 'Dark', icon: 'moon' }
 	};
+
+	// App-wide surface style, persisted on the account. Reflected on <html> during SSR,
+	// so here we update the attribute directly for instant feedback and save in the background.
+	let appStyle = $state<AppStyle>(data.appStyle);
+	let savingStyle = $state(false);
+
+	async function setStyle(next: AppStyle) {
+		if (next === appStyle || savingStyle) return;
+		const prev = appStyle;
+		appStyle = next;
+		document.documentElement.setAttribute('data-style', next);
+		savingStyle = true;
+		const { error } = await authClient.updateUser({ appStyle: next });
+		savingStyle = false;
+		if (error) {
+			appStyle = prev;
+			document.documentElement.setAttribute('data-style', prev);
+			toasts.error(error.message ?? 'Could not save');
+		} else {
+			// Refresh layout data (e.g. the project glass flag) to match the new style.
+			await invalidateAll();
+		}
+	}
 
 	async function saveName() {
 		const n = name.trim();
@@ -167,6 +192,23 @@
 					{#if theme.value === t}<span class="theme-check"><Icon name="check" size={14} /></span>{/if}
 				</button>
 			{/each}
+		</div>
+		<div class="field style-field">
+			<span>Project style</span>
+			<p class="field-hint">One surface treatment for every project, saved to your account.</p>
+			<div class="segmented">
+				{#each APP_STYLE_OPTIONS as s (s.value)}
+					<button
+						type="button"
+						class="seg"
+						class:sel={appStyle === s.value}
+						disabled={savingStyle}
+						onclick={() => setStyle(s.value)}
+					>
+						{s.label}
+					</button>
+				{/each}
+			</div>
 		</div>
 		<label class="check">
 			<input
@@ -462,8 +504,17 @@
 		color: var(--text);
 		box-shadow: var(--shadow-xs);
 	}
+	.style-field {
+		margin-top: var(--space-5);
+	}
+	.field-hint {
+		margin-top: -2px;
+		font-size: var(--text-xs);
+		color: var(--text-muted);
+		font-weight: var(--weight-normal);
+	}
 	.check {
-		display: inline-flex;
+		display: flex;
 		align-items: center;
 		gap: var(--space-2);
 		margin-top: var(--space-4);

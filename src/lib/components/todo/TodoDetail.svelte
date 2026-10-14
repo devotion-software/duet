@@ -20,16 +20,14 @@
 		type Todo,
 		type Tag,
 		type Category,
-		type Member,
-		type ProjectStyle
+		type Member
 	} from '#lib/types';
 	import type { NewTodoInput } from '#lib/stores/todos.svelte';
 
 	interface Props {
 		todo: Todo;
-		/** Project colour and card style, so the panel matches its project. */
+		/** Project colour, so the panel matches its project. */
 		accent: string;
-		projectStyle: ProjectStyle;
 		canEdit: boolean;
 		members: Member[];
 		categories: Category[];
@@ -57,7 +55,6 @@
 	let {
 		todo,
 		accent,
-		projectStyle,
 		canEdit,
 		members,
 		categories,
@@ -205,7 +202,7 @@
 		aria-label="Task details"
 		onpaste={onPaste}
 	>
-		<header class="panel-head project-surface style-{projectStyle}">
+		<header class="panel-head project-surface">
 			<div class="status">
 				<button
 					class="check"

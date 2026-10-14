@@ -22,7 +22,18 @@ export const PROJECT_EMOJI = [
 	'📋','🚀','💡','🛠️','🎯','🔥','📦','🧪','🎨','🧠','📝','⚙️','🌱','📊','💻','📱','🔭','🏗️','🗂️','✨','🧩','🔬','🎬','🏷️','📚','🐛','🧭','🌟'
 ];
 
-export const PROJECT_STYLES: { value: 'soft' | 'solid' | 'outline' | 'glass'; label: string }[] = [
+import type { AppStyle, ProjectFont } from './types';
+
+/** Per-project typeface options, in picker order. */
+export const PROJECT_FONT_OPTIONS: { value: ProjectFont; label: string }[] = [
+	{ value: 'sans', label: 'Sans' },
+	{ value: 'serif', label: 'Serif' },
+	{ value: 'mono', label: 'Mono' },
+	{ value: 'rounded', label: 'Rounded' }
+];
+
+/** The app-wide surface style options, in picker order. */
+export const APP_STYLE_OPTIONS: { value: AppStyle; label: string }[] = [
 	{ value: 'soft', label: 'Soft' },
 	{ value: 'solid', label: 'Solid' },
 	{ value: 'outline', label: 'Outline' },

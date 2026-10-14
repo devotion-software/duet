@@ -1,0 +1,1 @@
+ALTER TABLE `user` ADD `app_style` text DEFAULT ('soft') NOT NULL;

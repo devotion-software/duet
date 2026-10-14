@@ -271,7 +271,7 @@
 	{@const movable = p.status !== 'archived'}
 	<a
 		href="/app/{p.slug}"
-		class="p-link style-{p.style} {movable ? dropClass(p.id) : ''}"
+		class="p-link font-{p.font} {movable ? dropClass(p.id) : ''}"
 		class:active={p.slug === activeSlug}
 		class:archived={p.status === 'archived'}
 		class:nested={!!folderId}
@@ -669,21 +669,21 @@
 		font-weight: var(--weight-medium);
 	}
 
-	/* Project style shows on the active row only; the icon stays bare so the list reads cleanly. */
-	.p-link.active.style-solid {
+	/* The app-wide style shows on the active row only; the icon stays bare so the list reads cleanly. */
+	:global(:root[data-style='solid']) .p-link.active {
 		background: var(--accent);
 		color: var(--accent-contrast);
 		box-shadow: var(--shadow-xs);
 	}
-	.p-link.active.style-solid .p-count {
+	:global(:root[data-style='solid']) .p-link.active .p-count {
 		background: color-mix(in oklab, var(--accent-contrast) 22%, transparent);
 		color: var(--accent-contrast);
 	}
-	.p-link.active.style-outline {
+	:global(:root[data-style='outline']) .p-link.active {
 		background: transparent;
 		box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 60%, transparent);
 	}
-	.p-link.active.style-glass {
+	:global(:root[data-style='glass']) .p-link.active {
 		background: linear-gradient(
 			90deg,
 			color-mix(in oklab, var(--accent) 18%, transparent),

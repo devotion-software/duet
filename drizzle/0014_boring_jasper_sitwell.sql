@@ -1,0 +1,1 @@
+ALTER TABLE `projects` ADD `font` enum('sans','serif','mono','rounded') DEFAULT 'sans' NOT NULL;
