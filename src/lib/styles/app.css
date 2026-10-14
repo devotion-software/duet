@@ -197,24 +197,29 @@ samp {
 	flex-shrink: 0;
 	border-radius: var(--radius-md);
 }
+/* The icon tile is the project's identity surface, so a gradient accent fills it in
+   every style (var(--accent-gradient, …) wins when set, else the style's own wash). */
 :root[data-style='soft'] .project-tile {
-	background: var(--accent-soft);
+	background: var(--accent-gradient, var(--accent-soft));
 }
 :root[data-style='solid'] .project-tile {
-	background: var(--accent);
+	background: var(--accent-gradient, var(--accent));
 	box-shadow:
 		inset 0 -1px 0 rgb(0 0 0 / 0.12),
 		var(--shadow-xs);
 }
 :root[data-style='outline'] .project-tile {
-	background: var(--surface);
+	background: var(--accent-gradient, var(--surface));
 	box-shadow: inset 0 0 0 1.5px var(--accent);
 }
 :root[data-style='glass'] .project-tile {
-	background: linear-gradient(
-		145deg,
-		color-mix(in oklab, var(--accent) 26%, var(--surface)),
-		color-mix(in oklab, var(--accent) 6%, var(--surface))
+	background: var(
+		--accent-gradient,
+		linear-gradient(
+			145deg,
+			color-mix(in oklab, var(--accent) 26%, var(--surface)),
+			color-mix(in oklab, var(--accent) 6%, var(--surface))
+		)
 	);
 	box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 22%, transparent);
 }

@@ -18,7 +18,16 @@ import {
 	type ProjectFont
 } from '#lib/server/db/app.schema';
 import { clampListWidth } from '#lib/palette';
+import { sanitizeColor, sanitizeGradient } from '#lib/color';
 import type { Actions, PageServerLoad } from './$types';
+
+/** Pull a safe solid accent + optional gradient out of the submitted form. */
+function accentFrom(form: FormData): { color: string; accentGradient: string | null } {
+	return {
+		color: sanitizeColor(String(form.get('color') ?? '')) ?? '#6366f1',
+		accentGradient: sanitizeGradient(String(form.get('accentGradient') ?? ''))
+	};
+}
 
 export const load: PageServerLoad = async ({ parent, cookies }) => {
 	const { projects } = await parent();
@@ -76,7 +85,7 @@ export const actions: Actions = {
 		const { id, slug } = await createProject(locals.user.id, {
 			name,
 			description: String(form.get('description') ?? ''),
-			color: String(form.get('color') ?? '#6366f1'),
+			...accentFrom(form),
 			icon: String(form.get('icon') ?? '📋'),
 			font: fontFrom(form) ?? 'sans',
 			status: statusFrom(form)
@@ -100,7 +109,7 @@ export const actions: Actions = {
 		await updateProject(id, {
 			name: String(form.get('name') ?? '').trim(),
 			description: String(form.get('description') ?? ''),
-			color: String(form.get('color') ?? '#6366f1'),
+			...accentFrom(form),
 			icon: String(form.get('icon') ?? '📋'),
 			font: fontFrom(form) ?? 'sans',
 			status: statusFrom(form),

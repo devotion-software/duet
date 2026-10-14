@@ -5,6 +5,7 @@
 	import Button from './ui/Button.svelte';
 	import TextField from './ui/TextField.svelte';
 	import { LIST_WIDTH, PROJECT_COLORS, PROJECT_EMOJI, PROJECT_FONT_OPTIONS } from '#lib/palette';
+	import { isValidColor, isGradient } from '#lib/color';
 	import { toasts } from './ui/toast.svelte';
 	import Icon from './ui/Icon.svelte';
 	import ProjectIcon from './ProjectIcon.svelte';
@@ -24,6 +25,7 @@
 		name?: string;
 		description?: string | null;
 		color?: string;
+		accentGradient?: string | null;
 		icon?: string;
 		iconUrl?: string | null;
 		font?: string;
@@ -62,9 +64,26 @@
 	// Ids with a restore or permanent delete in flight.
 	let busy = $state<string[]>([]);
 
+	// ── Accent colour ──────────────────────────────────────────────────────────
+	// `color` is the solid representative (hex/rgb/named/… — anything the browser accepts);
+	// in gradient mode it's the first stop and all the derived tokens still use it. `grad*`
+	// drive the gradient builder. The submitted accentGradient is empty in solid mode.
+	type GradType = 'linear' | 'radial' | 'conic';
+	const GRAD_TYPES: { value: GradType; label: string }[] = [
+		{ value: 'linear', label: 'Linear' },
+		{ value: 'radial', label: 'Radial' },
+		{ value: 'conic', label: 'Conic' }
+	];
+
 	let name = $state(project.name ?? '');
 	let description = $state(project.description ?? '');
 	let color = $state(project.color ?? PROJECT_COLORS[0]);
+	// What's typed in the free-text colour box; applied to `color` only when it's valid.
+	let colorText = $state(project.color ?? PROJECT_COLORS[0]);
+	let colorMode = $state<'solid' | 'gradient'>('solid');
+	let gradType = $state<GradType>('linear');
+	let gradAngle = $state(135);
+	let gradStops = $state<string[]>(['#6366f1', '#ec4899']);
 	let icon = $state(project.icon ?? '📋');
 	// An uploaded image overrides the emoji; `iconUrl` is what's shown (saved or a local preview).
 	let iconFile = $state<File | null>(null);
@@ -78,12 +97,106 @@
 	let countSubtasks = $state<boolean | null>(project.countSubtasksSetting ?? null);
 	let submitting = $state(false);
 
+	const colorValid = $derived(isValidColor(colorText));
+
+	/** The gradient CSS the builder currently describes. */
+	const gradientCss = $derived.by(() => {
+		const list = gradStops.join(', ');
+		if (gradType === 'linear') return `linear-gradient(${gradAngle}deg, ${list})`;
+		if (gradType === 'conic') return `conic-gradient(from ${gradAngle}deg, ${list})`;
+		return `radial-gradient(circle, ${list})`;
+	});
+
+	// What actually gets submitted and previewed. In gradient mode the first stop is the
+	// representative solid colour; in solid mode there's no gradient.
+	const effColor = $derived(colorMode === 'gradient' ? (gradStops[0] ?? color) : color);
+	const effGradient = $derived(colorMode === 'gradient' ? gradientCss : '');
+	const accentStyle = $derived(
+		`--accent: ${effColor};` + (effGradient ? ` --accent-gradient: ${effGradient};` : '')
+	);
+
+	/** Best-effort parse of a stored gradient back into the builder's controls. */
+	function readGradient(css: string): boolean {
+		const m = css.trim().match(/^(linear|radial|conic)-gradient\s*\((.*)\)$/i);
+		if (!m) return false;
+		const type = m[1].toLowerCase() as GradType;
+		let body = m[2].trim();
+		let angle = 135;
+		const angleMatch = body.match(/^(?:from\s+)?(-?\d+(?:\.\d+)?)deg\s*,/i);
+		if (angleMatch) {
+			angle = Number(angleMatch[1]);
+			body = body.slice(angleMatch[0].length);
+		} else if (/^(circle|ellipse|at |closest|farthest)/i.test(body)) {
+			// Drop a radial shape/position prefix we don't expose, up to the first comma.
+			body = body.replace(/^[^,]*,/, '');
+		}
+		// Split on top-level commas so colours like rgb(…) stay intact, then drop any trailing
+		// "position" (e.g. `#fff 50%`) while keeping function colours that contain spaces.
+		const stops = splitTopLevel(body)
+			.map((s) => s.trim().replace(/\s+-?[\d.]+(?:%|px|em|rem|vh|vw|vmin|vmax)?$/, ''))
+			.filter((s) => isValidColor(s));
+		if (stops.length < 2) return false;
+		gradType = type;
+		gradAngle = angle;
+		gradStops = stops;
+		return true;
+	}
+
+	function splitTopLevel(s: string): string[] {
+		const out: string[] = [];
+		let depth = 0;
+		let start = 0;
+		for (let i = 0; i < s.length; i++) {
+			const c = s[i];
+			if (c === '(') depth++;
+			else if (c === ')') depth--;
+			else if (c === ',' && depth === 0) {
+				out.push(s.slice(start, i));
+				start = i + 1;
+			}
+		}
+		out.push(s.slice(start));
+		return out;
+	}
+
+	function addStop() {
+		if (gradStops.length < 6) gradStops = [...gradStops, gradStops.at(-1) ?? '#6366f1'];
+	}
+	function removeStop(i: number) {
+		if (gradStops.length > 2) gradStops = gradStops.filter((_, j) => j !== i);
+	}
+	function setStop(i: number, value: string) {
+		gradStops = gradStops.map((s, j) => (j === i ? value : s));
+	}
+
+	/** Apply a preset / native-picker / typed solid colour, switching back to solid mode. */
+	function pickSolid(value: string) {
+		color = value;
+		colorText = value;
+		colorMode = 'solid';
+	}
+
 	// Reset form each time it opens.
 	$effect(() => {
 		if (open) {
 			name = project.name ?? '';
 			description = project.description ?? '';
 			color = project.color ?? PROJECT_COLORS[0];
+			colorText = project.color ?? PROJECT_COLORS[0];
+			// Restore the gradient builder from a stored gradient, else reset it to defaults
+			// so a previously-opened project's stops don't linger.
+			const restored =
+				!!project.accentGradient &&
+				isGradient(project.accentGradient) &&
+				untrack(() => readGradient(project.accentGradient!));
+			if (restored) {
+				colorMode = 'gradient';
+			} else {
+				colorMode = 'solid';
+				gradType = 'linear';
+				gradAngle = 135;
+				gradStops = [project.color ?? PROJECT_COLORS[0], '#ec4899'];
+			}
 			icon = project.icon ?? '📋';
 			// Untracked so picking a file doesn't re-run this reset.
 			untrack(() => setIconFile(null));
@@ -191,7 +304,7 @@
 		{action}
 		class="pform"
 		enctype="multipart/form-data"
-		style="--accent: {color}"
+		style={accentStyle}
 		use:enhance={({ formData }) => {
 			if (iconFile) formData.set('iconFile', iconFile);
 			else if (!iconUrl && project.iconUrl) formData.set('iconClear', 'true');
@@ -215,7 +328,8 @@
 		{#if mode === 'edit' && project.id}
 			<input type="hidden" name="id" value={project.id} />
 		{/if}
-		<input type="hidden" name="color" value={color} />
+		<input type="hidden" name="color" value={effColor} />
+		<input type="hidden" name="accentGradient" value={effGradient} />
 		<input type="hidden" name="icon" value={icon} />
 		<input type="hidden" name="font" value={font} />
 		<input type="hidden" name="status" value={status} />
@@ -291,24 +405,119 @@
 			></textarea>
 		</div>
 
-		<div class="field">
+		<div class="field wide">
 			<span class="flabel">Colour</span>
-			<div class="swatches">
-				{#each PROJECT_COLORS as c (c)}
-					<button
-						type="button"
-						class="swatch"
-						class:sel={color === c}
-						style="background: {c}"
-						aria-label={c}
-						onclick={() => (color = c)}
-					></button>
-				{/each}
-				<label class="custom-swatch" title="Custom colour">
-					<input type="color" bind:value={color} />
-					<span style="background: {color}"></span>
-				</label>
+			<div class="segmented mode-tabs">
+				<button
+					type="button"
+					class="seg"
+					class:sel={colorMode === 'solid'}
+					onclick={() => (colorMode = 'solid')}
+				>
+					Solid
+				</button>
+				<button
+					type="button"
+					class="seg"
+					class:sel={colorMode === 'gradient'}
+					onclick={() => (colorMode = 'gradient')}
+				>
+					Gradient
+				</button>
 			</div>
+
+			{#if colorMode === 'solid'}
+				<div class="swatches">
+					{#each PROJECT_COLORS as c (c)}
+						<button
+							type="button"
+							class="swatch"
+							class:sel={color === c}
+							style="background: {c}"
+							aria-label={c}
+							onclick={() => pickSolid(c)}
+						></button>
+					{/each}
+				</div>
+				<div class="color-text" class:invalid={!colorValid}>
+					<label class="custom-swatch" title="Current colour · click to pick">
+						<input
+							type="color"
+							value={isValidColor(color) ? color : '#6366f1'}
+							oninput={(e) => pickSolid(e.currentTarget.value)}
+						/>
+						<span style="background: {color}"></span>
+					</label>
+					<input
+						type="text"
+						value={colorText}
+						spellcheck="false"
+						autocapitalize="off"
+						autocomplete="off"
+						placeholder="#6366f1, rgb(99 102 241), rebeccapurple, oklch(…)"
+						aria-label="Custom colour value"
+						oninput={(e) => {
+							colorText = e.currentTarget.value;
+							if (isValidColor(colorText)) color = colorText.trim();
+						}}
+					/>
+					<span class="color-status">{colorValid ? 'Valid' : 'Invalid'}</span>
+				</div>
+			{:else}
+				<div class="grad">
+					<div class="segmented grad-types">
+						{#each GRAD_TYPES as t (t.value)}
+							<button
+								type="button"
+								class="seg"
+								class:sel={gradType === t.value}
+								onclick={() => (gradType = t.value)}
+							>
+								{t.label}
+							</button>
+						{/each}
+					</div>
+
+					{#if gradType !== 'radial'}
+						<label class="angle">
+							<span>Angle <small>{gradAngle}°</small></span>
+							<input type="range" min="0" max="360" step="1" bind:value={gradAngle} />
+						</label>
+					{/if}
+
+					<div class="stops">
+						{#each gradStops as stop, i (i)}
+							<div class="stop">
+								<label class="stop-swatch" title="Stop {i + 1}">
+									<input
+										type="color"
+										value={stop}
+										oninput={(e) => setStop(i, e.currentTarget.value)}
+									/>
+									<span style="background: {stop}"></span>
+								</label>
+								{#if gradStops.length > 2}
+									<button
+										type="button"
+										class="stop-remove"
+										aria-label="Remove stop {i + 1}"
+										onclick={() => removeStop(i)}
+									>
+										<Icon name="x" size={13} strokeWidth={2.5} />
+									</button>
+								{/if}
+							</div>
+						{/each}
+						{#if gradStops.length < 6}
+							<button type="button" class="stop-add" aria-label="Add stop" onclick={addStop}>
+								<Icon name="plus" size={15} strokeWidth={2.5} />
+							</button>
+						{/if}
+					</div>
+
+					<div class="grad-preview" style="background: {gradientCss}"></div>
+				</div>
+			{/if}
 		</div>
 
 		<div class="field">
@@ -604,6 +813,7 @@
 	}
 	.custom-swatch {
 		position: relative;
+		flex-shrink: 0;
 		width: 28px;
 		height: 28px;
 		cursor: pointer;
@@ -621,6 +831,127 @@
 		border-radius: var(--radius-full);
 		background: conic-gradient(red, orange, yellow, lime, cyan, blue, magenta, red);
 		box-shadow: 0 0 0 1px var(--border-strong);
+	}
+	.mode-tabs {
+		margin-bottom: var(--space-3);
+	}
+	/* Free-text colour input with a live valid/invalid badge. */
+	.color-text {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		margin-top: var(--space-3);
+	}
+	.color-text input {
+		flex: 1;
+		min-width: 0;
+		background: var(--surface);
+		border: 1px solid var(--border-strong);
+		border-radius: var(--radius-md);
+		padding: var(--space-2) var(--space-3);
+		color: var(--text);
+		font-family: var(--font-mono, monospace);
+		font-size: var(--text-sm);
+		box-shadow: var(--shadow-xs);
+	}
+	.color-text input:focus {
+		outline: none;
+		border-color: var(--accent);
+		box-shadow: 0 0 0 3px var(--accent-ring);
+	}
+	.color-text.invalid input {
+		border-color: var(--danger);
+	}
+	.color-status {
+		flex-shrink: 0;
+		font-size: var(--text-xs);
+		font-weight: var(--weight-medium);
+		color: var(--success);
+	}
+	.color-text.invalid .color-status {
+		color: var(--danger);
+	}
+	.grad {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-3);
+	}
+	.angle {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+		font-size: var(--text-sm);
+		color: var(--text-muted);
+	}
+	.angle small {
+		color: var(--text-subtle);
+	}
+	.angle input[type='range'] {
+		width: 100%;
+		accent-color: var(--accent);
+	}
+	.stops {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-2);
+	}
+	.stop {
+		position: relative;
+		display: inline-flex;
+	}
+	.stop-swatch {
+		position: relative;
+		width: 36px;
+		height: 36px;
+		cursor: pointer;
+	}
+	.stop-swatch input {
+		position: absolute;
+		inset: 0;
+		opacity: 0;
+		cursor: pointer;
+	}
+	.stop-swatch span {
+		display: block;
+		width: 36px;
+		height: 36px;
+		border-radius: var(--radius-md);
+		box-shadow: 0 0 0 1px var(--border-strong);
+	}
+	.stop-remove {
+		position: absolute;
+		top: -6px;
+		right: -6px;
+		display: grid;
+		place-items: center;
+		width: 18px;
+		height: 18px;
+		border-radius: var(--radius-full);
+		background: var(--surface-raised);
+		color: var(--text-muted);
+		box-shadow: 0 0 0 1px var(--border-strong);
+	}
+	.stop-remove:hover {
+		color: var(--danger);
+	}
+	.stop-add {
+		display: grid;
+		place-items: center;
+		width: 36px;
+		height: 36px;
+		border-radius: var(--radius-md);
+		color: var(--text-muted);
+		border: 1px dashed var(--border-strong);
+	}
+	.stop-add:hover {
+		color: var(--text);
+		border-color: var(--text-faint);
+	}
+	.grad-preview {
+		height: 48px;
+		border-radius: var(--radius-md);
+		box-shadow: inset 0 0 0 1px var(--border-strong);
 	}
 	.segmented {
 		display: inline-flex;

@@ -62,8 +62,14 @@ export const projects = mysqlTable(
 		slug: varchar('slug', { length: 160 }).notNull(),
 		name: varchar('name', { length: 160 }).notNull(),
 		description: text('description'),
-		// Accent colour as a hex string, drives the project's CSS theme.
-		color: varchar('color', { length: 32 }).notNull().default('#6366f1'),
+		// Accent colour as any CSS <color> (hex, rgb, hsl, named, oklch…); drives the
+		// project's CSS theme via color-mix(). When accentGradient is set this holds the
+		// gradient's representative solid colour, which all the derived tokens still use.
+		color: varchar('color', { length: 64 }).notNull().default('#6366f1'),
+		// Optional gradient accent (a CSS <image> like linear-gradient(…)). Shown on the
+		// surfaces that can render an image (the icon tile); colour above stays the solid
+		// fallback for text, rings and color-mix. Null means a plain solid accent.
+		accentGradient: varchar('accent_gradient', { length: 255 }),
 		icon: varchar('icon', { length: 16 }).notNull().default('📋'),
 		// Storage key of an uploaded image/SVG icon; when set it's shown instead of `icon`.
 		iconKey: varchar('icon_key', { length: 255 }),

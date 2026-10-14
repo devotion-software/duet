@@ -20,8 +20,19 @@
 		type SidebarDrop,
 		type SidebarItem
 	} from '#lib/sidebar';
+	import { sanitizeColor, sanitizeGradient } from '#lib/color';
 
 	let { data, children } = $props();
+
+	/** Inline `--accent` (+ `--accent-gradient`) declarations for a project, sanitised so
+	 *  they're safe to drop into a style attribute or a <style> tag. Empty if the colour
+	 *  is somehow invalid. */
+	function accentVars(p: { color: string; accentGradient: string | null }): string {
+		const color = sanitizeColor(p.color);
+		if (!color) return '';
+		const gradient = sanitizeGradient(p.accentGradient);
+		return `--accent: ${color};` + (gradient ? ` --accent-gradient: ${gradient};` : '');
+	}
 
 	let createOpen = $state(false);
 	let menuOpen = $state(false);
@@ -49,11 +60,11 @@
 	const activeSlug = $derived(page.params.slug);
 	const activeProject = $derived(data.projects.find((p) => p.slug === activeSlug));
 	// The open project's colour themes the whole document, so the page background glow and
-	// anything rendered outside the project subtree (dialogs, bulk bar) match it. Only plain
-	// hex is let through since it's injected into a <style> tag.
+	// anything rendered outside the project subtree (dialogs, bulk bar) match it. The values
+	// are sanitised before they reach this <style> tag.
 	const rootAccentStyle = $derived(
-		activeProject && /^#[0-9a-f]{3,8}$/i.test(activeProject.color)
-			? `<style>html:root { --accent: ${activeProject.color}; }</style>`
+		activeProject && accentVars(activeProject)
+			? `<style>html:root { ${accentVars(activeProject)} }</style>`
 			: ''
 	);
 	const projectById = $derived(new Map(data.projects.map((p) => [p.id, p])));
@@ -276,7 +287,7 @@
 		class:archived={p.status === 'archived'}
 		class:nested={!!folderId}
 		class:dragged={dragging?.id === p.id}
-		style="--accent: {p.color}"
+		style={accentVars(p)}
 		title={collapsed ? (openCount > 0 ? `${p.name} (${openCount})` : p.name) : undefined}
 		draggable={movable}
 		data-drop-id={movable ? p.id : undefined}
@@ -673,7 +684,7 @@
 
 	/* The app-wide style shows on the active row only; the icon stays bare so the list reads cleanly. */
 	:global(:root[data-style='solid']) .p-link.active {
-		background: var(--accent);
+		background: var(--accent-gradient, var(--accent));
 		color: var(--accent-contrast);
 		box-shadow: var(--shadow-xs);
 	}

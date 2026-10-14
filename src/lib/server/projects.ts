@@ -24,6 +24,8 @@ export interface ProjectSummary {
 	name: string;
 	description: string | null;
 	color: string;
+	/** Optional gradient accent; when set it fills surfaces that can show an image. */
+	accentGradient: string | null;
 	icon: string;
 	/** Uploaded image icon, shown in place of the emoji `icon` when set. */
 	iconUrl: string | null;
@@ -103,6 +105,7 @@ export async function listUserProjects(
 			name: r.project.name,
 			description: r.project.description,
 			color: r.project.color,
+			accentGradient: r.project.accentGradient,
 			icon: r.project.icon,
 			iconUrl: projectIconUrl(r.project),
 			font: r.project.font,
@@ -163,6 +166,8 @@ interface CreateProjectInput {
 	name: string;
 	description?: string | null;
 	color?: string;
+	/** null (or absent) clears the gradient, leaving a plain solid accent. */
+	accentGradient?: string | null;
 	icon?: string;
 	font?: ProjectFont;
 	status?: ProjectStatus;
@@ -179,6 +184,7 @@ export async function createProject(userId: string, input: CreateProjectInput) {
 		name: input.name.trim().slice(0, 160),
 		description: input.description?.trim() || null,
 		color: input.color || '#6366f1',
+		accentGradient: input.accentGradient || null,
 		icon: input.icon || '📋',
 		font: input.font || 'sans',
 		status: input.status || 'not_started',
@@ -198,7 +204,12 @@ export async function createProject(userId: string, input: CreateProjectInput) {
 
 export async function updateProject(
 	projectId: string,
-	patch: Partial<Pick<CreateProjectInput, 'name' | 'description' | 'color' | 'icon' | 'font' | 'status'>> & {
+	patch: Partial<
+		Pick<
+			CreateProjectInput,
+			'name' | 'description' | 'color' | 'accentGradient' | 'icon' | 'font' | 'status'
+		>
+	> & {
 		hiddenFields?: RowField[];
 		/** null resets these to the account default. */
 		listWidth?: number | null;
@@ -209,6 +220,7 @@ export async function updateProject(
 	if (patch.name !== undefined) values.name = patch.name.trim().slice(0, 160);
 	if (patch.description !== undefined) values.description = patch.description?.trim() || null;
 	if (patch.color !== undefined) values.color = patch.color;
+	if (patch.accentGradient !== undefined) values.accentGradient = patch.accentGradient || null;
 	if (patch.icon !== undefined) values.icon = patch.icon;
 	if (patch.font !== undefined) values.font = patch.font;
 	if (patch.status !== undefined) values.status = patch.status;

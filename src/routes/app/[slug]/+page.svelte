@@ -31,11 +31,20 @@
 	import DeleteTaskDialog from '#lib/components/todo/DeleteTaskDialog.svelte';
 	import { liveCounts } from '#lib/stores/liveCounts.svelte';
 	import { confirmDelete } from '#lib/confirmDelete.svelte';
+	import { sanitizeColor, sanitizeGradient } from '#lib/color';
 
 	let { data } = $props();
 
 	const canEdit = $derived(data.project.role === 'owner' || data.project.role === 'editor');
 	const canManage = $derived(data.project.role === 'owner');
+
+	// Inline accent for the project subtree; a gradient adds --accent-gradient alongside
+	// the solid --accent that all the derived tokens keep using.
+	const accentStyle = $derived.by(() => {
+		const color = sanitizeColor(data.project.color) ?? '#6366f1';
+		const gradient = sanitizeGradient(data.project.accentGradient);
+		return `--accent: ${color};` + (gradient ? ` --accent-gradient: ${gradient};` : '');
+	});
 
 	const controller = new TodosController(data.project.id, data.todos as unknown as Todo[]);
 	controller.onRefetch = () => invalidateAll();
@@ -680,7 +689,7 @@
 	{/if}
 {/snippet}
 
-<div class="project font-{data.project.font}" style="--accent: {data.project.color}">
+<div class="project font-{data.project.font}" style={accentStyle}>
 	<header class="proj-head project-surface">
 		<div class="title-area">
 			<span class="proj-icon project-tile"><ProjectIcon icon={data.project.icon} iconUrl={data.project.iconUrl} /></span>
