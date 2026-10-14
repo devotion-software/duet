@@ -171,7 +171,6 @@
 									onclick={() => toggleFolder(g.id)}
 								>
 									<Icon name={folded ? 'chevron-right' : 'chevron-down'} size={14} />
-									<Icon name="folder" size={15} />
 									<span class="truncate">{g.folder.name}</span>
 									<span class="group-count">{g.projects.length}</span>
 								</button>
