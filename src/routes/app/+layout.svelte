@@ -501,7 +501,12 @@
 				{#if menuOpen}
 					<button class="menu-scrim" aria-label="Close" onclick={() => (menuOpen = false)}></button>
 					<div class="menu" role="menu">
-						<a class="menu-item" href="/app/settings" role="menuitem">
+						<a
+							class="menu-item"
+							href="/app/settings"
+							role="menuitem"
+							onclick={() => (menuOpen = false)}
+						>
 							<Icon name="settings" size={16} /> Settings
 						</a>
 						<button
