@@ -108,12 +108,13 @@
 	let countSubtasks = $state<boolean | null>(project.countSubtasksSetting ?? null);
 	let submitting = $state(false);
 
-	type Tab = 'details' | 'appearance' | 'advanced';
+	type Tab = 'details' | 'appearance' | 'advanced' | 'deleted';
 	let tab = $state<Tab>('details');
 	const TABS: { value: Tab; label: string }[] = [
 		{ value: 'details', label: 'Details' },
 		{ value: 'appearance', label: 'Appearance' },
-		{ value: 'advanced', label: 'Advanced' }
+		{ value: 'advanced', label: 'Advanced' },
+		{ value: 'deleted', label: 'Deleted tasks' }
 	];
 
 	const colorValid = $derived(isValidColor(colorText));
@@ -409,7 +410,7 @@
 
 		<div class="tabs" role="tablist">
 			{#each TABS as t (t.value)}
-				{#if t.value !== 'advanced' || mode === 'edit'}
+				{#if t.value === 'details' || t.value === 'appearance' || mode === 'edit'}
 					<button
 						type="button"
 						role="tab"
@@ -700,9 +701,10 @@
 					{/each}
 				</div>
 			</div>
+		{/if}
 
+		{#if tab === 'deleted' && mode === 'edit'}
 			<div class="field wide">
-				<span class="flabel">Deleted tasks</span>
 				{#if deleted === null}
 					<div class="deleted-empty"><Spinner /></div>
 				{:else if !deleted.length}
