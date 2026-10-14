@@ -180,6 +180,17 @@
 	}
 	const isGroupCollapsed = (key: string) =>
 		view.group !== 'none' && !narrowed && collapsedGroups.has(groupId(key));
+	// Collapse/expand every group at once, preserving other groupings' remembered state.
+	const groupIds = $derived(openGroups.map((g) => groupId(g.key)));
+	const anyGroupExpanded = $derived(groupIds.some((id) => !collapsedGroups.has(id)));
+	const anyGroupCollapsed = $derived(groupIds.some((id) => collapsedGroups.has(id)));
+	function setAllGroups(collapse: boolean) {
+		for (const id of groupIds) {
+			if (collapse) collapsedGroups.add(id);
+			else collapsedGroups.delete(id);
+		}
+		localStorage.setItem(groupCollapseKey, JSON.stringify([...collapsedGroups]));
+	}
 
 	/** Task whose inline "add subtask" input is open. */
 	let addingTo = $state<string | null>(null);
@@ -791,7 +802,19 @@
 		{/if}
 
 		{#if controller.items.length}
-			<ViewBar bind:view categories={data.categories} tags={data.tags} members={data.members} />
+			<div class="toolbar-row">
+				<ViewBar bind:view categories={data.categories} tags={data.tags} members={data.members} />
+				{#if view.group !== 'none' && !narrowed && openGroups.length > 1}
+					<div class="group-tools">
+						{#if anyGroupExpanded}
+							<button class="tool-btn" onclick={() => setAllGroups(true)}>Collapse all</button>
+						{/if}
+						{#if anyGroupCollapsed}
+							<button class="tool-btn" onclick={() => setAllGroups(false)}>Expand all</button>
+						{/if}
+					</div>
+				{/if}
+			</div>
 		{/if}
 
 		{#if openTodos.length === 0 && doneTodos.length === 0}
@@ -1132,6 +1155,38 @@
 		display: flex;
 		flex-direction: column;
 		gap: 1px;
+	}
+	.toolbar-row {
+		display: flex;
+		align-items: flex-start;
+		gap: var(--space-2);
+	}
+	.toolbar-row :global(.viewbar) {
+		flex: 1;
+		min-width: 0;
+	}
+	.group-tools {
+		display: flex;
+		gap: var(--space-1);
+		flex-shrink: 0;
+		/* Line up with the 28px-tall ViewBar controls. */
+		height: 28px;
+	}
+	.tool-btn {
+		display: inline-flex;
+		align-items: center;
+		height: 28px;
+		padding: 0 var(--space-2);
+		border-radius: var(--radius-sm);
+		color: var(--text-subtle);
+		font-size: var(--text-sm);
+		font-weight: var(--weight-medium);
+		white-space: nowrap;
+		transition: all var(--transition-fast);
+	}
+	.tool-btn:hover {
+		background: var(--surface-hover);
+		color: var(--text);
 	}
 	.group-head {
 		margin: var(--space-5) 0 var(--space-2);

@@ -39,11 +39,21 @@
 	const projects = $derived(groups.flatMap((g) => g.projects));
 
 	let collapsedFolders = $derived(new Set(data.collapsedFolders));
+	function persistFolders(next: Set<string>) {
+		collapsedFolders = next;
+		document.cookie = `duet-home-collapsed=${[...next].join(',')}; path=/app; max-age=31536000; samesite=lax`;
+	}
 	function toggleFolder(id: string) {
 		const next = new Set(collapsedFolders);
 		if (!next.delete(id)) next.add(id);
-		collapsedFolders = next;
-		document.cookie = `duet-home-collapsed=${[...next].join(',')}; path=/app; max-age=31536000; samesite=lax`;
+		persistFolders(next);
+	}
+	// Collapse/expand every folder at once from the section header.
+	const folderIds = $derived(groups.filter((g) => g.folder).map((g) => g.id));
+	const anyFolderExpanded = $derived(folderIds.some((id) => !collapsedFolders.has(id)));
+	const anyFolderCollapsed = $derived(folderIds.some((id) => collapsedFolders.has(id)));
+	function setAllFolders(collapse: boolean) {
+		persistFolders(collapse ? new Set([...collapsedFolders, ...folderIds]) : new Set());
 	}
 	const totals = $derived(
 		projects.reduce(
@@ -134,7 +144,19 @@
 		</section>
 
 		<section class="section">
-			<h2><Icon name="folder" size={16} /> Projects</h2>
+			<h2>
+				<Icon name="folder" size={16} /> Projects
+				{#if folderIds.length > 1}
+					<span class="h2-tools">
+						{#if anyFolderExpanded}
+							<button class="tool-btn" onclick={() => setAllFolders(true)}>Collapse all</button>
+						{/if}
+						{#if anyFolderCollapsed}
+							<button class="tool-btn" onclick={() => setAllFolders(false)}>Expand all</button>
+						{/if}
+					</span>
+				{/if}
+			</h2>
 			{#if projects.length}
 				{#each groups as g (g.id)}
 					{@const folded = !!g.folder && collapsedFolders.has(g.id)}
@@ -277,6 +299,25 @@
 		letter-spacing: 0.05em;
 		color: var(--text-subtle);
 		margin-bottom: var(--space-3);
+	}
+	.h2-tools {
+		display: inline-flex;
+		gap: var(--space-1);
+		margin-left: auto;
+		text-transform: none;
+		letter-spacing: normal;
+	}
+	.tool-btn {
+		padding: var(--space-1) var(--space-2);
+		border-radius: var(--radius-sm);
+		color: var(--text-subtle);
+		font-size: var(--text-xs);
+		font-weight: var(--weight-medium);
+		transition: all var(--transition-fast);
+	}
+	.tool-btn:hover {
+		background: var(--surface-hover);
+		color: var(--text);
 	}
 	.none {
 		color: var(--text-subtle);
