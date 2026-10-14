@@ -314,7 +314,9 @@
 				<Logo size={22} />
 			{/if}
 		</span>
-		<ThemeToggle />
+		<a href="/app" class="icon-btn" aria-label="Home">
+			<Icon name="home" size={20} />
+		</a>
 	</header>
 
 	{#if sidebarOpen}
@@ -341,7 +343,7 @@
 			class:active={page.url.pathname === '/app'}
 			title={collapsed ? 'Home' : undefined}
 		>
-			<span class="p-icon"><Icon name="inbox" size={15} /></span>
+			<span class="p-icon"><Icon name="home" size={15} /></span>
 			<span class="p-name">Home</span>
 		</a>
 
