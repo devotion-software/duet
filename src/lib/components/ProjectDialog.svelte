@@ -108,6 +108,14 @@
 	let countSubtasks = $state<boolean | null>(project.countSubtasksSetting ?? null);
 	let submitting = $state(false);
 
+	type Tab = 'details' | 'appearance' | 'advanced';
+	let tab = $state<Tab>('details');
+	const TABS: { value: Tab; label: string }[] = [
+		{ value: 'details', label: 'Details' },
+		{ value: 'appearance', label: 'Appearance' },
+		{ value: 'advanced', label: 'Advanced' }
+	];
+
 	const colorValid = $derived(isValidColor(colorText));
 	// Empty custom box is fine (a preset is in use); a typed value must be a valid family.
 	const fontValid = $derived(fontText.trim() === '' || isValidFont(fontText));
@@ -215,6 +223,7 @@
 	// Reset form each time it opens.
 	$effect(() => {
 		if (open) {
+			tab = 'details';
 			name = project.name ?? '';
 			description = project.description ?? '';
 			color = project.color ?? PROJECT_COLORS[0];
@@ -398,6 +407,24 @@
 			</div>
 		</div>
 
+		<div class="tabs" role="tablist">
+			{#each TABS as t (t.value)}
+				{#if t.value !== 'advanced' || mode === 'edit'}
+					<button
+						type="button"
+						role="tab"
+						class="tab"
+						class:sel={tab === t.value}
+						aria-selected={tab === t.value}
+						onclick={() => (tab = t.value)}
+					>
+						{t.label}
+					</button>
+				{/if}
+			{/each}
+		</div>
+
+		{#if tab === 'details'}
 		<div class="icon-name">
 			<div class="emoji-field">
 				<span class="flabel">Icon</span>
@@ -453,6 +480,24 @@
 			></textarea>
 		</div>
 
+		<div class="field">
+			<span class="flabel">Status</span>
+			<div class="segmented">
+				{#each PROJECT_STATUSES as s (s.value)}
+					<button
+						type="button"
+						class="seg status-{s.value}"
+						class:sel={status === s.value}
+						onclick={() => (status = s.value)}
+					>
+						<span class="status-dot"></span>{s.label}
+					</button>
+				{/each}
+			</div>
+		</div>
+		{/if}
+
+		{#if tab === 'appearance'}
 		<div class="field wide">
 			<span class="flabel">Colour</span>
 			<div class="segmented mode-tabs">
@@ -609,24 +654,9 @@
 				automatically.
 			</p>
 		</div>
+		{/if}
 
-		<div class="field">
-			<span class="flabel">Status</span>
-			<div class="segmented">
-				{#each PROJECT_STATUSES as s (s.value)}
-					<button
-						type="button"
-						class="seg status-{s.value}"
-						class:sel={status === s.value}
-						onclick={() => (status = s.value)}
-					>
-						<span class="status-dot"></span>{s.label}
-					</button>
-				{/each}
-			</div>
-		</div>
-
-		{#if mode === 'edit'}
+		{#if tab === 'advanced' && mode === 'edit'}
 			<div class="field">
 				<label for="pd-width">List width</label>
 				<ListWidthField id="pd-width" bind:value={listWidth} defaultWidth={defaults.listWidth} />
@@ -733,12 +763,38 @@
 		align-items: start;
 		gap: var(--space-4);
 	}
-	/* Full-bleed rows: preview, icon + name, free-flowing toggle groups, actions. */
+	/* Full-bleed rows: preview, tabs, icon + name, free-flowing toggle groups, actions. */
 	.preview,
+	.tabs,
 	.icon-name,
 	.field.wide,
 	.actions {
 		grid-column: 1 / -1;
+	}
+	.tabs {
+		display: flex;
+		gap: var(--space-1);
+		border-bottom: 1px solid var(--border-subtle);
+		margin-bottom: var(--space-1);
+	}
+	.tab {
+		padding: var(--space-2) var(--space-1);
+		margin-bottom: -1px;
+		font-size: var(--text-sm);
+		font-weight: var(--weight-medium);
+		color: var(--text-muted);
+		border-bottom: 2px solid transparent;
+		transition: all var(--transition-fast);
+	}
+	.tab:hover {
+		color: var(--text);
+	}
+	.tab.sel {
+		color: var(--text);
+		border-bottom-color: var(--accent);
+	}
+	.tabs .tab + .tab {
+		margin-left: var(--space-3);
 	}
 
 	@media (max-width: 640px) {

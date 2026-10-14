@@ -145,8 +145,11 @@
 	<!-- Profile -->
 	<section class="card">
 		<div class="card-head">
-			<h2>Profile</h2>
-			<p>How you appear across your projects.</p>
+			<span class="card-icon"><Icon name="user" size={16} /></span>
+			<div>
+				<h2>Profile</h2>
+				<p>How you appear across your projects.</p>
+			</div>
 		</div>
 		<div class="profile">
 			<Avatar name={data.user.name} email={data.user.email} image={data.user.image} size={56} />
@@ -178,11 +181,37 @@
 		</div>
 	</section>
 
+	<!-- Account -->
+	<section class="card">
+		<div class="card-head">
+			<span class="card-icon"><Icon name="lock" size={16} /></span>
+			<div>
+				<h2>Account</h2>
+				<p>Sign-in methods connected to {data.user.email}.</p>
+			</div>
+		</div>
+		<div class="providers">
+			<span class="prov"><Icon name="mail" size={15} /> Email code</span>
+			{#if data.providers.includes('github')}
+				<span class="prov"><Icon name="github" size={15} /> GitHub</span>
+			{/if}
+			{#if data.passkeys.length}
+				<span class="prov"><Icon name="key" size={15} /> Passkey</span>
+			{/if}
+		</div>
+		<div class="signout">
+			<Button variant="outline" icon="logout" onclick={signOut}>Sign out</Button>
+		</div>
+	</section>
+
 	<!-- Appearance -->
 	<section class="card">
 		<div class="card-head">
-			<h2>Appearance</h2>
-			<p>Choose how Duet looks and behaves on this device.</p>
+			<span class="card-icon"><Icon name="palette" size={16} /></span>
+			<div>
+				<h2>Appearance</h2>
+				<p>Choose how Duet looks and behaves on this device.</p>
+			</div>
 		</div>
 		<div class="theme-grid">
 			{#each THEMES as t (t)}
@@ -210,6 +239,7 @@
 				{/each}
 			</div>
 		</div>
+		<div class="divider"></div>
 		<label class="check">
 			<input
 				type="checkbox"
@@ -223,8 +253,11 @@
 	<!-- Project defaults -->
 	<section class="card">
 		<div class="card-head">
-			<h2>Projects</h2>
-			<p>Defaults for projects whose settings are left on Default.</p>
+			<span class="card-icon"><Icon name="folder" size={16} /></span>
+			<div>
+				<h2>Projects</h2>
+				<p>Defaults for projects whose settings are left on Default.</p>
+			</div>
 		</div>
 		<form
 			method="POST"
@@ -279,9 +312,12 @@
 	<!-- Passkeys -->
 	<section class="card span-2" id="passkeys">
 		<div class="card-head row-between">
-			<div>
-				<h2>Passkeys</h2>
-				<p>Sign in instantly with Face ID, Touch ID or a security key.</p>
+			<div class="card-head-main">
+				<span class="card-icon"><Icon name="key" size={16} /></span>
+				<div>
+					<h2>Passkeys</h2>
+					<p>Sign in instantly with Face ID, Touch ID or a security key.</p>
+				</div>
 			</div>
 			<Button variant="primary" size="sm" icon="key" loading={addingPasskey} onclick={addPasskey}>
 				Add passkey
@@ -334,26 +370,6 @@
 			</ul>
 		{/if}
 	</section>
-
-	<!-- Account -->
-	<section class="card">
-		<div class="card-head">
-			<h2>Account</h2>
-			<p>Sign-in methods connected to {data.user.email}.</p>
-		</div>
-		<div class="providers">
-			<span class="prov"><Icon name="mail" size={15} /> Email code</span>
-			{#if data.providers.includes('github')}
-				<span class="prov"><Icon name="github" size={15} /> GitHub</span>
-			{/if}
-			{#if data.passkeys.length}
-				<span class="prov"><Icon name="key" size={15} /> Passkey</span>
-			{/if}
-		</div>
-		<div class="signout">
-			<Button variant="outline" icon="logout" onclick={signOut}>Sign out</Button>
-		</div>
-	</section>
 </div>
 
 <style>
@@ -399,21 +415,44 @@
 		box-shadow: var(--shadow-xs);
 	}
 	.card-head {
-		margin-bottom: var(--space-4);
-	}
-	.card-head.row-between {
 		display: flex;
 		align-items: flex-start;
+		gap: var(--space-3);
+		margin-bottom: var(--space-5);
+	}
+	.card-head.row-between {
+		flex-direction: row;
 		justify-content: space-between;
-		gap: var(--space-4);
+		flex-wrap: wrap;
+	}
+	.card-head-main {
+		display: flex;
+		align-items: flex-start;
+		gap: var(--space-3);
+	}
+	.card-icon {
+		display: grid;
+		place-items: center;
+		flex-shrink: 0;
+		width: 32px;
+		height: 32px;
+		border-radius: var(--radius-md);
+		background: var(--accent-soft);
+		color: var(--accent-text);
 	}
 	.card-head h2 {
 		font-size: var(--text-md);
+		font-weight: var(--weight-semibold);
 	}
 	.card-head p {
 		color: var(--text-muted);
 		font-size: var(--text-sm);
 		margin-top: 2px;
+	}
+	.divider {
+		height: 1px;
+		background: var(--border-subtle);
+		margin: var(--space-4) 0;
 	}
 	.profile {
 		display: flex;
