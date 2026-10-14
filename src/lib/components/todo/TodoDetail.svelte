@@ -817,7 +817,7 @@
 		padding: 3px var(--space-3);
 		font-size: var(--text-xs);
 		color: var(--text);
-		width: 90px;
+		width: 100%;
 	}
 	.add-inline input:focus {
 		outline: none;
