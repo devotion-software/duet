@@ -1317,8 +1317,8 @@
 		.searchbox input {
 			width: 100px;
 		}
-		.btn-keys,
-		.btn-members {
+		:global(.btn-keys),
+		:global(.btn-members) {
 			display: none;
 		}
 	}

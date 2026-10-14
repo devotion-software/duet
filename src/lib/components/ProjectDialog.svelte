@@ -480,7 +480,7 @@
 			></textarea>
 		</div>
 
-		<div class="field">
+		<div class="field wide">
 			<span class="flabel">Status</span>
 			<div class="segmented">
 				{#each PROJECT_STATUSES as s (s.value)}
