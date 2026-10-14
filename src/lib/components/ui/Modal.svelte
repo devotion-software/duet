@@ -7,7 +7,7 @@
 		open: boolean;
 		title?: string;
 		subtitle?: string;
-		size?: 'sm' | 'md' | 'lg';
+		size?: 'sm' | 'md' | 'lg' | 'xl';
 		onclose?: () => void;
 		children: Snippet;
 		footer?: Snippet;
@@ -105,6 +105,9 @@
 	}
 	.lg {
 		max-width: 680px;
+	}
+	.xl {
+		max-width: 820px;
 	}
 	.dialog-head {
 		display: flex;

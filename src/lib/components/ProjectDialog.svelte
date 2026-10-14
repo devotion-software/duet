@@ -185,7 +185,7 @@
 	const action = $derived(mode === 'create' ? '/app?/createProject' : '/app?/updateProject');
 </script>
 
-<Modal bind:open title={mode === 'create' ? 'New project' : 'Project settings'} size="md">
+<Modal bind:open title={mode === 'create' ? 'New project' : 'Project settings'} size="xl">
 	<form
 		method="POST"
 		{action}
@@ -279,7 +279,7 @@
 			/>
 		</div>
 
-		<div class="field">
+		<div class="field wide">
 			<label for="pd-desc">Description <span class="opt">optional</span></label>
 			<textarea
 				id="pd-desc"
@@ -349,7 +349,7 @@
 				<ListWidthField id="pd-width" bind:value={listWidth} defaultWidth={defaults.listWidth} />
 			</div>
 
-			<div class="field">
+			<div class="field wide">
 				<span class="flabel">Show on tasks</span>
 				<div class="fields">
 					{#each ROW_FIELDS as f (f)}
@@ -367,7 +367,7 @@
 				</div>
 			</div>
 
-			<div class="field">
+			<div class="field wide">
 				<span class="flabel">Sidebar task count</span>
 				<div class="fields">
 					{#each [{ value: null, label: 'Default' }, { value: false, label: 'Top-level tasks' }, { value: true, label: 'All tasks' }] as opt (opt.label)}
@@ -388,7 +388,7 @@
 				</div>
 			</div>
 
-			<div class="field">
+			<div class="field wide">
 				<span class="flabel">Deleted tasks</span>
 				{#if deleted === null}
 					<div class="deleted-empty"><Spinner /></div>
@@ -445,9 +445,23 @@
 
 <style>
 	.pform {
-		display: flex;
-		flex-direction: column;
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		align-items: start;
 		gap: var(--space-4);
+	}
+	/* Full-bleed rows: preview, icon + name, free-flowing toggle groups, actions. */
+	.preview,
+	.icon-name,
+	.field.wide,
+	.actions {
+		grid-column: 1 / -1;
+	}
+
+	@media (max-width: 640px) {
+		.pform {
+			grid-template-columns: minmax(0, 1fr);
+		}
 	}
 	.preview {
 		display: flex;
