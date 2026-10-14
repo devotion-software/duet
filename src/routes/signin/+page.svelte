@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { authClient } from '#lib/auth-client';
+	import { safeRedirectPath } from '#lib/safePath';
 	import { toasts } from '#lib/components/ui/toast.svelte';
 	import Logo from '#lib/components/Logo.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
@@ -19,10 +20,7 @@
 	let passkeyBusy = $state(false);
 	let githubBusy = $state(false);
 
-	const nextUrl = $derived.by(() => {
-		const n = page.url.searchParams.get('next');
-		return n && n.startsWith('/') ? n : '/app';
-	});
+	const nextUrl = $derived.by(() => safeRedirectPath(page.url.searchParams.get('next')) ?? '/app');
 
 	const emailValid = $derived(/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim()));
 

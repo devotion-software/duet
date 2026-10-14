@@ -82,7 +82,16 @@ export async function renderMarkdown(src: string | null | undefined): Promise<st
 	if (!src) return '';
 	const raw = marked.parse(src, { async: false }) as string;
 	if (typeof window === 'undefined') return '';
-	if (!purify) purify = (await import('dompurify')).default;
+	if (!purify) {
+		purify = (await import('dompurify')).default;
+		// Rendered markdown can contain raw <a target="_blank"> from user content; force
+		// noopener/noreferrer so the opened page can't reach back via window.opener.
+		purify.addHook('afterSanitizeAttributes', (node) => {
+			if (node.tagName === 'A' && node.getAttribute('target') === '_blank') {
+				node.setAttribute('rel', 'noopener noreferrer');
+			}
+		});
+	}
 	return purify.sanitize(raw, {
 		ALLOWED_TAGS: [
 			'h1','h2','h3','h4','h5','h6','p','br','hr','strong','em','del','s','blockquote',

@@ -1,10 +1,10 @@
 import { redirect } from '@sveltejs/kit';
+import { safeRedirectPath } from '#lib/safePath';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	if (locals.user) {
-		const next = url.searchParams.get('next');
-		redirect(302, next && next.startsWith('/') ? next : '/app');
+		redirect(302, safeRedirectPath(url.searchParams.get('next')) ?? '/app');
 	}
 	return {};
 };
