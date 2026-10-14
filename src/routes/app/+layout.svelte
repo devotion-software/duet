@@ -1067,6 +1067,10 @@
 	@media (max-width: 820px) {
 		.shell {
 			grid-template-columns: 1fr;
+			/* auto 1fr: topbar row stays content-sized, content row absorbs leftover
+			   viewport space. Without this, grid's default stretch splits extra space
+			   evenly between the two auto rows, inflating the topbar on short pages. */
+			grid-template-rows: auto 1fr;
 			/* Sticky page content offsets by this to sit below the pinned topbar. */
 			--topbar-height: calc(var(--space-3) * 2 + 36px + 1px);
 		}
