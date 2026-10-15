@@ -1,9 +1,11 @@
 <script lang="ts">
+	import { invalidateAll } from '$app/navigation';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Icon from '#lib/components/ui/Icon.svelte';
 	import ProjectDialog from '#lib/components/ProjectDialog.svelte';
 	import ProjectIcon from '#lib/components/ProjectIcon.svelte';
 	import ProjectStatusBadge from '#lib/components/ProjectStatusBadge.svelte';
+	import { toasts } from '#lib/components/ui/toast.svelte';
 	import { buildSidebar } from '#lib/sidebar';
 	import { deadlineInfo } from '#lib/date';
 	import { fontStyle } from '#lib/font';
@@ -11,6 +13,19 @@
 	let { data } = $props();
 
 	let createOpen = $state(false);
+
+	async function createFolder() {
+		try {
+			await fetch('/api/folders', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ name: 'New folder' })
+			});
+		} catch (e) {
+			toasts.error((e as Error).message ?? 'Could not create folder');
+		}
+		await invalidateAll();
+	}
 
 	const projectById = $derived(new Map(data.projects.map((p) => [p.id, p])));
 	const folderById = $derived(new Map(data.folders.map((f) => [f.id, f])));
@@ -147,16 +162,22 @@
 		<section class="section">
 			<h2>
 				<Icon name="folder" size={16} /> Projects
-				{#if folderIds.length > 1}
-					<span class="h2-tools">
+				<span class="h2-tools">
+					{#if folderIds.length > 1}
 						{#if anyFolderExpanded}
 							<button class="tool-btn" onclick={() => setAllFolders(true)}>Collapse all</button>
 						{/if}
 						{#if anyFolderCollapsed}
 							<button class="tool-btn" onclick={() => setAllFolders(false)}>Expand all</button>
 						{/if}
-					</span>
-				{/if}
+					{/if}
+					<button class="tool-btn" onclick={createFolder}>
+						<Icon name="folder-plus" size={13} /> New folder
+					</button>
+					<button class="tool-btn" onclick={() => (createOpen = true)}>
+						<Icon name="plus" size={13} /> New project
+					</button>
+				</span>
 			</h2>
 			{#if projects.length}
 				{#each groups as g (g.id)}
@@ -308,6 +329,9 @@
 		letter-spacing: normal;
 	}
 	.tool-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-1);
 		padding: var(--space-1) var(--space-2);
 		border-radius: var(--radius-sm);
 		color: var(--text-subtle);
