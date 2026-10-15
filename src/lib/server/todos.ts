@@ -819,8 +819,26 @@ export async function reorderTodos(projectId: string, orderedIds: string[]) {
 }
 
 // ─── Tags & categories ──────────────────────────────────────────────────────
+/** True when a MySQL error is a unique-index violation (e.g. a duplicate tag/category name). */
+function isDuplicateKeyError(e: unknown): boolean {
+	return !!e && typeof e === 'object' && (e as { code?: string }).code === 'ER_DUP_ENTRY';
+}
+
 export async function listTags(projectId: string) {
-	return db.select().from(tags).where(eq(tags.projectId, projectId)).orderBy(asc(tags.name));
+	return db
+		.select({
+			id: tags.id,
+			projectId: tags.projectId,
+			name: tags.name,
+			color: tags.color,
+			createdAt: tags.createdAt,
+			usageCount: sql<number>`count(${todoTags.todoId})`.mapWith(Number)
+		})
+		.from(tags)
+		.leftJoin(todoTags, eq(todoTags.tagId, tags.id))
+		.where(eq(tags.projectId, projectId))
+		.groupBy(tags.id)
+		.orderBy(asc(tags.name));
 }
 
 export async function createTag(projectId: string, name: string, color: string) {
@@ -837,15 +855,44 @@ export async function createTag(projectId: string, name: string, color: string) 
 	return row;
 }
 
+/** Returns `null` if the tag doesn't exist, or `'duplicate'` if the new name collides. */
+export async function updateTag(
+	projectId: string,
+	tagId: string,
+	patch: { name?: string; color?: string }
+): Promise<ReturnType<typeof createTag> | null | 'duplicate'> {
+	const set: { name?: string; color?: string } = {};
+	if (patch.name !== undefined) set.name = patch.name.trim().slice(0, 60);
+	if (patch.color !== undefined) set.color = patch.color;
+	if (!Object.keys(set).length) return null;
+	try {
+		await db.update(tags).set(set).where(and(eq(tags.id, tagId), eq(tags.projectId, projectId)));
+	} catch (e) {
+		if (isDuplicateKeyError(e)) return 'duplicate';
+		throw e;
+	}
+	const [row] = await db.select().from(tags).where(eq(tags.id, tagId)).limit(1);
+	return row ?? null;
+}
+
 export async function deleteTag(projectId: string, tagId: string) {
 	await db.delete(tags).where(and(eq(tags.id, tagId), eq(tags.projectId, projectId)));
 }
 
 export async function listCategories(projectId: string) {
 	return db
-		.select()
+		.select({
+			id: categories.id,
+			projectId: categories.projectId,
+			name: categories.name,
+			color: categories.color,
+			createdAt: categories.createdAt,
+			usageCount: sql<number>`count(${todos.id})`.mapWith(Number)
+		})
 		.from(categories)
+		.leftJoin(todos, and(eq(todos.categoryId, categories.id), isNull(todos.deletedAt)))
 		.where(eq(categories.projectId, projectId))
+		.groupBy(categories.id)
 		.orderBy(asc(categories.name));
 }
 
@@ -861,6 +908,29 @@ export async function createCategory(projectId: string, name: string, color: str
 		.where(and(eq(categories.projectId, projectId), eq(categories.name, name.trim().slice(0, 80))))
 		.limit(1);
 	return row;
+}
+
+/** Returns `null` if the category doesn't exist, or `'duplicate'` if the new name collides. */
+export async function updateCategory(
+	projectId: string,
+	categoryId: string,
+	patch: { name?: string; color?: string }
+): Promise<ReturnType<typeof createCategory> | null | 'duplicate'> {
+	const set: { name?: string; color?: string } = {};
+	if (patch.name !== undefined) set.name = patch.name.trim().slice(0, 80);
+	if (patch.color !== undefined) set.color = patch.color;
+	if (!Object.keys(set).length) return null;
+	try {
+		await db
+			.update(categories)
+			.set(set)
+			.where(and(eq(categories.id, categoryId), eq(categories.projectId, projectId)));
+	} catch (e) {
+		if (isDuplicateKeyError(e)) return 'duplicate';
+		throw e;
+	}
+	const [row] = await db.select().from(categories).where(eq(categories.id, categoryId)).limit(1);
+	return row ?? null;
 }
 
 export async function deleteCategory(projectId: string, categoryId: string) {

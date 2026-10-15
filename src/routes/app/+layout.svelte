@@ -12,6 +12,7 @@
 	import ShortcutsDialog from '#lib/components/ShortcutsDialog.svelte';
 	import MembersDialog from '#lib/components/todo/MembersDialog.svelte';
 	import SecretsDialog from '#lib/components/SecretsDialog.svelte';
+	import TagsCategoriesDialog from '#lib/components/TagsCategoriesDialog.svelte';
 	import { shortcutAllowed } from '#lib/shortcuts';
 	import { liveCounts } from '#lib/stores/liveCounts.svelte';
 	import { toasts } from '#lib/components/ui/toast.svelte';
@@ -208,6 +209,8 @@
 	let membersData = $state<{ members: Member[]; invites: Invite[] } | null>(null);
 	let secretsOpen = $state(false);
 	let secretsFor = $state<string | null>(null);
+	let tagsCategoriesOpen = $state(false);
+	let tagsCategoriesFor = $state<string | null>(null);
 
 	function openProjectMenu(e: MouseEvent, p: SidebarProject) {
 		e.preventDefault();
@@ -273,6 +276,12 @@
 		closeProjectMenu();
 		secretsFor = p.id;
 		secretsOpen = true;
+	}
+
+	function openTagsCategories(p: SidebarProject) {
+		closeProjectMenu();
+		tagsCategoriesFor = p.id;
+		tagsCategoriesOpen = true;
 	}
 
 	async function exportProject(p: SidebarProject, kind: 'clipboard' | 'file') {
@@ -771,6 +780,9 @@
 			<button class="menu-item" role="menuitem" onclick={() => openSecrets(menuProject)}>
 				<Icon name="key" size={15} /> Keys & secrets
 			</button>
+			<button class="menu-item" role="menuitem" onclick={() => openTagsCategories(menuProject)}>
+				<Icon name="tag" size={15} /> Tags & categories
+			</button>
 		{/if}
 		{#if isOwner(menuProject)}
 			<button class="menu-item" role="menuitem" onclick={() => openSettings(menuProject)}>
@@ -811,6 +823,7 @@
 	onChanged={() => membersFor && loadMembers(membersFor)}
 />
 <SecretsDialog bind:open={secretsOpen} projectId={secretsFor ?? ''} />
+<TagsCategoriesDialog bind:open={tagsCategoriesOpen} projectId={tagsCategoriesFor ?? ''} />
 <ShortcutsDialog bind:open={shortcutsOpen} />
 
 <style>

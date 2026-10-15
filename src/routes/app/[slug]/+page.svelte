@@ -26,6 +26,7 @@
 	import MembersDialog from '#lib/components/todo/MembersDialog.svelte';
 	import ProjectDialog from '#lib/components/ProjectDialog.svelte';
 	import SecretsDialog from '#lib/components/SecretsDialog.svelte';
+	import TagsCategoriesDialog from '#lib/components/TagsCategoriesDialog.svelte';
 	import ProjectIcon from '#lib/components/ProjectIcon.svelte';
 	import ProjectStatusBadge from '#lib/components/ProjectStatusBadge.svelte';
 	import DeleteTaskDialog from '#lib/components/todo/DeleteTaskDialog.svelte';
@@ -101,6 +102,7 @@
 	let membersOpen = $state(false);
 	let settingsOpen = $state(false);
 	let secretsOpen = $state(false);
+	let tagsCategoriesOpen = $state(false);
 	let projectMenuOpen = $state(false);
 	let projectMenuHost: HTMLElement | undefined = $state();
 
@@ -772,6 +774,9 @@
 								<button class="menu-item" onclick={() => { projectMenuOpen = false; secretsOpen = true; }}>
 									<Icon name="key" size={15} /> Keys & secrets
 								</button>
+								<button class="menu-item" onclick={() => { projectMenuOpen = false; tagsCategoriesOpen = true; }}>
+									<Icon name="tag" size={15} /> Tags & categories
+								</button>
 							{/if}
 							{#if canManage && (canEdit || controller.items.length)}<hr />{/if}
 							{#if canEdit}
@@ -992,6 +997,7 @@
 />
 {#if canEdit}
 	<SecretsDialog bind:open={secretsOpen} projectId={data.project.id} />
+	<TagsCategoriesDialog bind:open={tagsCategoriesOpen} projectId={data.project.id} />
 {/if}
 
 <style>

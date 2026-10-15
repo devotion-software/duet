@@ -1,9 +1,15 @@
 import { json, error } from '@sveltejs/kit';
 import { requireMember } from '#lib/server/guard';
-import { createCategory } from '#lib/server/todos';
+import { createCategory, listCategories } from '#lib/server/todos';
 import { publish } from '#lib/server/realtime';
 import { sanitizeColor } from '#lib/color';
 import type { RequestHandler } from './$types';
+
+export const GET: RequestHandler = async ({ params, locals }) => {
+	await requireMember(locals, params.projectId);
+	const categories = await listCategories(params.projectId);
+	return json({ categories });
+};
 
 export const POST: RequestHandler = async ({ params, request, locals }) => {
 	await requireMember(locals, params.projectId, { edit: true });

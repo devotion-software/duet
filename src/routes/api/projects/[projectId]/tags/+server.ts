@@ -1,9 +1,15 @@
 import { json, error } from '@sveltejs/kit';
 import { requireMember } from '#lib/server/guard';
-import { createTag } from '#lib/server/todos';
+import { createTag, listTags } from '#lib/server/todos';
 import { publish } from '#lib/server/realtime';
 import { sanitizeColor } from '#lib/color';
 import type { RequestHandler } from './$types';
+
+export const GET: RequestHandler = async ({ params, locals }) => {
+	await requireMember(locals, params.projectId);
+	const tags = await listTags(params.projectId);
+	return json({ tags });
+};
 
 export const POST: RequestHandler = async ({ params, request, locals }) => {
 	await requireMember(locals, params.projectId, { edit: true });
