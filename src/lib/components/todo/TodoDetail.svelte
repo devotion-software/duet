@@ -6,6 +6,7 @@
 	import Select from '#lib/components/ui/Select.svelte';
 	import Spinner from '#lib/components/ui/Spinner.svelte';
 	import ImageViewer from '#lib/components/ui/ImageViewer.svelte';
+	import DocumentViewer from '#lib/components/ui/DocumentViewer.svelte';
 	import Markdown from '#lib/components/Markdown.svelte';
 	import SubtaskAdd from '#lib/components/todo/SubtaskAdd.svelte';
 	import TodoHistory from '#lib/components/todo/TodoHistory.svelte';
@@ -21,7 +22,8 @@
 		type Todo,
 		type Tag,
 		type Category,
-		type Member
+		type Member,
+		type Attachment
 	} from '#lib/types';
 	import type { NewTodoInput } from '#lib/stores/todos.svelte';
 
@@ -154,6 +156,7 @@
 	// ── Attachments ──
 	let uploading = $state(false);
 	let viewing = $state<number | null>(null);
+	let viewingDoc = $state<Attachment | null>(null);
 	const imageAttachments = $derived(
 		todo.attachments.filter((a) => a.mime?.startsWith('image/'))
 	);
@@ -463,10 +466,10 @@
 										<img src={att.url} alt={att.name ?? 'attachment'} loading="lazy" />
 									</button>
 								{:else}
-									<a class="thumb-open file" href={att.url} target="_blank" rel="noreferrer">
+									<button class="thumb-open file" onclick={() => (viewingDoc = att)}>
 										<Icon name="file" size={22} />
 										<span class="file-name" title={att.name}>{att.name}</span>
-									</a>
+									</button>
 								{/if}
 								{#if canEdit}
 									<button
@@ -481,6 +484,10 @@
 						{/each}
 					</div>
 					<ImageViewer images={viewerImages} bind:index={viewing} />
+					<DocumentViewer
+						doc={viewingDoc && { src: viewingDoc.url, name: viewingDoc.name, mime: viewingDoc.mime }}
+						onClose={() => (viewingDoc = null)}
+					/>
 				{/if}
 
 				{#if canEdit}
@@ -959,6 +966,7 @@
 		padding: var(--space-2);
 		color: var(--text-muted);
 		text-align: center;
+		cursor: pointer;
 	}
 	.thumb-open.file:hover {
 		color: var(--text);
