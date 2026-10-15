@@ -3,7 +3,7 @@
 	import { page } from '$app/state';
 	import { invalidateAll, replaceState } from '$app/navigation';
 	import { tick } from 'svelte';
-	import { slide } from 'svelte/transition';
+	import { fly, slide } from 'svelte/transition';
 	import { flip } from 'svelte/animate';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { TodosController } from '#lib/stores/todos.svelte';
@@ -104,7 +104,19 @@
 	let secretsOpen = $state(false);
 	let tagsCategoriesOpen = $state(false);
 	let projectMenuOpen = $state(false);
+	let projectMenuAnchor: 'header' | 'floating' = $state('header');
 	let projectMenuHost: HTMLElement | undefined = $state();
+	let floatingMenuHost: HTMLElement | undefined = $state();
+	let scrollY = $state(0);
+	const scrolledPastHeader = $derived(scrollY > 140);
+
+	function toggleProjectMenu(anchor: 'header' | 'floating') {
+		if (projectMenuOpen && projectMenuAnchor === anchor) projectMenuOpen = false;
+		else {
+			projectMenuAnchor = anchor;
+			projectMenuOpen = true;
+		}
+	}
 
 	const selected = $derived(selectedId ? controller.items.find((t) => t.id === selectedId) : null);
 
@@ -640,15 +652,16 @@
 	}
 	function onWindowPointerDown(e: PointerEvent) {
 		keyboardNav = false;
-		if (projectMenuOpen && !projectMenuHost?.contains(e.target as Node)) {
-			projectMenuOpen = false;
+		if (projectMenuOpen) {
+			const host = projectMenuAnchor === 'header' ? projectMenuHost : floatingMenuHost;
+			if (!host?.contains(e.target as Node)) projectMenuOpen = false;
 		}
 	}
 </script>
 
 <svelte:head><title>{data.project.name} · Duet</title></svelte:head>
 
-<svelte:window {onkeydown} onpointerdown={onWindowPointerDown} />
+<svelte:window {onkeydown} onpointerdown={onWindowPointerDown} bind:scrollY />
 
 <!-- `group` is set on grouped top-level rows only; subtasks aren't grouped, so show all their fields. -->
 {#snippet node(todo: Todo, depth: number, group?: { field: GroupKey; key: string })}
@@ -700,6 +713,50 @@
 				/>
 			{/if}
 		</div>
+	{/if}
+{/snippet}
+
+{#snippet projectMenuItems()}
+	{#if canManage}
+		<button class="menu-item" onclick={() => { projectMenuOpen = false; settingsOpen = true; }}>
+			<Icon name="settings" size={15} /> Project settings
+		</button>
+		<button class="menu-item" onclick={() => { projectMenuOpen = false; membersOpen = true; }}>
+			<Icon name="users" size={15} /> Members
+		</button>
+		<button class="menu-item" onclick={() => { projectMenuOpen = false; secretsOpen = true; }}>
+			<Icon name="key" size={15} /> Keys & secrets
+		</button>
+		<button class="menu-item" onclick={() => { projectMenuOpen = false; tagsCategoriesOpen = true; }}>
+			<Icon name="tag" size={15} /> Tags & categories
+		</button>
+	{/if}
+	{#if canManage && (canEdit || controller.items.length)}<hr />{/if}
+	{#if canEdit}
+		<button class="menu-item" onclick={() => { projectMenuOpen = false; openImport(); }}>
+			<Icon name="clipboard" size={15} /> Import tasks
+		</button>
+	{/if}
+	{#if controller.items.length}
+		<button class="menu-item" onclick={exportToClipboard}>
+			<Icon name="copy" size={15} /> Copy as checklist
+		</button>
+		<button class="menu-item" onclick={exportToFile}>
+			<Icon name="download" size={15} /> Download JSON file
+		</button>
+	{/if}
+	{#if canManage}
+		<hr />
+		<form method="POST" action="/app?/deleteProject">
+			<input type="hidden" name="id" value={data.project.id} />
+			<button
+				class="menu-item danger"
+				type="submit"
+				onclick={(e) => { if (!confirm('Delete this project and all its tasks? This cannot be undone.')) e.preventDefault(); }}
+			>
+				<Icon name="trash" size={15} /> Delete project
+			</button>
+		</form>
 	{/if}
 {/snippet}
 
@@ -759,58 +816,46 @@
 			</Button>
 			{#if canManage || canEdit || controller.items.length}
 				<div class="menu-host" bind:this={projectMenuHost}>
-					<button class="icon-btn" aria-label="Project menu" onclick={() => (projectMenuOpen = !projectMenuOpen)}>
+					<button class="icon-btn" aria-label="Project menu" onclick={() => toggleProjectMenu('header')}>
 						<Icon name="more-horizontal" size={18} />
 					</button>
-					{#if projectMenuOpen}
+					{#if projectMenuOpen && projectMenuAnchor === 'header'}
 						<div class="menu">
-							{#if canManage}
-								<button class="menu-item" onclick={() => { projectMenuOpen = false; settingsOpen = true; }}>
-									<Icon name="settings" size={15} /> Project settings
-								</button>
-								<button class="menu-item" onclick={() => { projectMenuOpen = false; membersOpen = true; }}>
-									<Icon name="users" size={15} /> Members
-								</button>
-								<button class="menu-item" onclick={() => { projectMenuOpen = false; secretsOpen = true; }}>
-									<Icon name="key" size={15} /> Keys & secrets
-								</button>
-								<button class="menu-item" onclick={() => { projectMenuOpen = false; tagsCategoriesOpen = true; }}>
-									<Icon name="tag" size={15} /> Tags & categories
-								</button>
-							{/if}
-							{#if canManage && (canEdit || controller.items.length)}<hr />{/if}
-							{#if canEdit}
-								<button class="menu-item" onclick={() => { projectMenuOpen = false; openImport(); }}>
-									<Icon name="clipboard" size={15} /> Import tasks
-								</button>
-							{/if}
-							{#if controller.items.length}
-								<button class="menu-item" onclick={exportToClipboard}>
-									<Icon name="copy" size={15} /> Copy as checklist
-								</button>
-								<button class="menu-item" onclick={exportToFile}>
-									<Icon name="download" size={15} /> Download JSON file
-								</button>
-							{/if}
-							{#if canManage}
-								<hr />
-								<form method="POST" action="/app?/deleteProject">
-									<input type="hidden" name="id" value={data.project.id} />
-									<button
-										class="menu-item danger"
-										type="submit"
-										onclick={(e) => { if (!confirm('Delete this project and all its tasks? This cannot be undone.')) e.preventDefault(); }}
-									>
-										<Icon name="trash" size={15} /> Delete project
-									</button>
-								</form>
-							{/if}
+							{@render projectMenuItems()}
 						</div>
 					{/if}
 				</div>
 			{/if}
 		</div>
 	</header>
+
+	{#if scrolledPastHeader && (canEdit || canManage || controller.items.length) && !(selecting && selectedIds.size)}
+		<div class="floating-actions" transition:fly={{ y: 12, duration: 150 }}>
+			{#if canEdit && controller.items.length}
+				<button
+					class="icon-btn floating-btn"
+					class:on={selecting}
+					aria-label={selecting ? 'Done selecting' : 'Select tasks'}
+					title="Select tasks to edit together (or Cmd/Ctrl-click a task)"
+					onclick={() => (selecting ? clearSelection() : (selectMode = true))}
+				>
+					<Icon name="check-circle" size={18} />
+				</button>
+			{/if}
+			{#if canManage || canEdit || controller.items.length}
+				<div class="menu-host" bind:this={floatingMenuHost}>
+					<button class="icon-btn floating-btn" aria-label="Project menu" onclick={() => toggleProjectMenu('floating')}>
+						<Icon name="more-horizontal" size={18} />
+					</button>
+					{#if projectMenuOpen && projectMenuAnchor === 'floating'}
+						<div class="menu floating-menu">
+							{@render projectMenuItems()}
+						</div>
+					{/if}
+				</div>
+			{/if}
+		</div>
+	{/if}
 
 	<div
 		class="work"
@@ -1152,6 +1197,29 @@
 	}
 	.menu-item.danger {
 		color: var(--danger);
+	}
+
+	.floating-actions {
+		position: fixed;
+		right: var(--space-5);
+		bottom: var(--space-5);
+		z-index: var(--z-dropdown);
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		padding: var(--space-2);
+		background: var(--surface-raised);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-lg);
+		box-shadow: var(--shadow-xl);
+	}
+	.floating-btn.on {
+		background: var(--accent-soft);
+		color: var(--accent-text);
+	}
+	.floating-menu {
+		top: auto;
+		bottom: calc(100% + 8px);
 	}
 
 	.work {
