@@ -102,6 +102,7 @@
 	let settingsOpen = $state(false);
 	let secretsOpen = $state(false);
 	let projectMenuOpen = $state(false);
+	let projectMenuHost: HTMLElement | undefined = $state();
 
 	const selected = $derived(selectedId ? controller.items.find((t) => t.id === selectedId) : null);
 
@@ -635,11 +636,17 @@
 		const colors = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#8b5cf6', '#ef4444'];
 		return colors[Math.floor(Math.random() * colors.length)];
 	}
+	function onWindowPointerDown(e: PointerEvent) {
+		keyboardNav = false;
+		if (projectMenuOpen && !projectMenuHost?.contains(e.target as Node)) {
+			projectMenuOpen = false;
+		}
+	}
 </script>
 
 <svelte:head><title>{data.project.name} · Duet</title></svelte:head>
 
-<svelte:window {onkeydown} onpointerdown={() => (keyboardNav = false)} />
+<svelte:window {onkeydown} onpointerdown={onWindowPointerDown} />
 
 <!-- `group` is set on grouped top-level rows only; subtasks aren't grouped, so show all their fields. -->
 {#snippet node(todo: Todo, depth: number, group?: { field: GroupKey; key: string })}
@@ -749,12 +756,11 @@
 				{data.members.length}
 			</Button>
 			{#if canManage || canEdit || controller.items.length}
-				<div class="menu-host">
+				<div class="menu-host" bind:this={projectMenuHost}>
 					<button class="icon-btn" aria-label="Project menu" onclick={() => (projectMenuOpen = !projectMenuOpen)}>
 						<Icon name="more-horizontal" size={18} />
 					</button>
 					{#if projectMenuOpen}
-						<button class="menu-scrim" aria-label="Close" onclick={() => (projectMenuOpen = false)}></button>
 						<div class="menu">
 							{#if canManage}
 								<button class="menu-item" onclick={() => { projectMenuOpen = false; settingsOpen = true; }}>
@@ -1108,17 +1114,11 @@
 	.menu-host {
 		position: relative;
 	}
-	.menu-scrim {
-		position: fixed;
-		inset: 0;
-		z-index: var(--z-dropdown);
-		cursor: default;
-	}
 	.menu {
 		position: absolute;
 		top: calc(100% + 4px);
 		right: 0;
-		z-index: calc(var(--z-dropdown) + 1);
+		z-index: var(--z-dropdown);
 		min-width: 190px;
 		background: var(--surface-raised);
 		border: 1px solid var(--border);
