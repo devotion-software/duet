@@ -59,12 +59,12 @@
 		controller.reset(data.project.id, data.todos as unknown as Todo[]);
 	});
 
-	// Keep the sidebar's count in step with ticks and SSE updates.
+	// Keep the sidebar's count in step with ticks and SSE updates. Left set after
+	// unmount so navigating away doesn't fall back to the stale server-loaded count.
 	$effect(() => {
 		const id = data.project.id;
 		const open = data.project.countSubtasks ? controller.open : controller.openRoots;
 		liveCounts[id] = open.length;
-		return () => delete liveCounts[id];
 	});
 
 	// Live updates via SSE, re-subscribing per project.
