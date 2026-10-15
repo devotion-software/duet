@@ -469,6 +469,7 @@
 				placeholder="e.g. Website redesign"
 				maxlength={160}
 				required
+				autofocus={mode === 'create'}
 				class="grow"
 			/>
 		</div>

@@ -2,13 +2,14 @@
 	import type { HTMLInputAttributes } from 'svelte/elements';
 	import Icon, { type IconName } from './Icon.svelte';
 
-	interface Props extends Omit<HTMLInputAttributes, 'size'> {
+	interface Props extends Omit<HTMLInputAttributes, 'size' | 'autofocus'> {
 		value?: string;
 		label?: string;
 		hint?: string;
 		error?: string;
 		icon?: IconName;
 		size?: 'sm' | 'md' | 'lg';
+		autofocus?: boolean;
 	}
 
 	let {
@@ -20,11 +21,21 @@
 		size = 'md',
 		id,
 		class: klass = '',
+		autofocus = false,
 		...rest
 	}: Props = $props();
 
 	const generatedId = `f-${Math.random().toString(36).slice(2, 9)}`;
 	const fieldId = $derived(id ?? generatedId);
+
+	// Elements inserted after the initial HTML parse (e.g. inside a modal) don't
+	// get native autofocus, so focus manually once this input mounts.
+	function autofocusAction(node: HTMLInputElement, enabled: boolean | undefined) {
+		if (enabled) {
+			node.focus();
+			node.select();
+		}
+	}
 </script>
 
 <div class="field {klass}">
@@ -35,7 +46,13 @@
 		{#if icon}
 			<Icon name={icon} size={size === 'sm' ? 15 : 17} class="leading-icon" />
 		{/if}
-		<input id={fieldId} bind:value aria-invalid={!!error} {...rest} />
+		<input
+			id={fieldId}
+			bind:value
+			aria-invalid={!!error}
+			use:autofocusAction={autofocus}
+			{...rest}
+		/>
 	</div>
 	{#if error}
 		<span class="msg error">{error}</span>
