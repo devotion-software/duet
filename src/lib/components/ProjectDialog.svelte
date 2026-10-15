@@ -391,6 +391,10 @@
 		<input type="hidden" name="icon" value={icon} />
 		<input type="hidden" name="font" value={font} />
 		<input type="hidden" name="status" value={status} />
+		{#if tab !== 'details'}
+			<input type="hidden" name="name" value={name} />
+			<input type="hidden" name="description" value={description} />
+		{/if}
 		{#if mode === 'edit'}
 			<input type="hidden" name="listWidth" value={listWidth ?? ''} />
 			<input type="hidden" name="countSubtasks" value={countSubtasks ?? 'default'} />
