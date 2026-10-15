@@ -151,17 +151,23 @@
 		}
 	}
 
-	// ── Image attachments ──
+	// ── Attachments ──
 	let uploading = $state(false);
 	let viewing = $state<number | null>(null);
-	const viewerImages = $derived(todo.attachments.map((a) => ({ src: a.url, name: a.name })));
+	const imageAttachments = $derived(
+		todo.attachments.filter((a) => a.mime?.startsWith('image/'))
+	);
+	const viewerImages = $derived(imageAttachments.map((a) => ({ src: a.url, name: a.name })));
+	function viewerIndex(att: (typeof todo.attachments)[number]) {
+		return imageAttachments.findIndex((a) => a.id === att.id);
+	}
 	let dragging = $state(false);
 
 	async function uploadFiles(files: Iterable<File>) {
-		const images = [...files].filter((f) => f.type.startsWith('image/'));
-		if (!images.length) return;
+		const list = [...files];
+		if (!list.length) return;
 		uploading = true;
-		for (const file of images) await onAddAttachment(file);
+		for (const file of list) await onAddAttachment(file);
 		uploading = false;
 	}
 	function onFileInput(e: Event) {
@@ -430,13 +436,13 @@
 				</div>
 			{/if}
 
-			<!-- Images -->
+			<!-- Attachments -->
 			<div class="section">
 				<div class="desc-head">
-					<span class="section-label"><Icon name="image" size={14} /> Images</span>
+					<span class="section-label"><Icon name="image" size={14} /> Attachments</span>
 					{#if canEdit}
 						<label class="upload-btn">
-							<input type="file" accept="image/*" multiple onchange={onFileInput} hidden />
+							<input type="file" multiple onchange={onFileInput} hidden />
 							{#if uploading}<Spinner size={13} />{:else}<Icon name="plus" size={13} />{/if}
 							Add
 						</label>
@@ -445,16 +451,28 @@
 
 				{#if todo.attachments.length}
 					<div class="img-grid">
-						{#each todo.attachments as att, i (att.id)}
+						{#each todo.attachments as att (att.id)}
+							{@const isImage = !!att.mime?.startsWith('image/')}
 							<div class="thumb">
-								<button class="thumb-open" onclick={() => (viewing = i)} aria-label="View image">
-									<img src={att.url} alt={att.name ?? 'attachment'} loading="lazy" />
-								</button>
+								{#if isImage}
+									<button
+										class="thumb-open"
+										onclick={() => (viewing = viewerIndex(att))}
+										aria-label="View image"
+									>
+										<img src={att.url} alt={att.name ?? 'attachment'} loading="lazy" />
+									</button>
+								{:else}
+									<a class="thumb-open file" href={att.url} target="_blank" rel="noreferrer">
+										<Icon name="file" size={22} />
+										<span class="file-name" title={att.name}>{att.name}</span>
+									</a>
+								{/if}
 								{#if canEdit}
 									<button
 										class="thumb-del"
 										onclick={() => onRemoveAttachment(att.id)}
-										aria-label="Remove image"
+										aria-label="Remove attachment"
 									>
 										<Icon name="x" size={12} />
 									</button>
@@ -931,6 +949,27 @@
 		height: 100%;
 		object-fit: cover;
 		display: block;
+	}
+	.thumb-open.file {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 4px;
+		padding: var(--space-2);
+		color: var(--text-muted);
+		text-align: center;
+	}
+	.thumb-open.file:hover {
+		color: var(--text);
+		background: var(--surface-hover);
+	}
+	.file-name {
+		width: 100%;
+		font-size: 10px;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 	.thumb-del {
 		position: absolute;

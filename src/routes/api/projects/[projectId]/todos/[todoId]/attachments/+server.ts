@@ -6,13 +6,39 @@ import { publish } from '#lib/server/realtime';
 import { newId } from '#lib/server/ids';
 import type { RequestHandler } from './$types';
 
-const ALLOWED = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif']);
+const ALLOWED = new Set([
+	'image/png',
+	'image/jpeg',
+	'image/gif',
+	'image/webp',
+	'image/avif',
+	'application/pdf',
+	'text/plain',
+	'text/csv',
+	'application/msword',
+	'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+	'application/vnd.ms-excel',
+	'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+	'application/vnd.ms-powerpoint',
+	'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+	'application/zip'
+]);
 const EXT: Record<string, string> = {
 	'image/png': 'png',
 	'image/jpeg': 'jpg',
 	'image/gif': 'gif',
 	'image/webp': 'webp',
-	'image/avif': 'avif'
+	'image/avif': 'avif',
+	'application/pdf': 'pdf',
+	'text/plain': 'txt',
+	'text/csv': 'csv',
+	'application/msword': 'doc',
+	'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+	'application/vnd.ms-excel': 'xls',
+	'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
+	'application/vnd.ms-powerpoint': 'ppt',
+	'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+	'application/zip': 'zip'
 };
 
 export const POST: RequestHandler = async ({ params, request, locals }) => {
@@ -25,17 +51,17 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	if (!(file instanceof File)) throw error(400, 'No file provided');
 
 	const mime = file.type;
-	if (!ALLOWED.has(mime)) throw error(415, 'Only PNG, JPEG, GIF, WebP or AVIF images are allowed');
+	if (!ALLOWED.has(mime)) throw error(415, 'This file type is not supported');
 
 	const maxMb = Number(process.env.UPLOAD_MAX_MB ?? 10);
-	if (file.size > maxMb * 1024 * 1024) throw error(413, `Images must be under ${maxMb}MB`);
+	if (file.size > maxMb * 1024 * 1024) throw error(413, `Files must be under ${maxMb}MB`);
 
 	const id = newId();
 	const safeName =
-		(file.name || 'image')
+		(file.name || 'file')
 			.replace(/[^a-zA-Z0-9._-]/g, '_')
 			.replace(/_+/g, '_')
-			.slice(0, 80) || `image.${EXT[mime]}`;
+			.slice(0, 80) || `file.${EXT[mime]}`;
 	const key = `attachments/${params.projectId}/${params.todoId}/${id}-${safeName}`;
 
 	const bytes = new Uint8Array(await file.arrayBuffer());
