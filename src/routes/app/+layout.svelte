@@ -10,6 +10,8 @@
 	import ProjectDialog from '#lib/components/ProjectDialog.svelte';
 	import ProjectIcon from '#lib/components/ProjectIcon.svelte';
 	import ShortcutsDialog from '#lib/components/ShortcutsDialog.svelte';
+	import MembersDialog from '#lib/components/todo/MembersDialog.svelte';
+	import SecretsDialog from '#lib/components/SecretsDialog.svelte';
 	import { shortcutAllowed } from '#lib/shortcuts';
 	import { liveCounts } from '#lib/stores/liveCounts.svelte';
 	import { toasts } from '#lib/components/ui/toast.svelte';
@@ -22,6 +24,8 @@
 	} from '#lib/sidebar';
 	import { sanitizeColor, sanitizeGradient } from '#lib/color';
 	import { fontStyle, googleFontsHref } from '#lib/font';
+	import { formatTodosAsChecklist, formatTodosAsJson } from '#lib/todoFormat';
+	import { PROJECT_STATUSES, type Member, type Role, type RowField, type ProjectStatus } from '#lib/types';
 
 	let { data, children } = $props();
 
@@ -167,6 +171,144 @@
 		persist(api(`/api/folders/${id}`, 'DELETE'));
 	}
 
+	// ─── Project context menu ────────────────────────────────────────────────
+	type SidebarProject = (typeof data.projects)[number];
+	interface ProjectFull {
+		id: string;
+		name: string;
+		description: string | null;
+		color: string;
+		accentGradient: string | null;
+		icon: string;
+		iconUrl: string | null;
+		font: string;
+		status: ProjectStatus;
+		hiddenFields: RowField[];
+		listWidthSetting: number | null;
+		countSubtasksSetting: boolean | null;
+	}
+	interface Invite {
+		id: string;
+		email: string;
+		role: Role;
+	}
+
+	let renamingProjectId = $state<string | null>(null);
+	let projectMenu = $state<{ id: string; x: number; y: number; submenuFlip: boolean } | null>(null);
+	let projectMenuEl: HTMLElement | undefined = $state();
+	let statusMenuOpen = $state(false);
+	const menuProject = $derived(projectMenu ? projectById.get(projectMenu.id) : undefined);
+	const isOwner = (p: SidebarProject) => p.role === 'owner';
+	const isEditor = (p: SidebarProject) => p.role === 'owner' || p.role === 'editor';
+
+	let settingsOpen = $state(false);
+	let settingsProject = $state<ProjectFull | null>(null);
+	let membersOpen = $state(false);
+	let membersFor = $state<string | null>(null);
+	let membersData = $state<{ members: Member[]; invites: Invite[] } | null>(null);
+	let secretsOpen = $state(false);
+	let secretsFor = $state<string | null>(null);
+
+	function openProjectMenu(e: MouseEvent, p: SidebarProject) {
+		e.preventDefault();
+		statusMenuOpen = false;
+		const w = 230;
+		const h = 340;
+		const x = Math.max(8, Math.min(e.clientX, window.innerWidth - w - 8));
+		const y = Math.max(8, Math.min(e.clientY, window.innerHeight - h - 8));
+		// Flip the "Change status" flyout to the left if there's no room for it on the right.
+		const submenuFlip = x + w + 172 > window.innerWidth;
+		projectMenu = { id: p.id, x, y, submenuFlip };
+	}
+
+	function closeProjectMenu() {
+		projectMenu = null;
+		statusMenuOpen = false;
+	}
+
+	function startProjectRename(p: SidebarProject) {
+		closeProjectMenu();
+		if (collapsed) setCollapsed(false);
+		renamingProjectId = p.id;
+	}
+
+	function finishProjectRename(p: SidebarProject, input: HTMLInputElement, save: boolean) {
+		if (renamingProjectId !== p.id) return;
+		renamingProjectId = null;
+		const name = input.value.trim();
+		if (save && name && name !== p.name) persist(api(`/api/projects/${p.id}`, 'PATCH', { name }));
+	}
+
+	function setProjectStatus(p: SidebarProject, status: ProjectStatus) {
+		closeProjectMenu();
+		if (status !== p.status) persist(api(`/api/projects/${p.id}`, 'PATCH', { status }));
+	}
+
+	async function openSettings(p: SidebarProject) {
+		closeProjectMenu();
+		try {
+			settingsProject = await api(`/api/projects/${p.id}`, 'GET');
+			settingsOpen = true;
+		} catch (e) {
+			toasts.error((e as Error).message);
+		}
+	}
+
+	async function loadMembers(id: string) {
+		try {
+			membersData = await api(`/api/projects/${id}/members`, 'GET');
+		} catch (e) {
+			toasts.error((e as Error).message);
+		}
+	}
+
+	async function openMembers(p: SidebarProject) {
+		closeProjectMenu();
+		membersFor = p.id;
+		await loadMembers(p.id);
+		membersOpen = true;
+	}
+
+	function openSecrets(p: SidebarProject) {
+		closeProjectMenu();
+		secretsFor = p.id;
+		secretsOpen = true;
+	}
+
+	async function exportProject(p: SidebarProject, kind: 'clipboard' | 'file') {
+		closeProjectMenu();
+		try {
+			const { todos } = await api(`/api/projects/${p.id}/todos`, 'GET');
+			if (kind === 'clipboard') {
+				await navigator.clipboard.writeText(formatTodosAsChecklist(todos));
+				toasts.success(`Copied ${todos.length} task${todos.length === 1 ? '' : 's'} to clipboard`);
+			} else {
+				const json = formatTodosAsJson(todos, p);
+				const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+				const a = document.createElement('a');
+				a.href = url;
+				a.download = `${p.slug}-tasks-${new Date().toISOString().slice(0, 10)}.json`;
+				a.click();
+				URL.revokeObjectURL(url);
+			}
+		} catch (e) {
+			toasts.error((e as Error).message ?? 'Could not export');
+		}
+	}
+
+	async function requestDeleteProject(p: SidebarProject) {
+		closeProjectMenu();
+		if (!confirm(`Delete "${p.name}" and all its tasks? This cannot be undone.`)) return;
+		try {
+			await api(`/api/projects/${p.id}`, 'DELETE');
+		} catch (e) {
+			toasts.error((e as Error).message);
+			return;
+		}
+		if (activeSlug === p.slug) await goto('/app', { invalidateAll: true });
+		else await invalidateAll();
+	}
+
 	// ─── Drag to reorder / move between folders ─────────────────────────────
 	let dragging = $state<SidebarDrag | null>(null);
 	let dropTarget = $state<SidebarDrop | null>(null);
@@ -241,8 +383,16 @@
 		await goto('/');
 	}
 
+	function onWindowPointerDown(e: PointerEvent) {
+		if (projectMenu && !projectMenuEl?.contains(e.target as Node)) closeProjectMenu();
+	}
+
 	// App-wide shortcuts: help and project switching. Task shortcuts live on the project page.
 	function onkeydown(e: KeyboardEvent) {
+		if (e.key === 'Escape' && projectMenu) {
+			closeProjectMenu();
+			return;
+		}
 		if (!shortcutAllowed(e)) return;
 		const projects = navProjects;
 		const index = projects.findIndex((p) => p.slug === activeSlug);
@@ -273,10 +423,11 @@
 	$effect(() => {
 		void page.url.pathname;
 		sidebarOpen = false;
+		closeProjectMenu();
 	});
 </script>
 
-<svelte:window {onkeydown} />
+<svelte:window {onkeydown} onpointerdown={onWindowPointerDown} />
 
 <svelte:head>
 	{@html rootAccentStyle}
@@ -290,31 +441,59 @@
 {#snippet projectLink(p: (typeof data.projects)[number], folderId: string | null = null)}
 	{@const openCount = liveCounts[p.id] ?? p.openCount}
 	{@const movable = p.status !== 'archived'}
-	<a
-		href="/app/{p.slug}"
-		class="p-link {movable ? dropClass(p.id) : ''}"
-		class:active={p.slug === activeSlug}
-		class:archived={p.status === 'archived'}
-		class:nested={!!folderId}
-		class:dragged={dragging?.id === p.id}
-		style={accentVars(p) + fontStyle(p.font)}
-		title={collapsed ? (openCount > 0 ? `${p.name} (${openCount})` : p.name) : undefined}
-		draggable={movable}
-		data-drop-id={movable ? p.id : undefined}
-		data-drop-kind="project"
-		data-drop-folder={folderId ?? undefined}
-		ondragstart={(e) => ondragstart(e, { type: 'project', id: p.id })}
-		{ondragend}
-	>
-		<span class="p-icon"><ProjectIcon icon={p.icon} iconUrl={p.iconUrl} /></span>
-		<span class="p-name truncate">{p.name}</span>
-		{#if p.status === 'live'}
-			<span class="p-live" title="Live"></span>
-		{/if}
-		{#if openCount > 0}
-			<span class="p-count">{openCount}</span>
-		{/if}
-	</a>
+	{@const renaming = renamingProjectId === p.id}
+	{#if renaming}
+		<div
+			class="p-link renaming {movable ? dropClass(p.id) : ''}"
+			class:nested={!!folderId}
+			class:dragged={dragging?.id === p.id}
+			style={accentVars(p) + fontStyle(p.font)}
+		>
+			<span class="p-icon"><ProjectIcon icon={p.icon} iconUrl={p.iconUrl} /></span>
+			<!-- svelte-ignore a11y_autofocus -->
+			<input
+				class="p-rename"
+				value={p.name}
+				maxlength="160"
+				aria-label="Project name"
+				autofocus
+				onfocus={(e) => e.currentTarget.select()}
+				onblur={(e) => finishProjectRename(p, e.currentTarget, true)}
+				onkeydown={(e) => {
+					if (e.key === 'Enter') finishProjectRename(p, e.currentTarget, true);
+					else if (e.key === 'Escape') finishProjectRename(p, e.currentTarget, false);
+				}}
+			/>
+		</div>
+	{:else}
+		<a
+			href="/app/{p.slug}"
+			class="p-link {movable ? dropClass(p.id) : ''}"
+			class:active={p.slug === activeSlug}
+			class:archived={p.status === 'archived'}
+			class:nested={!!folderId}
+			class:dragged={dragging?.id === p.id}
+			class:menu-open={projectMenu?.id === p.id}
+			style={accentVars(p) + fontStyle(p.font)}
+			title={collapsed ? (openCount > 0 ? `${p.name} (${openCount})` : p.name) : undefined}
+			draggable={movable}
+			data-drop-id={movable ? p.id : undefined}
+			data-drop-kind="project"
+			data-drop-folder={folderId ?? undefined}
+			ondragstart={(e) => ondragstart(e, { type: 'project', id: p.id })}
+			{ondragend}
+			oncontextmenu={(e) => openProjectMenu(e, p)}
+		>
+			<span class="p-icon"><ProjectIcon icon={p.icon} iconUrl={p.iconUrl} /></span>
+			<span class="p-name truncate">{p.name}</span>
+			{#if p.status === 'live'}
+				<span class="p-live" title="Live"></span>
+			{/if}
+			{#if openCount > 0}
+				<span class="p-count">{openCount}</span>
+			{/if}
+		</a>
+	{/if}
 {/snippet}
 
 <div
@@ -389,6 +568,7 @@
 			{ondragover}
 			{ondragleave}
 			{ondrop}
+			onscroll={closeProjectMenu}
 		>
 			{#if data.projects.length === 0 && folders.length === 0}
 				<p class="no-projects">No projects yet.<br />Create your first one above.</p>
@@ -547,7 +727,90 @@
 	</main>
 </div>
 
+{#if projectMenu && menuProject}
+	<div class="ctx-menu" role="menu" bind:this={projectMenuEl} style="left: {projectMenu.x}px; top: {projectMenu.y}px;">
+		<button class="menu-item" role="menuitem" onclick={() => startProjectRename(menuProject)}>
+			<Icon name="pencil" size={15} /> Rename
+		</button>
+		{#if isOwner(menuProject)}
+			<div
+				class="submenu-wrap"
+				role="none"
+				onmouseenter={() => (statusMenuOpen = true)}
+				onmouseleave={() => (statusMenuOpen = false)}
+			>
+				<button
+					class="menu-item"
+					role="menuitem"
+					aria-haspopup="menu"
+					aria-expanded={statusMenuOpen}
+					onfocus={() => (statusMenuOpen = true)}
+				>
+					<Icon name="flag" size={15} />
+					<span style="flex: 1">Change status</span>
+					<Icon name="chevron-right" size={14} />
+				</button>
+				{#if statusMenuOpen}
+					<div class="submenu-list" class:flip={projectMenu?.submenuFlip}>
+						{#each PROJECT_STATUSES as s (s.value)}
+							<button class="menu-item" role="menuitem" onclick={() => setProjectStatus(menuProject, s.value)}>
+								<span class="status-dot status-{s.value}"></span>
+								<span style="flex: 1">{s.label}</span>
+								{#if menuProject.status === s.value}<Icon name="check" size={14} />{/if}
+							</button>
+						{/each}
+					</div>
+				{/if}
+			</div>
+		{/if}
+		<hr />
+		<button class="menu-item" role="menuitem" onclick={() => openMembers(menuProject)}>
+			<Icon name="users" size={15} /> Members
+		</button>
+		{#if isEditor(menuProject)}
+			<button class="menu-item" role="menuitem" onclick={() => openSecrets(menuProject)}>
+				<Icon name="key" size={15} /> Keys & secrets
+			</button>
+		{/if}
+		{#if isOwner(menuProject)}
+			<button class="menu-item" role="menuitem" onclick={() => openSettings(menuProject)}>
+				<Icon name="settings" size={15} /> Project settings
+			</button>
+		{/if}
+		<hr />
+		<button class="menu-item" role="menuitem" onclick={() => exportProject(menuProject, 'clipboard')}>
+			<Icon name="copy" size={15} /> Copy as checklist
+		</button>
+		<button class="menu-item" role="menuitem" onclick={() => exportProject(menuProject, 'file')}>
+			<Icon name="download" size={15} /> Download JSON file
+		</button>
+		{#if isOwner(menuProject)}
+			<hr />
+			<button class="menu-item danger" role="menuitem" onclick={() => requestDeleteProject(menuProject)}>
+				<Icon name="trash" size={15} /> Delete project
+			</button>
+		{/if}
+	</div>
+{/if}
+
 <ProjectDialog bind:open={createOpen} mode="create" />
+<ProjectDialog
+	bind:open={settingsOpen}
+	mode="edit"
+	project={settingsProject ?? {}}
+	defaults={data.projectDefaults}
+	onrestore={() => invalidateAll()}
+/>
+<MembersDialog
+	bind:open={membersOpen}
+	projectId={membersFor ?? ''}
+	members={membersData?.members ?? []}
+	invites={membersData?.invites ?? []}
+	currentUserId={data.user.id}
+	canManage={!!membersFor && projectById.get(membersFor)?.role === 'owner'}
+	onChanged={() => membersFor && loadMembers(membersFor)}
+/>
+<SecretsDialog bind:open={secretsOpen} projectId={secretsFor ?? ''} />
 <ShortcutsDialog bind:open={shortcutsOpen} />
 
 <style>
@@ -645,13 +908,28 @@
 			background var(--transition-fast),
 			color var(--transition-fast);
 	}
-	.p-link:hover {
+	.p-link:hover,
+	.p-link.menu-open {
 		background: var(--surface-hover);
 		color: var(--text);
 	}
 	.p-link.active {
 		background: var(--accent-soft);
 		color: var(--accent-text);
+	}
+	.p-link.renaming {
+		cursor: text;
+	}
+	.p-rename {
+		flex: 1;
+		min-width: 0;
+		padding: 2px 6px;
+		margin: -2px 0;
+		font: inherit;
+		color: var(--text);
+		background: var(--surface);
+		border: 1px solid var(--accent-border, var(--border-strong));
+		border-radius: var(--radius-sm);
 	}
 	.p-icon {
 		display: grid;
@@ -966,6 +1244,64 @@
 		padding: var(--space-1) var(--space-3) var(--space-1);
 		font-size: var(--text-xs);
 		color: var(--text-faint);
+	}
+
+	/* Project context menu */
+	.ctx-menu {
+		position: fixed;
+		z-index: calc(var(--z-dropdown) + 1);
+		width: 230px;
+		background: var(--surface-raised);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		box-shadow: var(--shadow-lg);
+		padding: var(--space-1);
+	}
+	.ctx-menu hr {
+		margin: var(--space-1) 0;
+		border-color: var(--border-subtle);
+	}
+	.submenu-wrap {
+		position: relative;
+	}
+	.submenu-list {
+		position: absolute;
+		left: 100%;
+		top: -5px;
+		margin-left: 2px;
+		width: 170px;
+		display: flex;
+		flex-direction: column;
+		background: var(--surface-raised);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-md);
+		box-shadow: var(--shadow-lg);
+		padding: var(--space-1);
+	}
+	.submenu-list.flip {
+		left: auto;
+		right: 100%;
+		margin-left: 0;
+		margin-right: 2px;
+	}
+	.status-dot {
+		width: 7px;
+		height: 7px;
+		flex-shrink: 0;
+		border-radius: var(--radius-full);
+		background: var(--status-color);
+	}
+	.status-dot.status-not_started {
+		--status-color: var(--text-subtle);
+	}
+	.status-dot.status-in_progress {
+		--status-color: var(--warning);
+	}
+	.status-dot.status-live {
+		--status-color: var(--success);
+	}
+	.status-dot.status-archived {
+		--status-color: var(--text-faint);
 	}
 
 	/* Content */

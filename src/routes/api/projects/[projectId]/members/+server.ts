@@ -1,9 +1,18 @@
 import { json, error } from '@sveltejs/kit';
 import { requireMember } from '#lib/server/guard';
-import { addMemberByEmail } from '#lib/server/projects';
+import { addMemberByEmail, listMembers, listInvites } from '#lib/server/projects';
 import { publish } from '#lib/server/realtime';
 import { ROLES, type Role } from '#lib/server/db/app.schema';
 import type { RequestHandler } from './$types';
+
+export const GET: RequestHandler = async ({ params, locals }) => {
+	await requireMember(locals, params.projectId);
+	const [members, invites] = await Promise.all([
+		listMembers(params.projectId),
+		listInvites(params.projectId)
+	]);
+	return json({ members, invites });
+};
 
 export const POST: RequestHandler = async ({ params, request, locals, url }) => {
 	const { userId } = await requireMember(locals, params.projectId, { manage: true });

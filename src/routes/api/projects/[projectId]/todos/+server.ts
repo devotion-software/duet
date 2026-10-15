@@ -14,6 +14,12 @@ function asDate(v: unknown): Date | null {
 	return isNaN(d.getTime()) ? null : d;
 }
 
+export const GET: RequestHandler = async ({ params, locals }) => {
+	await requireMember(locals, params.projectId);
+	const todos = await listTodos(params.projectId);
+	return json({ todos });
+};
+
 export const POST: RequestHandler = async ({ params, request, locals }) => {
 	const { userId } = await requireMember(locals, params.projectId, { edit: true });
 	const body = await request.json().catch(() => null);

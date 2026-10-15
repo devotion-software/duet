@@ -174,6 +174,23 @@ export async function getProjectBySlugForUser(
 		: null;
 }
 
+/** Same shape as {@link getProjectBySlugForUser}, keyed by id for callers that already
+ *  know the project (and have separately checked membership). */
+export async function getProjectById(projectId: string, defaults: ProjectDefaults) {
+	const [row] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
+	return row
+		? {
+				...row,
+				iconUrl: projectIconUrl(row),
+				hiddenFields: parseHiddenFields(row.hiddenFields),
+				listWidth: row.listWidth ?? defaults.listWidth,
+				listWidthSetting: row.listWidth,
+				countSubtasks: row.countSubtasks ?? defaults.countSubtasks,
+				countSubtasksSetting: row.countSubtasks
+			}
+		: null;
+}
+
 interface CreateProjectInput {
 	name: string;
 	description?: string | null;
