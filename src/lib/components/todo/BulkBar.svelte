@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { fly } from 'svelte/transition';
 	import Icon from '#lib/components/ui/Icon.svelte';
+	import Select from '#lib/components/ui/Select.svelte';
 	import Spinner from '#lib/components/ui/Spinner.svelte';
 	import { Copied } from '#lib/copied.svelte';
 	import { toDateInput } from '#lib/date';
@@ -48,10 +49,6 @@
 		onCreateCategory
 	}: Props = $props();
 
-	// Sentinel for the "label" option of each select, so picking applies once
-	// and the control snaps back rather than looking like a stored value.
-	const KEEP = '__keep';
-
 	let busy = $state(false);
 	const copied = new Copied<'list' | 'ai'>();
 	let popover = $state<'category' | 'deadline' | 'tags' | null>(null);
@@ -74,12 +71,6 @@
 		busy = true;
 		if (await onDelete()) onClear();
 		busy = false;
-	}
-
-	function fromSelect(e: Event & { currentTarget: HTMLSelectElement }, key: keyof BulkPatchInput) {
-		const value = e.currentTarget.value;
-		e.currentTarget.value = KEEP;
-		if (value !== KEEP) apply({ [key]: value || null });
 	}
 
 	// Shared category of the selection, if they all agree (null = none).
@@ -183,16 +174,17 @@
 			{/if}
 		</div>
 
-		<label class="ctl">
-			<Icon name="user" size={14} />
-			<select aria-label="Set assignee" disabled={busy} value={KEEP} onchange={(e) => fromSelect(e, 'assigneeId')}>
-				<option value={KEEP} disabled>Assignee</option>
-				<option value="">Unassigned</option>
-				{#each members as m (m.userId)}
-					<option value={m.userId}>{m.name || m.email}</option>
-				{/each}
-			</select>
-		</label>
+		<Select
+			icon="user"
+			variant="ghost"
+			placement="top"
+			momentary
+			disabled={busy}
+			placeholder="Assignee"
+			aria-label="Set assignee"
+			options={[{ value: '', label: 'Unassigned' }, ...members.map((m) => ({ value: m.userId, label: m.name || m.email }))]}
+			onvalue={(v) => apply({ assigneeId: v || null })}
+		/>
 
 		<div class="pop-host">
 			<button
@@ -222,27 +214,29 @@
 			{/if}
 		</div>
 
-		<label class="ctl">
-			<Icon name="flag" size={14} />
-			<select aria-label="Set urgency" disabled={busy} value={KEEP} onchange={(e) => fromSelect(e, 'urgency')}>
-				<option value={KEEP} disabled>Urgency</option>
-				<option value="">None</option>
-				{#each URGENCIES as u (u)}
-					<option value={u}>{URGENCY_META[u].label}</option>
-				{/each}
-			</select>
-		</label>
+		<Select
+			icon="flag"
+			variant="ghost"
+			placement="top"
+			momentary
+			disabled={busy}
+			placeholder="Urgency"
+			aria-label="Set urgency"
+			options={[{ value: '', label: 'None' }, ...URGENCIES.map((u) => ({ value: u, label: URGENCY_META[u].label }))]}
+			onvalue={(v) => apply({ urgency: v || null })}
+		/>
 
-		<label class="ctl">
-			<Icon name="inbox" size={14} />
-			<select aria-label="Set size" disabled={busy} value={KEEP} onchange={(e) => fromSelect(e, 'size')}>
-				<option value={KEEP} disabled>Size</option>
-				<option value="">None</option>
-				{#each SIZES as s (s)}
-					<option value={s}>{SIZE_META[s].full}</option>
-				{/each}
-			</select>
-		</label>
+		<Select
+			icon="inbox"
+			variant="ghost"
+			placement="top"
+			momentary
+			disabled={busy}
+			placeholder="Size"
+			aria-label="Set size"
+			options={[{ value: '', label: 'None' }, ...SIZES.map((s) => ({ value: s, label: SIZE_META[s].full }))]}
+			onvalue={(v) => apply({ size: v || null })}
+		/>
 
 		<div class="pop-host">
 			<button
@@ -399,17 +393,6 @@
 		gap: var(--space-1);
 		padding-left: var(--space-3);
 		border-left: 1px solid var(--border-subtle);
-	}
-	.ctl select {
-		appearance: none;
-		font: inherit;
-		color: inherit;
-		background: none;
-		border: none;
-		cursor: pointer;
-	}
-	.ctl select:focus {
-		outline: none;
 	}
 	.end {
 		display: flex;

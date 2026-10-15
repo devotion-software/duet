@@ -3,8 +3,15 @@
 	import Button from '#lib/components/ui/Button.svelte';
 	import Avatar from '#lib/components/ui/Avatar.svelte';
 	import Icon from '#lib/components/ui/Icon.svelte';
+	import Select from '#lib/components/ui/Select.svelte';
 	import { toasts } from '#lib/components/ui/toast.svelte';
 	import { ROLE_DESCRIPTIONS, type Member, type Role } from '#lib/types';
+
+	const ROLE_OPTIONS = [
+		{ value: 'editor', label: 'Editor' },
+		{ value: 'viewer', label: 'Viewer' },
+		{ value: 'owner', label: 'Owner' }
+	];
 
 	interface Invite {
 		id: string;
@@ -101,11 +108,15 @@
 				placeholder="Invite by email…"
 				aria-label="Invite email"
 			/>
-			<select bind:value={role} aria-label="Role">
-				<option value="editor">Editor</option>
-				<option value="viewer">Viewer</option>
-				<option value="owner">Owner</option>
-			</select>
+			<Select
+				options={ROLE_OPTIONS}
+				value={role}
+				onvalue={(v) => (role = v as Role)}
+				searchable={false}
+				size="sm"
+				class="role-select"
+				aria-label="Role"
+			/>
 			<Button type="submit" variant="primary" loading={adding} disabled={!email.trim()}>Invite</Button>
 		</form>
 		<p class="role-hint">{ROLE_DESCRIPTIONS[role]}</p>
@@ -123,11 +134,15 @@
 					<span class="email">{m.email}</span>
 				</div>
 				{#if canManage && m.userId !== currentUserId}
-					<select value={m.role} onchange={(e) => changeRole(m.userId, e.currentTarget.value as Role)}>
-						<option value="owner">Owner</option>
-						<option value="editor">Editor</option>
-						<option value="viewer">Viewer</option>
-					</select>
+					<Select
+						options={ROLE_OPTIONS}
+						value={m.role}
+						onvalue={(v) => changeRole(m.userId, v as Role)}
+						searchable={false}
+						size="sm"
+						class="member-role-select"
+						aria-label="Role"
+					/>
 					<button class="remove" title="Remove" onclick={() => remove(m.userId)}>
 						<Icon name="x" size={16} />
 					</button>
@@ -173,14 +188,9 @@
 		border-color: var(--accent);
 		box-shadow: 0 0 0 3px var(--accent-ring);
 	}
-	select {
-		background: var(--surface);
-		border: 1px solid var(--border-strong);
-		border-radius: var(--radius-md);
-		padding: 0 var(--space-2);
-		height: 38px;
-		color: var(--text);
-		font: inherit;
+	:global(.role-select) {
+		width: 140px;
+		flex-shrink: 0;
 	}
 	.role-hint {
 		color: var(--text-subtle);
@@ -228,9 +238,9 @@
 		font-size: var(--text-xs);
 		color: var(--text-subtle);
 	}
-	.member select {
-		height: 32px;
-		font-size: var(--text-sm);
+	:global(.member-role-select) {
+		width: 110px;
+		flex-shrink: 0;
 	}
 	.remove {
 		display: inline-flex;

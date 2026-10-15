@@ -3,6 +3,7 @@
 	import Icon from '#lib/components/ui/Icon.svelte';
 	import Avatar from '#lib/components/ui/Avatar.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
+	import Select from '#lib/components/ui/Select.svelte';
 	import Spinner from '#lib/components/ui/Spinner.svelte';
 	import ImageViewer from '#lib/components/ui/ImageViewer.svelte';
 	import Markdown from '#lib/components/Markdown.svelte';
@@ -103,7 +104,6 @@
 		}
 	});
 	let newTagName = $state('');
-	let newCatName = $state('');
 
 	// Re-seed editable fields when switching to a different todo.
 	let lastId = $state(todo.id);
@@ -138,13 +138,6 @@
 		const tag = await onCreateTag(name);
 		newTagName = '';
 		if (tag) onUpdate({ tagIds: [...selectedTagIds, tag.id] });
-	}
-	async function addCategory() {
-		const name = newCatName.trim();
-		if (!name) return;
-		const cat = await onCreateCategory(name);
-		newCatName = '';
-		if (cat) onUpdate({ categoryId: cat.id });
 	}
 	function onkeydown(e: KeyboardEvent) {
 		// A dialog on top (e.g. delete confirmation) owns Escape.
@@ -286,55 +279,49 @@
 			<div class="attrs">
 				<label class="attr">
 					<span class="attr-label"><Icon name="folder" size={14} /> Category</span>
-					<select
+					<Select
+						size="sm"
 						disabled={!canEdit}
 						value={todo.categoryId ?? ''}
-						onchange={(e) => onUpdate({ categoryId: e.currentTarget.value || null })}
-					>
-						<option value="">None</option>
-						{#each categories as c (c.id)}
-							<option value={c.id}>{c.name}</option>
-						{/each}
-					</select>
-					{#if canEdit}
-						<form
-							class="add-inline"
-							onsubmit={(e) => {
-								e.preventDefault();
-								addCategory();
-							}}
-						>
-							<input bind:value={newCatName} placeholder="+ add a category" maxlength="80" />
-						</form>
-					{/if}
+						placeholder="None"
+						aria-label="Category"
+						options={[{ value: '', label: 'None' }, ...categories.map((c) => ({ value: c.id, label: c.name }))]}
+						onvalue={(v) => onUpdate({ categoryId: v || null })}
+						creatable={canEdit}
+						onCreate={async (name) => {
+							const cat = await onCreateCategory(name);
+							return cat ? { value: cat.id, label: cat.name } : null;
+						}}
+					/>
 				</label>
 
 				<label class="attr">
 					<span class="attr-label"><Icon name="corner-down-right" size={14} /> Parent</span>
-					<select
+					<Select
+						size="sm"
 						disabled={!canEdit}
 						value={todo.parentId ?? ''}
-						onchange={(e) => onUpdate({ parentId: e.currentTarget.value || null })}
-					>
-						<option value="">None (top level)</option>
-						{#each parentOptions as { todo: t, depth } (t.id)}
-							<option value={t.id}>{optionLabel(t, depth)}</option>
-						{/each}
-					</select>
+						placeholder="None (top level)"
+						aria-label="Parent"
+						options={[
+							{ value: '', label: 'None (top level)' },
+							...parentOptions.map(({ todo: t, depth }) => ({ value: t.id, label: optionLabel(t, depth) }))
+						]}
+						onvalue={(v) => onUpdate({ parentId: v || null })}
+					/>
 				</label>
 
 				<label class="attr">
 					<span class="attr-label"><Icon name="user" size={14} /> Assignee</span>
-					<select
+					<Select
+						size="sm"
 						disabled={!canEdit}
 						value={todo.assigneeId ?? ''}
-						onchange={(e) => onUpdate({ assigneeId: e.currentTarget.value || null })}
-					>
-						<option value="">Unassigned</option>
-						{#each members as m (m.userId)}
-							<option value={m.userId}>{m.name || m.email}</option>
-						{/each}
-					</select>
+						placeholder="Unassigned"
+						aria-label="Assignee"
+						options={[{ value: '', label: 'Unassigned' }, ...members.map((m) => ({ value: m.userId, label: m.name || m.email }))]}
+						onvalue={(v) => onUpdate({ assigneeId: v || null })}
+					/>
 				</label>
 
 				<label class="attr">
@@ -349,30 +336,28 @@
 
 				<label class="attr">
 					<span class="attr-label"><Icon name="flag" size={14} /> Urgency</span>
-					<select
+					<Select
+						size="sm"
 						disabled={!canEdit}
 						value={todo.urgency ?? ''}
-						onchange={(e) => onUpdate({ urgency: e.currentTarget.value || null })}
-					>
-						<option value="">None</option>
-						{#each URGENCIES as u (u)}
-							<option value={u}>{URGENCY_META[u].label}</option>
-						{/each}
-					</select>
+						placeholder="None"
+						aria-label="Urgency"
+						options={[{ value: '', label: 'None' }, ...URGENCIES.map((u) => ({ value: u, label: URGENCY_META[u].label }))]}
+						onvalue={(v) => onUpdate({ urgency: v || null })}
+					/>
 				</label>
 
 				<label class="attr">
 					<span class="attr-label"><Icon name="inbox" size={14} /> Size</span>
-					<select
+					<Select
+						size="sm"
 						disabled={!canEdit}
 						value={todo.size ?? ''}
-						onchange={(e) => onUpdate({ size: e.currentTarget.value || null })}
-					>
-						<option value="">None</option>
-						{#each SIZES as s (s)}
-							<option value={s}>{SIZE_META[s].full}</option>
-						{/each}
-					</select>
+						placeholder="None"
+						aria-label="Size"
+						options={[{ value: '', label: 'None' }, ...SIZES.map((s) => ({ value: s, label: SIZE_META[s].full }))]}
+						onvalue={(v) => onUpdate({ size: v || null })}
+					/>
 				</label>
 			</div>
 
@@ -784,7 +769,6 @@
 		font-weight: var(--weight-medium);
 		color: var(--text-subtle);
 	}
-	.attr select,
 	.attr input,
 	.desc-input {
 		font: inherit;
@@ -797,7 +781,6 @@
 		min-width: 0;
 		max-width: 100%;
 	}
-	.attr select:focus,
 	.attr input:focus,
 	.desc-input:focus {
 		outline: none;
