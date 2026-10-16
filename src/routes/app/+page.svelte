@@ -6,7 +6,7 @@
 	import ProjectIcon from '#lib/components/ProjectIcon.svelte';
 	import ProjectStatusBadge from '#lib/components/ProjectStatusBadge.svelte';
 	import { toasts } from '#lib/components/ui/toast.svelte';
-	import { buildSidebar } from '#lib/sidebar';
+	import { buildSidebar, moveSidebarItem, type SidebarDrag, type SidebarDrop } from '#lib/sidebar';
 	import { deadlineInfo } from '#lib/date';
 	import { fontStyle } from '#lib/font';
 
@@ -30,6 +30,13 @@
 	const projectById = $derived(new Map(data.projects.map((p) => [p.id, p])));
 	const folderById = $derived(new Map(data.folders.map((f) => [f.id, f])));
 	const isCurrent = (id: string) => projectById.get(id)!.status !== 'archived';
+	// The sidebar arrangement, archived projects dropped. Overwritten optimistically on
+	// drag-drop, then re-derived from the server once it has caught up (see +layout.svelte).
+	let currentSidebar = $derived(
+		buildSidebar(data.folders, data.projects)
+			.map((i) => (i.type === 'folder' ? { ...i, projectIds: i.projectIds.filter(isCurrent) } : i))
+			.filter((i) => i.type === 'folder' || isCurrent(i.id))
+	);
 	// Current projects grouped as in the sidebar: each folder is a group, and runs of
 	// unfoldered projects between them share an unnamed one. Empty groups are dropped.
 	const groups = $derived.by(() => {
@@ -38,11 +45,10 @@
 			folder: (typeof data.folders)[number] | null;
 			projectIds: string[];
 		}[] = [];
-		for (const item of buildSidebar(data.folders, data.projects)) {
+		for (const item of currentSidebar) {
 			if (item.type === 'folder') {
-				const projectIds = item.projectIds.filter(isCurrent);
-				out.push({ id: item.id, folder: folderById.get(item.id)!, projectIds });
-			} else if (isCurrent(item.id)) {
+				out.push({ id: item.id, folder: folderById.get(item.id)!, projectIds: item.projectIds });
+			} else {
 				const last = out.at(-1);
 				if (last && !last.folder) last.projectIds.push(item.id);
 				else out.push({ id: `loose-${item.id}`, folder: null, projectIds: [item.id] });
@@ -53,6 +59,72 @@
 			.map((g) => ({ ...g, projects: g.projectIds.map((id) => projectById.get(id)!) }));
 	});
 	const projects = $derived(groups.flatMap((g) => g.projects));
+
+	// ─── Drag to reorder / move between folders ─────────────────────────────
+	let dragging = $state<SidebarDrag | null>(null);
+	let dropTarget = $state<SidebarDrop | null>(null);
+
+	function ondragstart(e: DragEvent, id: string) {
+		dragging = { type: 'project', id };
+		e.dataTransfer!.effectAllowed = 'move';
+		// Firefox won't start a drag without some data.
+		e.dataTransfer!.setData('text/plain', id);
+	}
+
+	function ondragend() {
+		dragging = null;
+		dropTarget = null;
+	}
+
+	/** Where the pointer would drop the dragged card, or null if it's over itself. */
+	function dropAt(e: DragEvent): SidebarDrop | null {
+		const el = (e.target as Element).closest<HTMLElement>('[data-drop-id]');
+		if (!el) return { pos: 'end' };
+		const { dropId: id, dropKind: kind } = el.dataset as Record<string, string>;
+		if (kind === 'folder') return { id, pos: 'inside' };
+		if (id === dragging?.id) return null;
+		const rect = el.getBoundingClientRect();
+		const pos = (e.clientX - rect.left) / rect.width < 0.5 ? 'before' : 'after';
+		return { id, pos };
+	}
+
+	function ondragover(e: DragEvent) {
+		if (!dragging) return;
+		e.preventDefault();
+		e.dataTransfer!.dropEffect = 'move';
+		dropTarget = dropAt(e);
+	}
+
+	function ondragleave(e: DragEvent) {
+		if (!(e.currentTarget as Element).contains(e.relatedTarget as Node | null)) dropTarget = null;
+	}
+
+	async function ondrop(e: DragEvent) {
+		if (!dragging) return;
+		e.preventDefault();
+		const drop = dropAt(e);
+		const drag = dragging;
+		ondragend();
+		if (!drop) return;
+		const next = moveSidebarItem(currentSidebar, drag, drop);
+		if (JSON.stringify(next) === JSON.stringify(currentSidebar)) return;
+		currentSidebar = next;
+		try {
+			await fetch('/api/sidebar', {
+				method: 'PUT',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ items: next })
+			});
+		} catch (e) {
+			toasts.error((e as Error).message ?? 'Could not reorder');
+		}
+		await invalidateAll();
+	}
+
+	/** The drop indicator class for a card or folder, if the pending drop is next to or inside it. */
+	function dropClass(id: string) {
+		return dropTarget && 'id' in dropTarget && dropTarget.id === id ? `drop-${dropTarget.pos}` : '';
+	}
 
 	let collapsedFolders = $derived(new Set(data.collapsedFolders));
 	function persistFolders(next: Set<string>) {
@@ -180,15 +252,18 @@
 				</span>
 			</h2>
 			{#if projects.length}
-				{#each groups as g (g.id)}
+				<div class="groups" {ondragover} {ondragleave} {ondrop}>
+					{#each groups as g (g.id)}
 					{@const folded = !!g.folder && collapsedFolders.has(g.id)}
 					<div class="group">
 						{#if g.folder}
 							<h3>
 								<button
 									type="button"
-									class="group-head"
+									class="group-head {dropClass(g.folder.id)}"
 									aria-expanded={!folded}
+									data-drop-id={g.folder.id}
+									data-drop-kind="folder"
 									onclick={() => toggleFolder(g.id)}
 								>
 									<Icon name={folded ? 'chevron-right' : 'chevron-down'} size={14} />
@@ -202,7 +277,17 @@
 								{#each g.projects as p (p.id)}
 									{@const s = data.stats[p.id]}
 									{@const total = s.open + s.done}
-									<a class="card" href="/app/{p.slug}" style="--accent: {p.color};{fontStyle(p.font)}">
+									<a
+										class="card {dropClass(p.id)}"
+										class:dragged={dragging?.id === p.id}
+										href="/app/{p.slug}"
+										style="--accent: {p.color};{fontStyle(p.font)}"
+										draggable="true"
+										data-drop-id={p.id}
+										data-drop-kind="project"
+										ondragstart={(e) => ondragstart(e, p.id)}
+										{ondragend}
+									>
 										<div class="card-head">
 											<span class="c-icon project-tile"><ProjectIcon icon={p.icon} iconUrl={p.iconUrl} /></span>
 											<span class="c-name truncate">{p.name}</span>
@@ -236,6 +321,7 @@
 						{/if}
 					</div>
 				{/each}
+				</div>
 			{:else}
 				<p class="none">All your projects are archived.</p>
 			{/if}
@@ -481,6 +567,11 @@
 		font-size: var(--text-xs);
 		font-weight: var(--weight-medium);
 	}
+	.group-head.drop-inside {
+		background: var(--surface-hover);
+		box-shadow: inset 0 0 0 1.5px var(--accent);
+		color: var(--text);
+	}
 
 	/* Project cards */
 	.grid {
@@ -507,6 +598,18 @@
 		transform: translateY(-2px);
 		box-shadow: var(--shadow-md);
 		border-color: var(--accent-border);
+	}
+	.card[draggable='true'] {
+		-webkit-user-drag: element;
+	}
+	.card.dragged {
+		opacity: 0.4;
+	}
+	.card.drop-before {
+		box-shadow: inset 2px 0 0 var(--accent);
+	}
+	.card.drop-after {
+		box-shadow: inset -2px 0 0 var(--accent);
 	}
 	.card-head {
 		display: flex;
