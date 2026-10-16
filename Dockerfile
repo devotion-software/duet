@@ -24,6 +24,8 @@ ENV PORT=3000
 # adapter-node reads these to trust Coolify's reverse proxy for form actions.
 ENV PROTOCOL_HEADER=x-forwarded-proto
 ENV HOST_HEADER=x-forwarded-host
+# adapter-node defaults to a 512K body limit, which rejects attachment uploads well under UPLOAD_MAX_MB.
+ENV BODY_SIZE_LIMIT=20M
 
 COPY --from=deps  /app/node_modules ./node_modules
 COPY --from=build /app/build        ./build
