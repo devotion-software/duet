@@ -1001,6 +1001,7 @@
 		border-radius: var(--radius-md);
 		color: var(--text-subtle);
 		font-size: var(--text-xs);
+		cursor: pointer;
 		transition: all var(--transition-fast);
 	}
 	.dropzone:hover,
