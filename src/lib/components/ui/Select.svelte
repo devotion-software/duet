@@ -97,6 +97,19 @@
 		triggerEl?.focus();
 	}
 
+	// A full-viewport fixed scrim would get trapped inside the bounds of any
+	// ancestor that forms a containing block (backdrop-filter, transform, filter…),
+	// silently breaking click-outside-to-close — Safari enforces this per spec
+	// more strictly than other browsers. Walking up from the click target instead
+	// is immune to ancestor stacking contexts entirely.
+	function onWindowClick(e: MouseEvent) {
+		if (!open) return;
+		const target = e.target as Node | null;
+		if (triggerEl?.contains(target)) return;
+		if (panelEl?.contains(target)) return;
+		close();
+	}
+
 	function pick(opt: SelectOption) {
 		if (opt.disabled) return;
 		if (!momentary) value = opt.value;
@@ -149,6 +162,8 @@
 	});
 </script>
 
+<svelte:window onclick={onWindowClick} />
+
 <div class="select-field {klass}">
 	{#if label}
 		<label for={fieldId}>{label}</label>
@@ -176,7 +191,6 @@
 		</button>
 
 		{#if open}
-			<button class="scrim" aria-label="Close" onclick={close}></button>
 			<div
 				class="panel {placement}"
 				role="listbox"
@@ -355,12 +369,6 @@
 		flex: initial;
 	}
 
-	.scrim {
-		position: fixed;
-		inset: 0;
-		z-index: var(--z-dropdown);
-		cursor: default;
-	}
 	.panel {
 		position: absolute;
 		left: 0;
