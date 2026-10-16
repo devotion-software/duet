@@ -111,7 +111,12 @@ export function markdownExcerpt(src: string | null | undefined, max = 140): stri
 		.replace(/`[^`]*`/g, ' ')
 		.replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
 		.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-		.replace(/[#>*_~-]/g, ' ')
+		.replace(/^\s{0,3}#{1,6}\s+/gm, '')
+		.replace(/^\s{0,3}>\s?/gm, '')
+		.replace(/^\s*(?:[-*+]|\d+[.)])\s+/gm, '')
+		.replace(/(\*\*|__)(.*?)\1/g, '$2')
+		.replace(/(\*|_)(.*?)\1/g, '$2')
+		.replace(/~~(.*?)~~/g, '$1')
 		.replace(/\s+/g, ' ')
 		.trim();
 	return text.length > max ? text.slice(0, max).trimEnd() + '…' : text;
