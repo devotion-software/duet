@@ -328,9 +328,11 @@
 <style>
 	.bulk {
 		position: fixed;
-		left: 50%;
+		left: 0;
+		right: 0;
 		bottom: var(--space-5);
-		transform: translateX(-50%);
+		width: fit-content;
+		margin-inline: auto;
 		z-index: var(--z-dropdown);
 		display: flex;
 		align-items: center;
@@ -531,7 +533,8 @@
 		.bulk {
 			left: var(--space-3);
 			right: var(--space-3);
-			transform: none;
+			width: auto;
+			margin-inline: 0;
 			flex-wrap: wrap;
 		}
 		.controls,
