@@ -165,6 +165,7 @@
 		return imageAttachments.findIndex((a) => a.id === att.id);
 	}
 	let dragging = $state(false);
+	let fileInput: HTMLInputElement | undefined = $state();
 
 	async function uploadFiles(files: Iterable<File>) {
 		const list = [...files];
@@ -443,13 +444,7 @@
 			<div class="section">
 				<div class="desc-head">
 					<span class="section-label"><Icon name="image" size={14} /> Attachments</span>
-					{#if canEdit}
-						<label class="upload-btn">
-							<input type="file" multiple onchange={onFileInput} hidden />
-							{#if uploading}<Spinner size={13} />{:else}<Icon name="plus" size={13} />{/if}
-							Add
-						</label>
-					{/if}
+					{#if canEdit && uploading}<Spinner size={13} />{/if}
 				</div>
 
 				{#if todo.attachments.length}
@@ -496,6 +491,13 @@
 						class:dragging
 						role="button"
 						tabindex="0"
+						onclick={() => fileInput?.click()}
+						onkeydown={(e) => {
+							if (e.key === 'Enter' || e.key === ' ') {
+								e.preventDefault();
+								fileInput?.click();
+							}
+						}}
 						ondragover={(e) => {
 							e.preventDefault();
 							dragging = true;
@@ -503,8 +505,16 @@
 						ondragleave={() => (dragging = false)}
 						ondrop={onDrop}
 					>
+						<input
+							bind:this={fileInput}
+							type="file"
+							multiple
+							onchange={onFileInput}
+							onclick={(e) => e.stopPropagation()}
+							hidden
+						/>
 						<Icon name="upload" size={16} />
-						<span>Drag &amp; drop, paste, or use <strong>Add</strong></span>
+						<span>Drag &amp; drop, paste, or click to upload</span>
 					</div>
 				{/if}
 			</div>
@@ -916,22 +926,6 @@
 	}
 
 	/* Images */
-	.upload-btn {
-		display: inline-flex;
-		align-items: center;
-		gap: 5px;
-		padding: 4px var(--space-2);
-		font-size: var(--text-xs);
-		font-weight: var(--weight-medium);
-		color: var(--accent-text);
-		background: var(--accent-soft);
-		border-radius: var(--radius-sm);
-		cursor: pointer;
-		transition: background var(--transition-fast);
-	}
-	.upload-btn:hover {
-		background: color-mix(in oklab, var(--accent) 22%, var(--surface));
-	}
 	.img-grid {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
