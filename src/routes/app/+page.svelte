@@ -3,6 +3,7 @@
 	import Button from '#lib/components/ui/Button.svelte';
 	import Icon from '#lib/components/ui/Icon.svelte';
 	import ProjectDialog from '#lib/components/ProjectDialog.svelte';
+	import InviteDialog from '#lib/components/InviteDialog.svelte';
 	import ProjectIcon from '#lib/components/ProjectIcon.svelte';
 	import ProjectStatusBadge from '#lib/components/ProjectStatusBadge.svelte';
 	import { toasts } from '#lib/components/ui/toast.svelte';
@@ -13,6 +14,10 @@
 	let { data } = $props();
 
 	let createOpen = $state(false);
+	let inviteOpen = $state(false);
+	const ownedProjects = $derived(
+		data.projects.filter((p) => p.role === 'owner' && p.status !== 'archived')
+	);
 
 	async function createFolder() {
 		try {
@@ -249,6 +254,11 @@
 					<button class="tool-btn" onclick={() => (createOpen = true)}>
 						<Icon name="plus" size={13} /> New project
 					</button>
+					{#if ownedProjects.length}
+						<button class="tool-btn" onclick={() => (inviteOpen = true)}>
+							<Icon name="users" size={13} /> Invite
+						</button>
+					{/if}
 				</span>
 			</h2>
 			{#if projects.length}
@@ -330,6 +340,9 @@
 {/if}
 
 <ProjectDialog bind:open={createOpen} mode="create" />
+{#if ownedProjects.length}
+	<InviteDialog bind:open={inviteOpen} projects={ownedProjects} />
+{/if}
 
 <style>
 	.empty {
