@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Icon, { type IconName } from '#lib/components/ui/Icon.svelte';
 	import Avatar from '#lib/components/ui/Avatar.svelte';
+	import DateField from '#lib/components/ui/DateField.svelte';
 	import { deadlineInfo, toDateInput } from '#lib/date';
 	import { markdownExcerpt } from '#lib/markdown';
 	import { Copied } from '#lib/copied.svelte';
@@ -163,11 +164,6 @@
 		closeMenu();
 		onUpdate?.(todo.id, patch);
 	}
-	function inDays(n: number) {
-		const d = new Date();
-		d.setDate(d.getDate() + n);
-		return toDateInput(d);
-	}
 	// Tags toggle in place so several can be picked in one go.
 	function toggleTag(tagId: string) {
 		const ids = todo.tags.map((t) => t.id);
@@ -193,15 +189,12 @@
 	<hr />
 	<div class="menu-list">
 		{#if key === 'deadline'}
-			{@const current = toDateInput(todo.deadline)}
-			{#each [['Today', 0], ['Tomorrow', 1], ['In a week', 7]] as const as [label, n] (label)}
-				{@render option(label, current === inDays(n), () => set({ deadline: inDays(n) }))}
-			{/each}
-			<input
-				type="date"
+			<DateField
+				inline
+				clearable={false}
+				value={toDateInput(todo.deadline)}
 				aria-label="Pick a date"
-				value={current}
-				onchange={(e) => e.currentTarget.value && set({ deadline: e.currentTarget.value })}
+				onvalue={(v: string | null) => set({ deadline: v })}
 			/>
 			{#if todo.deadline}
 				<hr />

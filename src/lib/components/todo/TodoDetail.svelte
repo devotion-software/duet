@@ -4,6 +4,7 @@
 	import Avatar from '#lib/components/ui/Avatar.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Select from '#lib/components/ui/Select.svelte';
+	import DateField from '#lib/components/ui/DateField.svelte';
 	import Spinner from '#lib/components/ui/Spinner.svelte';
 	import ImageViewer from '#lib/components/ui/ImageViewer.svelte';
 	import DocumentViewer from '#lib/components/ui/DocumentViewer.svelte';
@@ -336,11 +337,12 @@
 
 				<label class="attr">
 					<span class="attr-label"><Icon name="calendar" size={14} /> Deadline</span>
-					<input
-						type="date"
+					<DateField
+						size="sm"
 						disabled={!canEdit}
 						value={toDateInput(todo.deadline)}
-						onchange={(e) => onUpdate({ deadline: e.currentTarget.value || null })}
+						aria-label="Deadline"
+						onvalue={(v: string | null) => onUpdate({ deadline: v })}
 					/>
 				</label>
 

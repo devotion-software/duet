@@ -2,9 +2,9 @@
 	import { fly } from 'svelte/transition';
 	import Icon from '#lib/components/ui/Icon.svelte';
 	import Select from '#lib/components/ui/Select.svelte';
+	import DateField from '#lib/components/ui/DateField.svelte';
 	import Spinner from '#lib/components/ui/Spinner.svelte';
 	import { Copied } from '#lib/copied.svelte';
-	import { toDateInput } from '#lib/date';
 	import {
 		URGENCIES,
 		SIZES,
@@ -94,12 +94,6 @@
 		popover = null;
 		apply({ deadline: value });
 	}
-	function inDays(n: number) {
-		const d = new Date();
-		d.setDate(d.getDate() + n);
-		return toDateInput(d);
-	}
-
 	/** How many of the selected todos carry each tag. */
 	const tagCounts = $derived.by(() => {
 		const counts = new Map<string, number>();
@@ -198,14 +192,7 @@
 			{#if popover === 'deadline'}
 				<button class="scrim" aria-label="Close" onclick={() => (popover = null)}></button>
 				<div class="pop">
-					<button class="pop-item" onclick={() => setDeadline(inDays(0))}>Today</button>
-					<button class="pop-item" onclick={() => setDeadline(inDays(1))}>Tomorrow</button>
-					<button class="pop-item" onclick={() => setDeadline(inDays(7))}>In a week</button>
-					<input
-						type="date"
-						aria-label="Pick a date"
-						onchange={(e) => e.currentTarget.value && setDeadline(e.currentTarget.value)}
-					/>
+					<DateField inline clearable={false} aria-label="Pick a date" onvalue={(v: string | null) => setDeadline(v)} />
 					<hr />
 					<button class="pop-item danger" onclick={() => setDeadline(null)}>
 						<Icon name="x" size={14} /> Clear deadline
