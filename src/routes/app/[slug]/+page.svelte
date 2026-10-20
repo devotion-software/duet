@@ -372,6 +372,14 @@
 	function selectAll() {
 		for (const t of visibleTodos) selectedIds.add(t.id);
 	}
+	function toggleGroupSelection(ids: string[]) {
+		const allSelected = ids.length > 0 && ids.every((id) => selectedIds.has(id));
+		for (const id of ids) {
+			if (allSelected) selectedIds.delete(id);
+			else selectedIds.add(id);
+		}
+		selectMode = true;
+	}
 	function clearSelection() {
 		selectedIds.clear();
 		selectMode = false;
@@ -937,6 +945,8 @@
 		{:else}
 			{#each openGroups as group (group.key)}
 				{@const groupCollapsed = isGroupCollapsed(group.key)}
+				{@const groupIds = group.todos.map((t) => t.id)}
+				{@const groupFullySelected = groupIds.length > 0 && groupIds.every((id) => selectedIds.has(id))}
 				{#if view.group !== 'none'}
 					<h3 class="group-head">
 						<button
@@ -950,6 +960,11 @@
 							<span class:muted={!group.key}>{group.label}</span>
 							<span class="group-count">{group.todos.length}</span>
 						</button>
+						{#if selecting && group.todos.length}
+							<button class="group-select-btn" onclick={() => toggleGroupSelection(groupIds)}>
+								{groupFullySelected ? 'Deselect all' : 'Select all'}
+							</button>
+						{/if}
 					</h3>
 				{/if}
 				{#if !groupCollapsed}
@@ -1310,9 +1325,29 @@
 		color: var(--text);
 	}
 	.group-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-2);
 		margin: var(--space-5) 0 var(--space-2);
 		font-size: var(--text-sm);
 		font-weight: var(--weight-semibold);
+		color: var(--text);
+	}
+	.group-select-btn {
+		display: inline-flex;
+		align-items: center;
+		height: 24px;
+		padding: 0 var(--space-2);
+		border-radius: var(--radius-sm);
+		color: var(--text-subtle);
+		font-size: var(--text-xs);
+		font-weight: var(--weight-medium);
+		white-space: nowrap;
+		transition: all var(--transition-fast);
+	}
+	.group-select-btn:hover {
+		background: var(--surface-hover);
 		color: var(--text);
 	}
 	.group-head:first-of-type {
