@@ -251,6 +251,7 @@
 {/snippet}
 
 <!-- svelte-ignore a11y_no_static_element_interactions (Alt-arrows are the keyboard way to reorder) -->
+<!-- svelte-ignore a11y_click_events_have_key_events (the row click is a pointer-only convenience; everything it does is also reachable via the buttons inside it) -->
 <div
 	class="row {dropPos ? `drop-${dropPos}` : ''}"
 	class:done={todo.completed}
@@ -263,12 +264,17 @@
 	draggable={!!onDragStart && !menuOpen}
 	ondragstart={(e) => onDragStart?.(todo, e)}
 	ondragend={() => onDragEnd?.()}
+	onclick={onBodyClick}
+	onmousedown={(e) => e.shiftKey && onSelect && e.preventDefault()}
 >
 	{#if tree}
 		{#if subtasks.total}
 			<button
 				class="twisty"
-				onclick={() => onToggleCollapse?.(todo.id)}
+				onclick={(e) => {
+					e.stopPropagation();
+					onToggleCollapse?.(todo.id);
+				}}
 				aria-label={collapsed ? 'Expand subtasks' : 'Collapse subtasks'}
 				aria-expanded={!collapsed}
 			>
@@ -282,7 +288,10 @@
 		<button
 			class="select"
 			class:on={selected}
-			onclick={(e) => onSelect?.(todo.id, e)}
+			onclick={(e) => {
+				e.stopPropagation();
+				onSelect?.(todo.id, e);
+			}}
 			aria-label={selected ? 'Deselect task' : 'Select task'}
 			aria-pressed={selected}
 		>
@@ -295,7 +304,10 @@
 		class:skipped={todo.notDoing}
 		class:progress={inProgress}
 		disabled={!canEdit}
-		onclick={() => onToggle(todo.id)}
+		onclick={(e) => {
+			e.stopPropagation();
+			onToggle(todo.id);
+		}}
 		oncontextmenu={(e) => {
 			// Right-click toggles in progress; starting a done task reopens it.
 			if (!onSetInProgress || !canEdit) return;
@@ -310,11 +322,7 @@
 		{:else if todo.completed}<Icon name="check" size={13} strokeWidth={3} />{/if}
 	</button>
 
-	<button
-		class="body"
-		onclick={onBodyClick}
-		onmousedown={(e) => e.shiftKey && onSelect && e.preventDefault()}
-	>
+	<div class="body">
 		<div class="title-line">
 			{#if urgency && !todo.completed}
 				<span
@@ -369,9 +377,10 @@
 				{/if}
 			</div>
 		{/if}
-	</button>
+	</div>
 
-	<div class="right">
+	<!-- svelte-ignore a11y_click_events_have_key_events (only stops the row's click from firing; all actions inside have their own handlers) -->
+	<div class="right" onclick={(e) => e.stopPropagation()}>
 		{#if assignee}
 			<Avatar name={assignee.name} image={assignee.image} size={22} />
 		{/if}
@@ -502,6 +511,7 @@
 		padding: var(--space-3) var(--space-3);
 		border-radius: var(--radius-md);
 		transition: background var(--transition-fast);
+		cursor: pointer;
 	}
 	.row:hover {
 		background: var(--surface-hover);
