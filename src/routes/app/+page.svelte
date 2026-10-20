@@ -1,23 +1,41 @@
 <script lang="ts">
 	import { invalidateAll } from '$app/navigation';
+	import { SvelteSet } from 'svelte/reactivity';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Icon from '#lib/components/ui/Icon.svelte';
 	import ProjectDialog from '#lib/components/ProjectDialog.svelte';
 	import InviteDialog from '#lib/components/InviteDialog.svelte';
+	import ProjectBulkBar from '#lib/components/ProjectBulkBar.svelte';
 	import ProjectIcon from '#lib/components/ProjectIcon.svelte';
 	import ProjectStatusBadge from '#lib/components/ProjectStatusBadge.svelte';
 	import { toasts } from '#lib/components/ui/toast.svelte';
 	import { buildSidebar, moveSidebarItem, type SidebarDrag, type SidebarDrop } from '#lib/sidebar';
 	import { deadlineInfo } from '#lib/date';
 	import { fontStyle } from '#lib/font';
+	import { formatTodosAsChecklist, formatTodosAsJson } from '#lib/todoFormat';
+	import { hydrateTodo, type ProjectStatus, type Member } from '#lib/types';
 
 	let { data } = $props();
 
 	let createOpen = $state(false);
 	let inviteOpen = $state(false);
+	let inviteProjects = $state<(typeof data.projects)>([]);
 	const ownedProjects = $derived(
 		data.projects.filter((p) => p.role === 'owner' && p.status !== 'archived')
 	);
+
+	async function api(url: string, method: string, body?: unknown) {
+		const res = await fetch(url, {
+			method,
+			headers: { 'content-type': 'application/json' },
+			body: body === undefined ? undefined : JSON.stringify(body)
+		});
+		if (!res.ok) {
+			const err = await res.json().catch(() => null);
+			throw new Error(err?.message ?? 'Something went wrong');
+		}
+		return res.json();
+	}
 
 	async function createFolder() {
 		try {
@@ -64,6 +82,169 @@
 			.map((g) => ({ ...g, projects: g.projectIds.map((id) => projectById.get(id)!) }));
 	});
 	const projects = $derived(groups.flatMap((g) => g.projects));
+
+	// ─── Multi-select ────────────────────────────────────────────────────────
+	let selectMode = $state(false);
+	const selectedIds = new SvelteSet<string>();
+	const selecting = $derived(selectMode || selectedIds.size > 0);
+
+	// Drop selections for projects that disappear (deleted, archived away).
+	$effect(() => {
+		const ids = new Set(projects.map((p) => p.id));
+		for (const id of selectedIds) if (!ids.has(id)) selectedIds.delete(id);
+	});
+
+	function selectProject(id: string, e: MouseEvent) {
+		e.preventDefault();
+		if (selectedIds.has(id)) selectedIds.delete(id);
+		else selectedIds.add(id);
+	}
+	function selectAll() {
+		for (const p of projects) selectedIds.add(p.id);
+	}
+	function toggleGroupSelection(ids: string[]) {
+		const allSelected = ids.length > 0 && ids.every((id) => selectedIds.has(id));
+		for (const id of ids) {
+			if (allSelected) selectedIds.delete(id);
+			else selectedIds.add(id);
+		}
+		selectMode = true;
+	}
+	function clearSelection() {
+		selectedIds.clear();
+		selectMode = false;
+	}
+	const selectedProjects = $derived(projects.filter((p) => selectedIds.has(p.id)));
+
+	async function renameSelected(name: string) {
+		const p = selectedProjects[0];
+		if (!p) return false;
+		try {
+			await api(`/api/projects/${p.id}`, 'PATCH', { name });
+			await invalidateAll();
+			return true;
+		} catch (e) {
+			toasts.error((e as Error).message);
+			return false;
+		}
+	}
+
+	async function setStatusSelected(status: ProjectStatus) {
+		try {
+			await api('/api/projects/bulk', 'PATCH', { ids: [...selectedIds], status });
+			await invalidateAll();
+			return true;
+		} catch (e) {
+			toasts.error((e as Error).message);
+			return false;
+		}
+	}
+
+	async function moveSelectedToFolder(folderId: string | null) {
+		const full = buildSidebar(data.folders, data.projects);
+		const ids = new Set(selectedIds);
+		const stripped = full
+			.map((i) => (i.type === 'folder' ? { ...i, projectIds: i.projectIds.filter((id) => !ids.has(id)) } : i))
+			.filter((i) => i.type === 'folder' || !ids.has(i.id));
+		const next = folderId
+			? stripped.map((i) =>
+					i.type === 'folder' && i.id === folderId
+						? { ...i, projectIds: [...i.projectIds, ...ids] }
+						: i
+				)
+			: [...stripped, ...[...ids].map((id) => ({ type: 'project' as const, id }))];
+		try {
+			await api('/api/sidebar', 'PUT', { items: next });
+			await invalidateAll();
+			return true;
+		} catch (e) {
+			toasts.error((e as Error).message);
+			return false;
+		}
+	}
+
+	function inviteSelected() {
+		inviteProjects = selectedProjects;
+		inviteOpen = true;
+	}
+
+	async function loadSelectedMembers(): Promise<Member[]> {
+		try {
+			const lists = await Promise.all(
+				[...selectedIds].map((id) => api(`/api/projects/${id}/members`, 'GET').then((r) => r.members as Member[]))
+			);
+			const byId = new Map<string, Member>();
+			for (const list of lists) for (const m of list) byId.set(m.userId, m);
+			return [...byId.values()];
+		} catch (e) {
+			toasts.error((e as Error).message);
+			return [];
+		}
+	}
+
+	async function removeMemberFromSelected(userId: string) {
+		try {
+			await Promise.all(
+				[...selectedIds].map((id) =>
+					api(`/api/projects/${id}/members/${userId}`, 'DELETE').catch(() => null)
+				)
+			);
+			return true;
+		} catch (e) {
+			toasts.error((e as Error).message);
+			return false;
+		}
+	}
+
+	async function copySelected() {
+		try {
+			const chunks = await Promise.all(
+				selectedProjects.map(async (p) => {
+					const { todos } = await api(`/api/projects/${p.id}/todos`, 'GET');
+					return `# ${p.name}\n\n${formatTodosAsChecklist(todos.map(hydrateTodo))}`;
+				})
+			);
+			await navigator.clipboard.writeText(chunks.join('\n\n'));
+			toasts.success(`Copied ${selectedProjects.length} project${selectedProjects.length === 1 ? '' : 's'} to clipboard`);
+			return true;
+		} catch (e) {
+			toasts.error((e as Error).message ?? 'Could not copy');
+			return false;
+		}
+	}
+
+	async function downloadSelected() {
+		try {
+			const bundles = await Promise.all(
+				selectedProjects.map(async (p) => {
+					const { todos } = await api(`/api/projects/${p.id}/todos`, 'GET');
+					return JSON.parse(formatTodosAsJson(todos.map(hydrateTodo), p));
+				})
+			);
+			const json = JSON.stringify({ exportedAt: new Date().toISOString(), projects: bundles }, null, 2);
+			const url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = `projects-${new Date().toISOString().slice(0, 10)}.json`;
+			a.click();
+			URL.revokeObjectURL(url);
+			return true;
+		} catch (e) {
+			toasts.error((e as Error).message ?? 'Could not export');
+			return false;
+		}
+	}
+
+	async function deleteSelected() {
+		try {
+			await api('/api/projects/bulk', 'DELETE', { ids: [...selectedIds] });
+			await invalidateAll();
+			return true;
+		} catch (e) {
+			toasts.error((e as Error).message);
+			return false;
+		}
+	}
 
 	// ─── Drag to reorder / move between folders ─────────────────────────────
 	let dragging = $state<SidebarDrag | null>(null);
@@ -255,16 +436,28 @@
 						<Icon name="plus" size={13} /> New project
 					</button>
 					{#if ownedProjects.length}
-						<button class="tool-btn" onclick={() => (inviteOpen = true)}>
+						<button
+							class="tool-btn"
+							onclick={() => {
+								inviteProjects = ownedProjects;
+								inviteOpen = true;
+							}}
+						>
 							<Icon name="users" size={13} /> Invite
 						</button>
 					{/if}
+					<button class="tool-btn" onclick={() => (selectMode ? clearSelection() : (selectMode = true))}>
+						<Icon name={selecting ? 'x' : 'check-circle'} size={13} />
+						{selecting ? 'Done selecting' : 'Select'}
+					</button>
 				</span>
 			</h2>
 			{#if projects.length}
 				<div class="groups" {ondragover} {ondragleave} {ondrop}>
 					{#each groups as g (g.id)}
 					{@const folded = !!g.folder && collapsedFolders.has(g.id)}
+					{@const groupIds = g.projects.map((p) => p.id)}
+					{@const groupAllSelected = groupIds.length > 0 && groupIds.every((id) => selectedIds.has(id))}
 					<div class="group">
 						{#if g.folder}
 							<h3>
@@ -280,24 +473,44 @@
 									<span class="truncate">{g.folder.name}</span>
 									<span class="group-count">{g.projects.length}</span>
 								</button>
+								{#if selecting && !folded}
+									<button class="group-select" onclick={() => toggleGroupSelection(groupIds)}>
+										{groupAllSelected ? 'Deselect all' : 'Select all'}
+									</button>
+								{/if}
 							</h3>
+						{:else if selecting}
+							<button class="group-select loose" onclick={() => toggleGroupSelection(groupIds)}>
+								{groupAllSelected ? 'Deselect all' : 'Select all'}
+							</button>
 						{/if}
 						{#if !folded}
 							<div class="grid">
 								{#each g.projects as p (p.id)}
 									{@const s = data.stats[p.id]}
 									{@const total = s.open + s.done}
+									{@const picked = selectedIds.has(p.id)}
 									<a
 										class="card {dropClass(p.id)}"
 										class:dragged={dragging?.id === p.id}
+										class:picked
+										class:selecting
 										href="/app/{p.slug}"
 										style="--accent: {p.color};{fontStyle(p.font)}"
-										draggable="true"
+										draggable={!selecting}
 										data-drop-id={p.id}
 										data-drop-kind="project"
 										ondragstart={(e) => ondragstart(e, p.id)}
 										{ondragend}
+										onclick={(e) => {
+											if (selecting) selectProject(p.id, e);
+										}}
 									>
+										{#if selecting}
+											<span class="c-check" class:on={picked}>
+												{#if picked}<Icon name="check" size={12} strokeWidth={3} />{/if}
+											</span>
+										{/if}
 										<div class="card-head">
 											<span class="c-icon project-tile"><ProjectIcon icon={p.icon} iconUrl={p.iconUrl} /></span>
 											<span class="c-name truncate">{p.name}</span>
@@ -340,8 +553,27 @@
 {/if}
 
 <ProjectDialog bind:open={createOpen} mode="create" />
-{#if ownedProjects.length}
-	<InviteDialog bind:open={inviteOpen} projects={ownedProjects} />
+{#if inviteProjects.length}
+	<InviteDialog bind:open={inviteOpen} projects={inviteProjects} />
+{/if}
+
+{#if selecting && selectedIds.size}
+	<ProjectBulkBar
+		selected={selectedProjects}
+		totalVisible={projects.length}
+		folders={data.folders}
+		onRename={renameSelected}
+		onStatus={setStatusSelected}
+		onMove={moveSelectedToFolder}
+		onInvite={inviteSelected}
+		onLoadMembers={loadSelectedMembers}
+		onRemoveMember={removeMemberFromSelected}
+		onCopy={copySelected}
+		onDownload={downloadSelected}
+		onDelete={deleteSelected}
+		onSelectAll={selectAll}
+		onClear={clearSelection}
+	/>
 {/if}
 
 <style>
@@ -548,7 +780,28 @@
 		margin-top: var(--space-5);
 	}
 	.group h3 {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
 		margin-bottom: var(--space-3);
+	}
+	.group-select {
+		margin-left: auto;
+		padding: var(--space-1) var(--space-2);
+		border-radius: var(--radius-sm);
+		color: var(--accent-text);
+		font-size: var(--text-xs);
+		font-weight: var(--weight-medium);
+		white-space: nowrap;
+	}
+	.group-select:hover {
+		background: var(--accent-soft);
+	}
+	.group-select.loose {
+		display: block;
+		width: 100%;
+		margin: 0 0 var(--space-2);
+		text-align: right;
 	}
 	.group-head {
 		display: flex;
@@ -593,6 +846,7 @@
 		gap: var(--space-4);
 	}
 	.card {
+		position: relative;
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-3);
@@ -611,6 +865,30 @@
 		transform: translateY(-2px);
 		box-shadow: var(--shadow-md);
 		border-color: var(--accent-border);
+	}
+	.card.picked {
+		border-color: var(--accent);
+		box-shadow: 0 0 0 1px var(--accent);
+	}
+	.card.selecting {
+		cursor: pointer;
+	}
+	.c-check {
+		position: absolute;
+		top: var(--space-3);
+		right: var(--space-3);
+		display: grid;
+		place-items: center;
+		width: 20px;
+		height: 20px;
+		border: 1.5px solid var(--border-strong);
+		border-radius: var(--radius-sm);
+		background: var(--surface);
+		color: var(--accent-contrast);
+	}
+	.c-check.on {
+		background: var(--accent);
+		border-color: var(--accent);
 	}
 	.card[draggable='true'] {
 		-webkit-user-drag: element;
