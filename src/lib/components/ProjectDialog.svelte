@@ -6,6 +6,7 @@
 	import TextField from './ui/TextField.svelte';
 	import { LIST_WIDTH, PROJECT_COLORS, PROJECT_EMOJI } from '#lib/palette';
 	import { isValidColor, isGradient } from '#lib/color';
+	import { isValidEmoji } from '#lib/emoji';
 	import {
 		FONT_PRESET_OPTIONS,
 		GOOGLE_FONTS,
@@ -93,6 +94,10 @@
 	let gradAngle = $state(135);
 	let gradStops = $state<string[]>(['#6366f1', '#ec4899']);
 	let icon = $state(project.icon ?? '📋');
+	// What's typed in the free-text emoji box; applied to `icon` only when it's valid.
+	let iconText = $state(project.icon ?? '📋');
+	// Emptying the box while typing shouldn't flash "Invalid" — only once the user leaves it.
+	let iconTouched = $state(false);
 	// An uploaded image overrides the emoji; `iconUrl` is what's shown (saved or a local preview).
 	let iconFile = $state<File | null>(null);
 	let iconUrl = $state<string | null>(project.iconUrl ?? null);
@@ -118,6 +123,8 @@
 	];
 
 	const colorValid = $derived(isValidColor(colorText));
+	const emojiValid = $derived(isValidEmoji(iconText));
+	const showEmojiInvalid = $derived(!emojiValid && (iconText.trim() !== '' || iconTouched));
 	// Empty custom box is fine (a preset is in use); a typed value must be a valid family.
 	const fontValid = $derived(fontText.trim() === '' || isValidFont(fontText));
 	// Load the chosen custom font while the dialog is open so the preview renders in it.
@@ -244,6 +251,8 @@
 				gradStops = [project.color ?? PROJECT_COLORS[0], '#ec4899'];
 			}
 			icon = project.icon ?? '📋';
+			iconText = project.icon ?? '📋';
+			iconTouched = false;
 			// Untracked so picking a file doesn't re-run this reset.
 			untrack(() => setIconFile(null));
 			iconUrl = project.iconUrl ?? null;
@@ -328,8 +337,20 @@
 
 	function pickEmoji(e: string) {
 		icon = e;
+		iconText = e;
+		iconTouched = false;
 		setIconFile(null);
 		if (iconPicker) iconPicker.open = false;
+	}
+
+	/** Apply the typed custom emoji to `icon` once it's a single valid emoji. */
+	function onEmojiInput(value: string) {
+		iconText = value;
+		const trimmed = value.trim();
+		if (trimmed && isValidEmoji(trimmed)) {
+			icon = trimmed;
+			setIconFile(null);
+		}
 	}
 
 	function onIconFile(e: Event) {
@@ -447,6 +468,22 @@
 									{e}
 								</button>
 							{/each}
+						</div>
+						<div class="emoji-text" class:invalid={showEmojiInvalid}>
+							<input
+								type="text"
+								value={iconText}
+								spellcheck="false"
+								autocapitalize="off"
+								autocomplete="off"
+								placeholder="Type or paste any emoji"
+								aria-label="Custom emoji"
+								oninput={(e) => onEmojiInput(e.currentTarget.value)}
+								onblur={() => (iconTouched = true)}
+							/>
+							{#if showEmojiInvalid}
+								<span class="emoji-status">Invalid</span>
+							{/if}
 						</div>
 						<div class="emoji-actions">
 							<Button variant="ghost" size="sm" icon="upload" onclick={() => fileInput?.click()}>
@@ -893,6 +930,37 @@
 		display: grid;
 		grid-template-columns: repeat(7, 1fr);
 		gap: 2px;
+	}
+	.emoji-text {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		margin-top: var(--space-2);
+	}
+	.emoji-text input {
+		flex: 1;
+		min-width: 0;
+		background: var(--surface);
+		border: 1px solid var(--border-strong);
+		border-radius: var(--radius-md);
+		padding: var(--space-2) var(--space-3);
+		color: var(--text);
+		font-size: var(--text-sm);
+		box-shadow: var(--shadow-xs);
+	}
+	.emoji-text input:focus {
+		outline: none;
+		border-color: var(--accent);
+		box-shadow: 0 0 0 3px var(--accent-ring);
+	}
+	.emoji-text.invalid input {
+		border-color: var(--danger);
+	}
+	.emoji-status {
+		flex-shrink: 0;
+		font-size: var(--text-xs);
+		font-weight: var(--weight-medium);
+		color: var(--danger);
 	}
 	.emoji-actions {
 		display: flex;
