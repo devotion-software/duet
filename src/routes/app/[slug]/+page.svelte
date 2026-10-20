@@ -250,11 +250,15 @@
 	// ── Reordering (manual sort only) ──
 	// Open tasks move among their open siblings; under a grouping, only within their group.
 	const canReorder = $derived(canEdit && view.sort === 'manual' && !view.reverse);
+	// Grouped by category or tag: dragging a task into another group's section
+	// re-tags/re-categorizes it, independent of the current sort.
+	const canRegroup = $derived(canEdit && (view.group === 'category' || view.group === 'tag'));
+	const canDrag = $derived(canReorder || canRegroup);
 	let dragging = $state<{ id: string; group?: string } | null>(null);
 	let dropTarget = $state<{ id: string; pos: 'before' | 'after' } | null>(null);
 
 	function onRowDragStart(todo: Todo, e: DragEvent) {
-		dragging = { id: todo.id, group: (e.currentTarget as HTMLElement).dataset.group };
+		dragging = { id: todo.id, group: (e.currentTarget as HTMLElement).dataset.group ?? '' };
 		e.dataTransfer!.effectAllowed = 'move';
 		// Firefox won't start a drag without some data.
 		e.dataTransfer!.setData('text/plain', todo.title);
@@ -270,10 +274,18 @@
 		const drag = dragging && controller.items.find((t) => t.id === dragging!.id);
 		const target = el && controller.items.find((t) => t.id === el.dataset.todoId);
 		if (!el || !drag || !target || target.id === drag.id || target.completed) return null;
-		// Same parent, and top-level tasks stay within their group.
-		if (target.parentId !== drag.parentId || (!drag.parentId && el.dataset.group !== dragging!.group)) return null;
+		if (target.parentId !== drag.parentId) return null;
+		// Top-level tasks dropped in another group's section re-tag/re-categorize them;
+		// everything else (including subtasks, which aren't grouped) just reorders.
+		const groupKey = el.dataset.group ?? '';
+		const crossGroup = !drag.parentId && groupKey !== (dragging!.group ?? '');
+		if (crossGroup ? !canRegroup : !canReorder) return null;
 		const rect = el.getBoundingClientRect();
-		return { id: target.id, pos: e.clientY < rect.top + rect.height / 2 ? ('before' as const) : ('after' as const) };
+		return {
+			id: target.id,
+			pos: e.clientY < rect.top + rect.height / 2 ? ('before' as const) : ('after' as const),
+			groupKey: crossGroup ? groupKey : undefined
+		};
 	}
 	function onListDragOver(e: DragEvent) {
 		if (!dragging) return;
@@ -290,8 +302,25 @@
 		e.preventDefault();
 		const drop = dropAt(e);
 		const id = dragging.id;
+		const fromKey = dragging.group;
 		onRowDragEnd();
-		if (drop) controller.move(id, drop.id, drop.pos);
+		if (!drop) return;
+		if (drop.groupKey !== undefined) regroup(id, fromKey ?? '', drop.groupKey);
+		controller.move(id, drop.id, drop.pos);
+	}
+
+	/** Re-tag or re-categorize a task after it's dropped into a different group's section. */
+	function regroup(id: string, fromKey: string, toKey: string) {
+		if (view.group === 'category') {
+			controller.update(id, { categoryId: toKey || null });
+			return;
+		}
+		const todo = controller.items.find((t) => t.id === id);
+		if (!todo) return;
+		// Moving out of a tag's section drops that tag; moving into one adds it.
+		const ids = todo.tags.map((t) => t.id).filter((t) => t !== fromKey);
+		if (toKey && !ids.includes(toKey)) ids.push(toKey);
+		controller.update(id, { tagIds: ids });
 	}
 
 	/** Swap a task with its open neighbour in the list it's shown in. */
@@ -695,7 +724,7 @@
 		onOutdent={canEdit ? outdent : undefined}
 		{group}
 		hiddenFields={data.project.hiddenFields}
-		onDragStart={canReorder && !todo.completed ? onRowDragStart : undefined}
+		onDragStart={canDrag && !todo.completed ? onRowDragStart : undefined}
 		onDragEnd={onRowDragEnd}
 		dragged={dragging?.id === todo.id}
 		dropPos={dropTarget?.id === todo.id ? dropTarget.pos : null}
