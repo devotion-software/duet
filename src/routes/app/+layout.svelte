@@ -1,8 +1,11 @@
 <script lang="ts">
 	import { browser } from '$app/env';
+	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto, invalidateAll } from '$app/navigation';
 	import { authClient } from '#lib/auth-client';
+	import { authModal } from '#lib/components/ui/authModal.svelte';
+	import AuthModal from '#lib/components/AuthModal.svelte';
 	import Logo from '#lib/components/Logo.svelte';
 	import Icon from '#lib/components/ui/Icon.svelte';
 	import Avatar from '#lib/components/ui/Avatar.svelte';
@@ -391,6 +394,24 @@
 		await authClient.signOut();
 		await goto('/');
 	}
+
+	// Any /api/* request can 401 once the session expires (cookie cleared, revoked
+	// elsewhere, etc). Catch that in one place rather than at every call site so the
+	// user gets a sign-in modal instead of being bounced to a dead page.
+	onMount(() => {
+		const nativeFetch = window.fetch.bind(window);
+		window.fetch = async (input, init) => {
+			const res = await nativeFetch(input, init);
+			if (res.status === 401) {
+				const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+				if (url.startsWith('/api/') && !url.startsWith('/api/auth')) authModal.show();
+			}
+			return res;
+		};
+		return () => {
+			window.fetch = nativeFetch;
+		};
+	});
 
 	function onWindowPointerDown(e: PointerEvent) {
 		if (projectMenu && !projectMenuEl?.contains(e.target as Node)) closeProjectMenu();
@@ -825,6 +846,7 @@
 <SecretsDialog bind:open={secretsOpen} projectId={secretsFor ?? ''} />
 <TagsCategoriesDialog bind:open={tagsCategoriesOpen} projectId={tagsCategoriesFor ?? ''} />
 <ShortcutsDialog bind:open={shortcutsOpen} />
+<AuthModal bind:open={authModal.open} />
 
 <style>
 	.shell {

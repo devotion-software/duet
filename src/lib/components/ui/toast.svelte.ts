@@ -33,6 +33,8 @@ class ToastStore {
 		return this.push(m, 'success', timeout, action);
 	}
 	error(m: string, timeout = 6000) {
+		// The session-expired modal already covers this case, so don't also toast it.
+		if (m === 'Not signed in') return -1;
 		return this.push(m, 'error', timeout);
 	}
 	info(m: string, timeout?: number) {
