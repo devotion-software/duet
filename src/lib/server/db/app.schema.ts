@@ -272,6 +272,36 @@ export const attachments = mysqlTable(
 	(t) => [index('attachments_todo_idx').on(t.todoId)]
 );
 
+export const LINK_KINDS = ['url', 'task'] as const;
+export type LinkKind = (typeof LINK_KINDS)[number];
+
+export const todoLinks = mysqlTable(
+	'todo_links',
+	{
+		id: id(),
+		todoId: varchar('todo_id', { length: 36 })
+			.notNull()
+			.references(() => todos.id, { onDelete: 'cascade' }),
+		kind: mysqlEnum('kind', LINK_KINDS).notNull(),
+		// kind 'url': an external address and an optional display title.
+		url: varchar('url', { length: 2048 }),
+		title: varchar('title', { length: 255 }),
+		// kind 'task': the referenced task, which may live in another project.
+		linkedTodoId: varchar('linked_todo_id', { length: 36 }).references(
+			(): AnyMySqlColumn => todos.id,
+			{ onDelete: 'cascade' }
+		),
+		createdById: varchar('created_by_id', { length: 36 }).references(() => user.id, {
+			onDelete: 'set null'
+		}),
+		createdAt: createdAt()
+	},
+	(t) => [
+		index('todo_links_todo_idx').on(t.todoId),
+		index('todo_links_linked_idx').on(t.linkedTodoId)
+	]
+);
+
 // Edit history: one row per changed field. Values are stored as display text
 // (names, not ids) so entries still read correctly after a tag or category is
 // deleted. Rows written by the same request share a createdAt.
@@ -356,7 +386,18 @@ export const todosRelations = relations(todos, ({ one, many }) => ({
 	subtasks: many(todos, { relationName: 'subtasks' }),
 	todoTags: many(todoTags),
 	attachments: many(attachments),
-	events: many(todoEvents)
+	events: many(todoEvents),
+	links: many(todoLinks, { relationName: 'todoLinks' }),
+	linkedBy: many(todoLinks, { relationName: 'linkedTodo' })
+}));
+
+export const todoLinksRelations = relations(todoLinks, ({ one }) => ({
+	todo: one(todos, { fields: [todoLinks.todoId], references: [todos.id], relationName: 'todoLinks' }),
+	linkedTodo: one(todos, {
+		fields: [todoLinks.linkedTodoId],
+		references: [todos.id],
+		relationName: 'linkedTodo'
+	})
 }));
 
 export const todoEventsRelations = relations(todoEvents, ({ one }) => ({

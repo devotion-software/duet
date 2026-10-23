@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/mysql-core';
 import { db } from './db';
 import {
 	todos,
@@ -6,9 +7,12 @@ import {
 	tags,
 	categories,
 	attachments,
+	todoLinks,
+	projects,
 	projectMembers,
 	type Urgency,
-	type Size
+	type Size,
+	type LinkKind
 } from './db/app.schema';
 import { user } from './db/auth.schema';
 import { newId } from './ids';
@@ -215,6 +219,21 @@ export interface AttachmentRef {
 	size: number | null;
 	url: string;
 }
+export interface TodoLink {
+	id: string;
+	kind: LinkKind;
+	url: string | null;
+	title: string | null;
+	linkedTodo: {
+		id: string;
+		title: string;
+		completed: boolean;
+		deletedAt: Date | null;
+		projectId: string;
+		projectSlug: string;
+		projectName: string;
+	} | null;
+}
 export interface TodoItem {
 	id: string;
 	projectId: string;
@@ -237,6 +256,7 @@ export interface TodoItem {
 	updatedAt: Date;
 	tags: TodoTag[];
 	attachments: AttachmentRef[];
+	links: TodoLink[];
 }
 
 export async function listTodos(projectId: string): Promise<TodoItem[]> {
@@ -302,6 +322,53 @@ export async function listTodos(projectId: string): Promise<TodoItem[]> {
 		attByTodo.set(a.todoId, list);
 	}
 
+	const linkedTodo = alias(todos, 'linked_todo');
+	const linkedProject = alias(projects, 'linked_project');
+	const linkRows = await db
+		.select({
+			todoId: todoLinks.todoId,
+			id: todoLinks.id,
+			kind: todoLinks.kind,
+			url: todoLinks.url,
+			title: todoLinks.title,
+			linkedTodoId: linkedTodo.id,
+			linkedTitle: linkedTodo.title,
+			linkedCompleted: linkedTodo.completed,
+			linkedDeletedAt: linkedTodo.deletedAt,
+			linkedProjectId: linkedProject.id,
+			linkedProjectSlug: linkedProject.slug,
+			linkedProjectName: linkedProject.name
+		})
+		.from(todoLinks)
+		.innerJoin(todos, eq(todos.id, todoLinks.todoId))
+		.leftJoin(linkedTodo, eq(linkedTodo.id, todoLinks.linkedTodoId))
+		.leftJoin(linkedProject, eq(linkedProject.id, linkedTodo.projectId))
+		.where(liveIn(projectId))
+		.orderBy(asc(todoLinks.createdAt));
+
+	const linksByTodo = new Map<string, TodoLink[]>();
+	for (const l of linkRows) {
+		const list = linksByTodo.get(l.todoId) ?? [];
+		list.push({
+			id: l.id,
+			kind: l.kind,
+			url: l.url,
+			title: l.title,
+			linkedTodo: l.linkedTodoId
+				? {
+						id: l.linkedTodoId,
+						title: l.linkedTitle!,
+						completed: l.linkedCompleted!,
+						deletedAt: l.linkedDeletedAt,
+						projectId: l.linkedProjectId!,
+						projectSlug: l.linkedProjectSlug!,
+						projectName: l.linkedProjectName!
+					}
+				: null
+		});
+		linksByTodo.set(l.todoId, list);
+	}
+
 	return rows.map((r) => ({
 		id: r.todo.id,
 		projectId: r.todo.projectId,
@@ -323,7 +390,8 @@ export async function listTodos(projectId: string): Promise<TodoItem[]> {
 		createdAt: r.todo.createdAt,
 		updatedAt: r.todo.updatedAt,
 		tags: tagsByTodo.get(r.todo.id) ?? [],
-		attachments: attByTodo.get(r.todo.id) ?? []
+		attachments: attByTodo.get(r.todo.id) ?? [],
+		links: linksByTodo.get(r.todo.id) ?? []
 	}));
 }
 
@@ -978,4 +1046,110 @@ export async function deleteAttachmentRow(
 ) {
 	await db.delete(attachments).where(eq(attachments.id, att.id));
 	await recordEvents(db, actorId, [{ todoId: att.todoId, field: 'image', from: att.name ?? 'image' }]);
+}
+
+// ─── Links ──────────────────────────────────────────────────────────────────
+/** A lightweight, cross-project todo reference, for the "link a task" picker. */
+export interface TodoRef {
+	id: string;
+	title: string;
+	completed: boolean;
+	projectId: string;
+	projectSlug: string;
+	projectName: string;
+}
+
+/** Every live task in the given projects, for picking a cross-project link target. */
+export async function searchTodosInProjects(projectIds: string[]): Promise<TodoRef[]> {
+	if (!projectIds.length) return [];
+	const rows = await db
+		.select({
+			id: todos.id,
+			title: todos.title,
+			completed: todos.completed,
+			projectId: projects.id,
+			projectSlug: projects.slug,
+			projectName: projects.name
+		})
+		.from(todos)
+		.innerJoin(projects, eq(projects.id, todos.projectId))
+		.where(and(inArray(todos.projectId, projectIds), isNull(todos.deletedAt)))
+		.orderBy(desc(todos.createdAt));
+	return rows;
+}
+
+export async function addUrlLink(
+	todoId: string,
+	data: { url: string; title: string | null },
+	actorId: string
+): Promise<TodoLink> {
+	const id = newId();
+	await db.insert(todoLinks).values({ id, todoId, kind: 'url', url: data.url, title: data.title });
+	await recordEvents(db, actorId, [{ todoId, field: 'link', to: data.title || data.url }]);
+	return { id, kind: 'url', url: data.url, title: data.title, linkedTodo: null };
+}
+
+/** `linkedTodoId` must already be checked to belong to `linkedProjectId` (a project the actor can view). */
+export async function addTaskLink(
+	todoId: string,
+	linkedTodoId: string,
+	actorId: string
+): Promise<TodoLink | null> {
+	const [target] = await db
+		.select({
+			id: todos.id,
+			title: todos.title,
+			completed: todos.completed,
+			deletedAt: todos.deletedAt,
+			projectId: projects.id,
+			projectSlug: projects.slug,
+			projectName: projects.name
+		})
+		.from(todos)
+		.innerJoin(projects, eq(projects.id, todos.projectId))
+		.where(eq(todos.id, linkedTodoId))
+		.limit(1);
+	if (!target) return null;
+
+	const id = newId();
+	await db.insert(todoLinks).values({ id, todoId, kind: 'task', linkedTodoId });
+	await recordEvents(db, actorId, [{ todoId, field: 'link', to: target.title }]);
+	return { id, kind: 'task', url: null, title: null, linkedTodo: target };
+}
+
+/** Fetch a link, verifying it belongs to the given project. */
+export async function getLink(projectId: string, linkId: string) {
+	const linkedTodo = alias(todos, 'linked_todo');
+	const [row] = await db
+		.select({
+			id: todoLinks.id,
+			todoId: todoLinks.todoId,
+			kind: todoLinks.kind,
+			url: todoLinks.url,
+			title: todoLinks.title,
+			linkedTitle: linkedTodo.title
+		})
+		.from(todoLinks)
+		.innerJoin(todos, eq(todos.id, todoLinks.todoId))
+		.leftJoin(linkedTodo, eq(linkedTodo.id, todoLinks.linkedTodoId))
+		.where(and(eq(todoLinks.id, linkId), liveIn(projectId)))
+		.limit(1);
+	return row ?? null;
+}
+
+export async function deleteLink(
+	link: {
+		id: string;
+		todoId: string;
+		kind: LinkKind;
+		url: string | null;
+		title: string | null;
+		linkedTitle: string | null;
+	},
+	actorId: string
+) {
+	await db.delete(todoLinks).where(eq(todoLinks.id, link.id));
+	await recordEvents(db, actorId, [
+		{ todoId: link.todoId, field: 'link', from: link.title || link.linkedTitle || link.url || 'link' }
+	]);
 }

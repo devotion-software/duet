@@ -134,6 +134,13 @@
       "when": 1791973268024,
       "tag": "0018_light_stephen_strange",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "5",
+      "when": 1792754309038,
+      "tag": "0019_living_screwball",
+      "breakpoints": true
     }
   ]
 }

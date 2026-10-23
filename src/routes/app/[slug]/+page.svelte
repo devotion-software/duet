@@ -1031,6 +1031,10 @@
 		onCreateCategory={createCategory}
 		onAddAttachment={(file) => controller.addAttachment(selected!.id, file)}
 		onRemoveAttachment={(id) => controller.removeAttachment(selected!.id, id)}
+		onAddUrlLink={(url, title) => controller.addUrlLink(selected!.id, url, title)}
+		onAddTaskLink={(linkedProjectId, linkedTodoId) =>
+			controller.addTaskLink(selected!.id, linkedProjectId, linkedTodoId)}
+		onRemoveLink={(id) => controller.removeLink(selected!.id, id)}
 		ancestors={controller.ancestorsOf(selected.id)}
 		subtasks={controller.childrenOf(selected.id)}
 		{parentOptions}

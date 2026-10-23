@@ -24,7 +24,8 @@
 		type Tag,
 		type Category,
 		type Member,
-		type Attachment
+		type Attachment,
+		type TodoRef
 	} from '#lib/types';
 	import type { NewTodoInput } from '#lib/stores/todos.svelte';
 
@@ -47,6 +48,9 @@
 		onCreateCategory: (name: string) => Promise<Category | null>;
 		onAddAttachment: (file: File) => Promise<void>;
 		onRemoveAttachment: (id: string) => void;
+		onAddUrlLink: (url: string, title: string | null) => Promise<void>;
+		onAddTaskLink: (linkedProjectId: string, linkedTodoId: string) => Promise<void>;
+		onRemoveLink: (id: string) => void;
 		/** Parent chain, nearest first. */
 		ancestors: Todo[];
 		/** Direct subtasks, in display order. */
@@ -74,6 +78,9 @@
 		onCreateCategory,
 		onAddAttachment,
 		onRemoveAttachment,
+		onAddUrlLink,
+		onAddTaskLink,
+		onRemoveLink,
 		ancestors,
 		subtasks,
 		parentOptions,
@@ -193,6 +200,56 @@
 			.map((i) => i.getAsFile())
 			.filter((f): f is File => !!f);
 		if (files.length) uploadFiles(files);
+	}
+
+	// ── Links ──
+	let newLinkUrl = $state('');
+	let addingUrlLink = $state(false);
+	async function addUrlLink() {
+		const url = newLinkUrl.trim();
+		if (!url || addingUrlLink) return;
+		addingUrlLink = true;
+		try {
+			await onAddUrlLink(url, null);
+			newLinkUrl = '';
+		} finally {
+			addingUrlLink = false;
+		}
+	}
+
+	let taskOptions = $state<TodoRef[] | null>(null);
+	let loadingTaskOptions = $state(false);
+	async function loadTaskOptions() {
+		if (taskOptions || loadingTaskOptions) return;
+		loadingTaskOptions = true;
+		try {
+			const res = await fetch('/api/search/todos');
+			const { todos: list } = await res.json();
+			taskOptions = list as TodoRef[];
+		} finally {
+			loadingTaskOptions = false;
+		}
+	}
+	const linkedTaskIds = $derived(
+		new Set(todo.links.filter((l) => l.linkedTodo).map((l) => l.linkedTodo!.id))
+	);
+	const taskPickerOptions = $derived(
+		(taskOptions ?? [])
+			.filter((t) => t.id !== todo.id && !linkedTaskIds.has(t.id))
+			.map((t) => ({ value: `${t.projectId}:${t.id}`, label: `${t.title} — ${t.projectName}` }))
+	);
+	async function pickTask(value: string | null) {
+		if (!value) return;
+		const [linkedProjectId, linkedTodoId] = value.split(':');
+		await onAddTaskLink(linkedProjectId, linkedTodoId);
+	}
+	function taskLinkHref(l: NonNullable<(typeof todo.links)[number]['linkedTodo']>) {
+		return `/app/${l.projectSlug}?task=${l.id}`;
+	}
+	function openTaskLink(e: MouseEvent, l: NonNullable<(typeof todo.links)[number]['linkedTodo']>) {
+		if (l.projectId !== todo.projectId) return; // Let the anchor navigate normally.
+		e.preventDefault();
+		onOpenTask(l.id);
 	}
 </script>
 
@@ -517,6 +574,79 @@
 						/>
 						<Icon name="upload" size={16} />
 						<span>Drag &amp; drop, paste, or click to upload</span>
+					</div>
+				{/if}
+			</div>
+
+			<!-- Links -->
+			<div class="section">
+				<span class="section-label"><Icon name="link" size={14} /> Links</span>
+
+				{#if todo.links.length}
+					<ul class="link-list">
+						{#each todo.links as l (l.id)}
+							<li class="link-item">
+								{#if l.kind === 'url'}
+									<a class="link-open" href={l.url} target="_blank" rel="noopener noreferrer">
+										<Icon name="external-link" size={14} />
+										<span class="truncate">{l.title || l.url}</span>
+									</a>
+								{:else if l.linkedTodo && !l.linkedTodo.deletedAt}
+									<a
+										class="link-open"
+										class:done={l.linkedTodo.completed}
+										href={taskLinkHref(l.linkedTodo)}
+										onclick={(e) => openTaskLink(e, l.linkedTodo!)}
+									>
+										<Icon name="corner-down-right" size={14} />
+										<span class="truncate">{l.linkedTodo.title}</span>
+										{#if l.linkedTodo.projectId !== todo.projectId}
+											<span class="link-project">{l.linkedTodo.projectName}</span>
+										{/if}
+									</a>
+								{:else}
+									<span class="link-open disabled">
+										<Icon name="corner-down-right" size={14} />
+										<span class="truncate">Task deleted</span>
+									</span>
+								{/if}
+								{#if canEdit}
+									<button class="link-del" onclick={() => onRemoveLink(l.id)} aria-label="Remove link">
+										<Icon name="x" size={12} />
+									</button>
+								{/if}
+							</li>
+						{/each}
+					</ul>
+				{/if}
+
+				{#if canEdit}
+					<div class="link-add">
+						<form
+							class="add-inline link-url"
+							onsubmit={(e) => {
+								e.preventDefault();
+								addUrlLink();
+							}}
+						>
+							<input
+								bind:value={newLinkUrl}
+								placeholder="Paste a URL and press Enter"
+								disabled={addingUrlLink}
+							/>
+						</form>
+						<div class="link-task-picker" onfocusin={loadTaskOptions}>
+							<Select
+								size="sm"
+								variant="ghost"
+								value={null}
+								momentary
+								placeholder={loadingTaskOptions ? 'Loading tasks…' : '+ Link a task'}
+								aria-label="Link a task"
+								options={taskPickerOptions}
+								onvalue={pickTask}
+							/>
+						</div>
 					</div>
 				{/if}
 			</div>
@@ -867,6 +997,76 @@
 		border-color: var(--accent);
 		border-style: solid;
 	}
+	/* Links */
+	.link-list {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
+	}
+	.link-item {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+	}
+	.link-open {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		min-width: 0;
+		flex: 1;
+		padding: var(--space-1) var(--space-2);
+		border-radius: var(--radius-sm);
+		font-size: var(--text-sm);
+		color: var(--text);
+		background: var(--surface-inset);
+		border: 1px solid var(--border);
+		transition: border-color var(--transition-fast);
+	}
+	.link-open:hover {
+		border-color: var(--accent);
+	}
+	.link-open.done {
+		color: var(--text-faint);
+		text-decoration: line-through;
+	}
+	.link-open.disabled {
+		color: var(--text-faint);
+		cursor: default;
+	}
+	.link-open.disabled:hover {
+		border-color: var(--border);
+	}
+	.link-project {
+		flex-shrink: 0;
+		padding: 1px 6px;
+		border-radius: var(--radius-full);
+		font-size: 10px;
+		font-weight: var(--weight-medium);
+		color: var(--text-subtle);
+		background: var(--surface-raised);
+	}
+	.link-del {
+		display: inline-flex;
+		padding: 4px;
+		border-radius: var(--radius-full);
+		color: var(--text-faint);
+	}
+	.link-del:hover {
+		color: #fff;
+		background: var(--danger);
+	}
+	.link-add {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+	}
+	.link-url {
+		flex: 1;
+	}
+	.link-task-picker :global(.control.ghost) {
+		white-space: nowrap;
+	}
+
 	.desc-head {
 		display: flex;
 		align-items: center;

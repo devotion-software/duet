@@ -156,7 +156,8 @@ export class TodosController {
 			createdAt: now,
 			updatedAt: now,
 			tags: [],
-			attachments: []
+			attachments: [],
+			links: []
 		};
 		this.items.push(optimistic);
 		// An open subtask means its ancestors aren't done any more.
@@ -393,6 +394,49 @@ export class TodosController {
 			todo.attachments = [...todo.attachments];
 		} catch (e) {
 			todo.attachments = prev;
+			toasts.error((e as Error).message);
+		}
+	}
+
+	async addUrlLink(todoId: string, url: string, title: string | null): Promise<void> {
+		const todo = this.items.find((t) => t.id === todoId);
+		if (!todo) return;
+		try {
+			const res = await this.#fetch(`${this.#base()}/todos/${todoId}/links`, {
+				method: 'POST',
+				body: JSON.stringify({ kind: 'url', url, title })
+			});
+			const { link } = await res.json();
+			todo.links = [...todo.links, link];
+		} catch (e) {
+			toasts.error((e as Error).message);
+		}
+	}
+
+	async addTaskLink(todoId: string, linkedProjectId: string, linkedTodoId: string): Promise<void> {
+		const todo = this.items.find((t) => t.id === todoId);
+		if (!todo) return;
+		try {
+			const res = await this.#fetch(`${this.#base()}/todos/${todoId}/links`, {
+				method: 'POST',
+				body: JSON.stringify({ kind: 'task', linkedProjectId, linkedTodoId })
+			});
+			const { link } = await res.json();
+			todo.links = [...todo.links, link];
+		} catch (e) {
+			toasts.error((e as Error).message);
+		}
+	}
+
+	async removeLink(todoId: string, linkId: string): Promise<void> {
+		const todo = this.items.find((t) => t.id === todoId);
+		if (!todo) return;
+		const prev = todo.links;
+		todo.links = todo.links.filter((l) => l.id !== linkId);
+		try {
+			await this.#fetch(`${this.#base()}/links/${linkId}`, { method: 'DELETE' });
+		} catch (e) {
+			todo.links = prev;
 			toasts.error((e as Error).message);
 		}
 	}

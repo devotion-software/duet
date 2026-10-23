@@ -66,6 +66,15 @@ export interface Category {
 	name: string;
 	color: string;
 }
+/** A lightweight, cross-project todo reference, for the "link a task" picker. */
+export interface TodoRef {
+	id: string;
+	title: string;
+	completed: boolean;
+	projectId: string;
+	projectSlug: string;
+	projectName: string;
+}
 export interface Member {
 	userId: string;
 	name: string;
@@ -79,6 +88,26 @@ export interface Attachment {
 	mime: string | null;
 	size: number | null;
 	url: string;
+}
+
+export type LinkKind = 'url' | 'task';
+export interface TodoLink {
+	id: string;
+	kind: LinkKind;
+	/** kind 'url' only. */
+	url: string | null;
+	/** kind 'url' only; a custom display title. */
+	title: string | null;
+	/** kind 'task' only; null if the referenced task no longer exists. */
+	linkedTodo: {
+		id: string;
+		title: string;
+		completed: boolean;
+		deletedAt: Date | null;
+		projectId: string;
+		projectSlug: string;
+		projectName: string;
+	} | null;
 }
 
 export interface Todo {
@@ -106,12 +135,13 @@ export interface Todo {
 	updatedAt: Date;
 	tags: Tag[];
 	attachments: Attachment[];
+	links: TodoLink[];
 }
 
 /** Where a task stands, as recorded in its history. */
 export type TaskStatus = 'open' | 'in_progress' | 'done' | 'not_doing';
 
-/** What a history entry changed; `tag`/`image` entries are one add or removal each. */
+/** What a history entry changed; `tag`/`image`/`link` entries are one add or removal each. */
 export type TodoField =
 	| 'created'
 	| 'title'
@@ -125,6 +155,7 @@ export type TodoField =
 	| 'size'
 	| 'tag'
 	| 'image'
+	| 'link'
 	| 'deleted'
 	| 'restored';
 
@@ -149,7 +180,11 @@ export function hydrateTodo(raw: Record<string, unknown>): Todo {
 		startedAt: d(raw.startedAt),
 		deadline: d(raw.deadline),
 		createdAt: d(raw.createdAt) ?? new Date(),
-		updatedAt: d(raw.updatedAt) ?? new Date()
+		updatedAt: d(raw.updatedAt) ?? new Date(),
+		links: ((raw.links as TodoLink[] | undefined) ?? []).map((l) => ({
+			...l,
+			linkedTodo: l.linkedTodo ? { ...l.linkedTodo, deletedAt: d(l.linkedTodo.deletedAt) } : null
+		}))
 	};
 }
 
