@@ -43,6 +43,7 @@
 		onSetInProgress: (id: string, inProgress: boolean) => void;
 		onNotDoing: (id: string) => void;
 		onDelete: (id: string) => void;
+		onDuplicate?: (id: string) => void;
 		onCopy: (todo: Todo) => Promise<boolean>;
 		onClose: () => void;
 		onCreateTag: (name: string) => Promise<Tag | null>;
@@ -73,6 +74,7 @@
 		onSetInProgress,
 		onNotDoing,
 		onDelete,
+		onDuplicate,
 		onCopy,
 		onClose,
 		onCreateTag,
@@ -307,6 +309,11 @@
 					<Icon name={copied.icon('head')} size={17} />
 				</button>
 				{#if canEdit}
+					{#if onDuplicate}
+						<button class="icon-act" title="Duplicate" onclick={() => onDuplicate(todo.id)}>
+							<Icon name="files" size={17} />
+						</button>
+					{/if}
 					<button class="icon-act danger" title="Delete" onclick={() => onDelete(todo.id)}>
 						<Icon name="trash" size={17} />
 					</button>

@@ -715,6 +715,7 @@
 		}}
 		onCopy={copyTodo}
 		onDelete={() => requestDelete(todo)}
+		onDuplicate={canEdit ? (id) => controller.duplicate(id) : undefined}
 		onUpdate={canEdit ? (id, patch) => controller.update(id, patch) : undefined}
 		onCreateTag={createTag}
 		members={data.members}
@@ -1025,6 +1026,7 @@
 		onSetInProgress={(id, on) => controller.setInProgress(id, on)}
 		onNotDoing={(id) => controller.toggle(id, true)}
 		onDelete={() => requestDelete(selected!, () => selectTodo(null))}
+		onDuplicate={canEdit ? (id) => controller.duplicate(id) : undefined}
 		onCopy={copyTodo}
 		onClose={() => selectTodo(null)}
 		onCreateTag={createTag}

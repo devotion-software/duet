@@ -32,6 +32,7 @@
 		/** `quick` is set by the inline icon, which copies just the title for bare tasks. */
 		onCopy: (todo: Todo, quick?: boolean) => Promise<boolean>;
 		onDelete: (id: string) => void;
+		onDuplicate?: (id: string) => void;
 		/** Quick edits from the menu; the field submenus show only when this is set. */
 		onUpdate?: (id: string, patch: Partial<NewTodoInput>) => void;
 		onCreateTag?: (name: string) => Promise<Tag | null>;
@@ -74,6 +75,7 @@
 		onOpen,
 		onCopy,
 		onDelete,
+		onDuplicate,
 		onUpdate,
 		onCreateTag,
 		members = [],
@@ -485,6 +487,17 @@
 								>
 									<Icon name="copy" size={15} /> Copy for AI
 								</button>
+								{#if onDuplicate}
+									<button
+										class="menu-item"
+										onclick={() => {
+											menuOpen = false;
+											onDuplicate(todo.id);
+										}}
+									>
+										<Icon name="files" size={15} /> Duplicate
+									</button>
+								{/if}
 								<hr />
 								<button
 									class="menu-item danger"

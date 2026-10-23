@@ -184,6 +184,23 @@ export class TodosController {
 		}
 	}
 
+	/** Copy a task as a new open sibling, carrying over its fields but not its subtasks or attachments. */
+	async duplicate(id: string): Promise<Todo | null> {
+		const todo = this.items.find((t) => t.id === id);
+		if (!todo) return null;
+		return this.add({
+			title: todo.title,
+			parentId: todo.parentId,
+			description: todo.description,
+			categoryId: todo.categoryId,
+			assigneeId: todo.assigneeId,
+			deadline: todo.deadline ? todo.deadline.toISOString() : null,
+			urgency: todo.urgency,
+			size: todo.size,
+			tagIds: todo.tags.map((t) => t.id)
+		});
+	}
+
 	/** Close an open task (as done, or as not doing), or reopen a closed one. */
 	async toggle(id: string, notDoing = false) {
 		const todo = this.items.find((t) => t.id === id);
