@@ -17,6 +17,8 @@
 			target="_blank"
 			rel="noopener noreferrer"
 			onclick={(e) => e.stopPropagation()}>{seg.text}</a
+		>{:else if seg.type === 'bold'}<strong>{seg.text}</strong
+		>{:else if seg.type === 'italic'}<em>{seg.text}</em
 		>{:else}{seg.text}{/if}{/each}
 
 <style>

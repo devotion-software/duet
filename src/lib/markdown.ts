@@ -103,16 +103,22 @@ export async function renderMarkdown(src: string | null | undefined): Promise<st
 	});
 }
 
-/** A run of plain text, an inline code span, or a markdown link, as parsed from a title by {@link splitTitleSegments}. */
+/** A run of plain text, an inline code span, a markdown link, or bold/italic emphasis, as parsed from a title by {@link splitTitleSegments}. */
 export type TitleSegment =
 	| { type: 'text'; text: string }
 	| { type: 'code'; text: string }
-	| { type: 'link'; text: string; href: string };
+	| { type: 'link'; text: string; href: string }
+	| { type: 'bold'; text: string }
+	| { type: 'italic'; text: string };
 
 const INLINE_CODE_RE = /`([^`\n]+)`/g;
-const LINK_RE = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g;
+// Matched left-to-right in priority order: code, link, bold (** or __), italic (* or _).
+// Underscore variants require word boundaries (CommonMark-style) so identifiers like
+// `snake_case_var` aren't mistaken for italic/bold emphasis.
+const TOKEN_RE =
+	/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)|\*\*([^*\n]+)\*\*|(?<!\w)__([^_\n]+)__(?!\w)|\*([^*\n]+)\*|(?<!\w)_([^_\n]+)_(?!\w)/g;
 
-/** Split a task title on backtick `code` spans and `[text](url)` links for display. */
+/** Split a task title on backtick `code` spans, `[text](url)` links, and `**bold**`/`*italic*`/`_italic_` for display. */
 export function splitTitleSegments(title: string): TitleSegment[] {
 	const segments: TitleSegment[] = [];
 
@@ -120,23 +126,28 @@ export function splitTitleSegments(title: string): TitleSegment[] {
 	let match: RegExpExecArray | null;
 	INLINE_CODE_RE.lastIndex = 0;
 	while ((match = INLINE_CODE_RE.exec(title))) {
-		if (match.index > last) segments.push(...splitLinks(title.slice(last, match.index)));
+		if (match.index > last) segments.push(...splitEmphasis(title.slice(last, match.index)));
 		segments.push({ type: 'code', text: match[1] });
 		last = INLINE_CODE_RE.lastIndex;
 	}
-	if (last < title.length) segments.push(...splitLinks(title.slice(last)));
+	if (last < title.length) segments.push(...splitEmphasis(title.slice(last)));
 	return segments;
 }
 
-function splitLinks(text: string): TitleSegment[] {
+function splitEmphasis(text: string): TitleSegment[] {
 	const segments: TitleSegment[] = [];
 	let last = 0;
 	let match: RegExpExecArray | null;
-	LINK_RE.lastIndex = 0;
-	while ((match = LINK_RE.exec(text))) {
+	TOKEN_RE.lastIndex = 0;
+	while ((match = TOKEN_RE.exec(text))) {
 		if (match.index > last) segments.push({ type: 'text', text: text.slice(last, match.index) });
-		segments.push({ type: 'link', text: match[1], href: match[2] });
-		last = LINK_RE.lastIndex;
+		const [, linkText, href, boldStar, boldUnder, italicStar, italicUnder] = match;
+		if (href !== undefined) segments.push({ type: 'link', text: linkText, href });
+		else if (boldStar !== undefined) segments.push({ type: 'bold', text: boldStar });
+		else if (boldUnder !== undefined) segments.push({ type: 'bold', text: boldUnder });
+		else if (italicStar !== undefined) segments.push({ type: 'italic', text: italicStar });
+		else segments.push({ type: 'italic', text: italicUnder });
+		last = TOKEN_RE.lastIndex;
 	}
 	if (last < text.length) segments.push({ type: 'text', text: text.slice(last) });
 	return segments;
