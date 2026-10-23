@@ -88,9 +88,11 @@
 	let showNotDoing = $state(false);
 	// Deep-link support: /app/slug?task=<id> opens that task's detail.
 	let selectedId = $state<string | null>(page.url.searchParams.get('task'));
+	let focusTitleOnOpen = $state(false);
 
-	function selectTodo(id: string | null) {
+	function selectTodo(id: string | null, opts?: { focusTitle?: boolean }) {
 		selectedId = id;
+		focusTitleOnOpen = !!opts?.focusTitle;
 		if (!browser) return;
 		const url = new URL(page.url.href);
 		if (id) url.searchParams.set('task', id);
@@ -514,7 +516,7 @@
 			case 'o':
 				if (onControl()) return;
 				handled();
-				selectTodo(current.id);
+				selectTodo(current.id, { focusTitle: true });
 				return;
 			case 'ArrowLeft': {
 				handled();
@@ -1042,6 +1044,7 @@
 		{parentOptions}
 		onOpenTask={selectTodo}
 		onAddSubtask={(title) => controller.add({ title, parentId: selected!.id })}
+		focusTitle={focusTitleOnOpen}
 	/>
 {/if}
 

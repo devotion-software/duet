@@ -61,6 +61,8 @@
 		parentOptions: { todo: Todo; depth: number }[];
 		onOpenTask: (id: string) => void;
 		onAddSubtask: (title: string) => Promise<unknown>;
+		/** Focus the title field, cursor at the end, as soon as the panel opens. */
+		focusTitle?: boolean;
 	}
 	let {
 		todo,
@@ -88,7 +90,8 @@
 		subtasks,
 		parentOptions,
 		onOpenTask,
-		onAddSubtask
+		onAddSubtask,
+		focusTitle = false
 	}: Props = $props();
 
 	const inProgress = $derived(isInProgress(todo));
@@ -114,6 +117,15 @@
 		if (titleEl) {
 			titleEl.style.height = 'auto';
 			titleEl.style.height = `${titleEl.scrollHeight}px`;
+		}
+	});
+
+	// Opened via keyboard: focus the title with the cursor at the end.
+	$effect(() => {
+		if (focusTitle && titleEl) {
+			titleEl.focus();
+			const end = titleEl.value.length;
+			titleEl.setSelectionRange(end, end);
 		}
 	});
 	let newTagName = $state('');
