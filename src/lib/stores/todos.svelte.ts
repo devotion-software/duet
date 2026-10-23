@@ -445,6 +445,23 @@ export class TodosController {
 		}
 	}
 
+	async updateLink(todoId: string, linkId: string, data: { url: string; title: string | null }): Promise<void> {
+		const todo = this.items.find((t) => t.id === todoId);
+		if (!todo) return;
+		const prev = todo.links;
+		try {
+			const res = await this.#fetch(`${this.#base()}/links/${linkId}`, {
+				method: 'PATCH',
+				body: JSON.stringify(data)
+			});
+			const { link } = await res.json();
+			todo.links = todo.links.map((l) => (l.id === linkId ? link : l));
+		} catch (e) {
+			todo.links = prev;
+			toasts.error((e as Error).message);
+		}
+	}
+
 	async removeLink(todoId: string, linkId: string): Promise<void> {
 		const todo = this.items.find((t) => t.id === todoId);
 		if (!todo) return;

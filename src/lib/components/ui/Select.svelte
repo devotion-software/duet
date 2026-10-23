@@ -71,6 +71,7 @@
 	let inputEl = $state<HTMLInputElement>();
 	let panelEl = $state<HTMLDivElement>();
 	let triggerEl = $state<HTMLButtonElement>();
+	let alignRight = $state(false);
 
 	const selected = $derived(options.find((o) => o.value === value) ?? null);
 
@@ -160,6 +161,16 @@
 		void filtered;
 		active = 0;
 	});
+
+	// Flip the panel to the right edge of the trigger when it would otherwise
+	// overflow the viewport — a fixed `left: 0` anchor pushes it off-screen for
+	// triggers near the right edge (e.g. in a narrow side panel).
+	$effect(() => {
+		if (!open || !panelEl || !triggerEl) return;
+		const triggerRect = triggerEl.getBoundingClientRect();
+		const panelWidth = panelEl.getBoundingClientRect().width;
+		alignRight = triggerRect.left + panelWidth > window.innerWidth;
+	});
 </script>
 
 <svelte:window onclick={onWindowClick} />
@@ -193,6 +204,7 @@
 		{#if open}
 			<div
 				class="panel {placement}"
+				class:align-right={alignRight}
 				role="listbox"
 				tabindex="-1"
 				bind:this={panelEl}
@@ -391,6 +403,10 @@
 	}
 	.panel.top {
 		bottom: calc(100% + 6px);
+	}
+	.panel.align-right {
+		left: auto;
+		right: 0;
 	}
 	.search {
 		flex-shrink: 0;

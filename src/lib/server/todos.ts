@@ -1078,6 +1078,17 @@ export async function searchTodosInProjects(projectIds: string[]): Promise<TodoR
 	return rows;
 }
 
+export function normalizeUrl(raw: string): string | null {
+	const trimmed = raw.trim();
+	if (!trimmed) return null;
+	const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+	try {
+		return new URL(withScheme).href;
+	} catch {
+		return null;
+	}
+}
+
 export async function addUrlLink(
 	todoId: string,
 	data: { url: string; title: string | null },
@@ -1115,6 +1126,17 @@ export async function addTaskLink(
 	await db.insert(todoLinks).values({ id, todoId, kind: 'task', linkedTodoId });
 	await recordEvents(db, actorId, [{ todoId, field: 'link', to: target.title }]);
 	return { id, kind: 'task', url: null, title: null, linkedTodo: target };
+}
+
+export async function updateUrlLink(
+	link: { id: string; todoId: string; url: string | null; title: string | null },
+	data: { url: string; title: string | null },
+	actorId: string
+): Promise<void> {
+	await db.update(todoLinks).set({ url: data.url, title: data.title }).where(eq(todoLinks.id, link.id));
+	await recordEvents(db, actorId, [
+		{ todoId: link.todoId, field: 'link', from: link.title || link.url, to: data.title || data.url }
+	]);
 }
 
 /** Fetch a link, verifying it belongs to the given project. */

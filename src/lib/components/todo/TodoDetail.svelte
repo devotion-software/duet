@@ -52,6 +52,7 @@
 		onRemoveAttachment: (id: string) => void;
 		onAddUrlLink: (url: string, title: string | null) => Promise<void>;
 		onAddTaskLink: (linkedProjectId: string, linkedTodoId: string) => Promise<void>;
+		onUpdateLink: (id: string, url: string, title: string | null) => Promise<void>;
 		onRemoveLink: (id: string) => void;
 		/** Parent chain, nearest first. */
 		ancestors: Todo[];
@@ -85,6 +86,7 @@
 		onRemoveAttachment,
 		onAddUrlLink,
 		onAddTaskLink,
+		onUpdateLink,
 		onRemoveLink,
 		ancestors,
 		subtasks,
@@ -230,6 +232,25 @@
 		} finally {
 			addingUrlLink = false;
 		}
+	}
+
+	let editingLinkId = $state<string | null>(null);
+	let editLinkUrl = $state('');
+	let editLinkTitle = $state('');
+	function startEditLink(l: { id: string; url: string | null; title: string | null }) {
+		editingLinkId = l.id;
+		editLinkUrl = l.url ?? '';
+		editLinkTitle = l.title ?? '';
+	}
+	function cancelEditLink() {
+		editingLinkId = null;
+	}
+	async function saveEditLink() {
+		const url = editLinkUrl.trim();
+		if (!url || !editingLinkId) return;
+		const id = editingLinkId;
+		editingLinkId = null;
+		await onUpdateLink(id, url, editLinkTitle.trim() || null);
 	}
 
 	let taskOptions = $state<TodoRef[] | null>(null);
@@ -608,7 +629,24 @@
 					<ul class="link-list">
 						{#each todo.links as l (l.id)}
 							<li class="link-item">
-								{#if l.kind === 'url'}
+								{#if l.kind === 'url' && editingLinkId === l.id}
+									<form
+										class="link-edit"
+										onsubmit={(e) => {
+											e.preventDefault();
+											saveEditLink();
+										}}
+									>
+										<input bind:value={editLinkTitle} placeholder="Title (optional)" maxlength="255" />
+										<input bind:value={editLinkUrl} placeholder="URL" required />
+										<button type="submit" class="link-save" aria-label="Save link">
+											<Icon name="check" size={13} strokeWidth={2.5} />
+										</button>
+										<button type="button" class="link-cancel" onclick={cancelEditLink} aria-label="Cancel">
+											<Icon name="x" size={13} />
+										</button>
+									</form>
+								{:else if l.kind === 'url'}
 									<a class="link-open" href={l.url} target="_blank" rel="noopener noreferrer">
 										<Icon name="external-link" size={14} />
 										<span class="truncate">{l.title || l.url}</span>
@@ -632,7 +670,12 @@
 										<span class="truncate">Task deleted</span>
 									</span>
 								{/if}
-								{#if canEdit}
+								{#if canEdit && editingLinkId !== l.id}
+									{#if l.kind === 'url'}
+										<button class="link-edit-btn" onclick={() => startEditLink(l)} aria-label="Edit link">
+											<Icon name="pencil" size={12} />
+										</button>
+									{/if}
 									<button class="link-del" onclick={() => onRemoveLink(l.id)} aria-label="Remove link">
 										<Icon name="x" size={12} />
 									</button>
@@ -1067,8 +1110,10 @@
 		color: var(--text-subtle);
 		background: var(--surface-raised);
 	}
-	.link-del {
+	.link-del,
+	.link-edit-btn {
 		display: inline-flex;
+		flex-shrink: 0;
 		padding: 4px;
 		border-radius: var(--radius-full);
 		color: var(--text-faint);
@@ -1076,6 +1121,47 @@
 	.link-del:hover {
 		color: #fff;
 		background: var(--danger);
+	}
+	.link-edit-btn:hover {
+		color: var(--text);
+		background: var(--surface-active);
+	}
+	.link-edit {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+		min-width: 0;
+		flex: 1;
+	}
+	.link-edit input {
+		min-width: 0;
+		flex: 1;
+		background: var(--surface-inset);
+		border: 1px solid var(--border-strong);
+		border-radius: var(--radius-sm);
+		padding: var(--space-1) var(--space-2);
+		font-size: var(--text-sm);
+		color: var(--text);
+	}
+	.link-edit input:focus {
+		outline: none;
+		border-color: var(--accent);
+	}
+	.link-save,
+	.link-cancel {
+		display: inline-flex;
+		flex-shrink: 0;
+		padding: 4px;
+		border-radius: var(--radius-full);
+		color: var(--text-faint);
+	}
+	.link-save:hover {
+		color: #fff;
+		background: var(--accent);
+	}
+	.link-cancel:hover {
+		color: var(--text);
+		background: var(--surface-active);
 	}
 	.link-add {
 		display: flex;

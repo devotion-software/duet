@@ -1,20 +1,9 @@
 import { json, error } from '@sveltejs/kit';
 import { requireMember } from '#lib/server/guard';
 import { getMembership } from '#lib/server/projects';
-import { addUrlLink, addTaskLink, listTodos, todoBelongsToProject } from '#lib/server/todos';
+import { addUrlLink, addTaskLink, listTodos, todoBelongsToProject, normalizeUrl } from '#lib/server/todos';
 import { publish } from '#lib/server/realtime';
 import type { RequestHandler } from './$types';
-
-function normalizeUrl(raw: string): string | null {
-	const trimmed = raw.trim();
-	if (!trimmed) return null;
-	const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-	try {
-		return new URL(withScheme).href;
-	} catch {
-		return null;
-	}
-}
 
 export const POST: RequestHandler = async ({ params, request, locals }) => {
 	const { userId } = await requireMember(locals, params.projectId, { edit: true });

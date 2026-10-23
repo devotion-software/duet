@@ -1038,6 +1038,7 @@
 		onAddUrlLink={(url, title) => controller.addUrlLink(selected!.id, url, title)}
 		onAddTaskLink={(linkedProjectId, linkedTodoId) =>
 			controller.addTaskLink(selected!.id, linkedProjectId, linkedTodoId)}
+		onUpdateLink={(id, url, title) => controller.updateLink(selected!.id, id, { url, title })}
 		onRemoveLink={(id) => controller.removeLink(selected!.id, id)}
 		ancestors={controller.ancestorsOf(selected.id)}
 		subtasks={controller.childrenOf(selected.id)}
