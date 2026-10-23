@@ -521,6 +521,8 @@
 			{/if}
 			{#if openCount > 0}
 				<span class="p-count">{openCount}</span>
+			{:else if p.totalCount > 0}
+				<span class="p-done" title="All tasks done"><Icon name="check" size={13} strokeWidth={3} /></span>
 			{/if}
 		</a>
 	{/if}
@@ -1046,6 +1048,15 @@
 		background: color-mix(in oklab, var(--accent) 22%, transparent);
 		color: var(--accent-text);
 	}
+	.p-done {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 20px;
+		height: 20px;
+		flex-shrink: 0;
+		color: var(--success);
+	}
 
 	/* Folders */
 	.home-link {
@@ -1380,6 +1391,7 @@
 		:global(html[data-sidebar='collapsed']) .brand :global(.word),
 		:global(html[data-sidebar='collapsed']) .p-name,
 		:global(html[data-sidebar='collapsed']) .p-count,
+		:global(html[data-sidebar='collapsed']) .p-done,
 		:global(html[data-sidebar='collapsed']) .new-project span,
 		:global(html[data-sidebar='collapsed']) .f-name,
 		:global(html[data-sidebar='collapsed']) .new-folder,

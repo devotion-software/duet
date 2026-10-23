@@ -514,6 +514,11 @@
 										<div class="card-head">
 											<span class="c-icon project-tile"><ProjectIcon icon={p.icon} iconUrl={p.iconUrl} /></span>
 											<span class="c-name truncate">{p.name}</span>
+											{#if total > 0 && s.open === 0}
+												<span class="c-done" title="All tasks done">
+													<Icon name="check-circle" size={16} />
+												</span>
+											{/if}
 											<ProjectStatusBadge status={p.status} />
 										</div>
 										{#if p.description}
@@ -916,6 +921,11 @@
 		flex: 1;
 		min-width: 0;
 		font-weight: var(--weight-semibold);
+	}
+	.c-done {
+		display: inline-flex;
+		flex-shrink: 0;
+		color: var(--success);
 	}
 	.c-desc {
 		color: var(--text-muted);
