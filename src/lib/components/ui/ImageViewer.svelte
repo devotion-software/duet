@@ -242,7 +242,7 @@
 				<a href={current.src} target="_blank" rel="noreferrer" aria-label="Open original" title="Open original">
 					<Icon name="external-link" size={18} />
 				</a>
-				<a href={current.src} download={current.name ?? ''} aria-label="Download" title="Download">
+				<a href={`${current.src}${current.src.includes('?') ? '&' : '?'}download=1`} download={current.name ?? ''} aria-label="Download" title="Download">
 					<Icon name="download" size={18} />
 				</a>
 				<button onclick={close} aria-label="Close" title="Close (Esc)">

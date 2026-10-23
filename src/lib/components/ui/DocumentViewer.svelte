@@ -99,7 +99,7 @@
 				<a href={doc.src} target="_blank" rel="noreferrer" aria-label="Open original" title="Open original">
 					<Icon name="external-link" size={18} />
 				</a>
-				<a href={doc.src} download={doc.name ?? ''} aria-label="Download" title="Download">
+				<a href={`${doc.src}${doc.src.includes('?') ? '&' : '?'}download=1`} download={doc.name ?? ''} aria-label="Download" title="Download">
 					<Icon name="download" size={18} />
 				</a>
 				<button onclick={onClose} aria-label="Close" title="Close (Esc)">

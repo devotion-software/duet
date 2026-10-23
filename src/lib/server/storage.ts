@@ -72,9 +72,16 @@ export async function deleteObject(key: string): Promise<void> {
 }
 
 /** A short-lived signed URL to read the object directly from R2. */
-export async function presignGet(key: string, expiresSeconds = 3600): Promise<string> {
+export async function presignGet(
+	key: string,
+	expiresSeconds = 3600,
+	responseContentDisposition?: string
+): Promise<string> {
 	const url = new URL(objectUrl(key));
 	url.searchParams.set('X-Amz-Expires', String(expiresSeconds));
+	if (responseContentDisposition) {
+		url.searchParams.set('response-content-disposition', responseContentDisposition);
+	}
 	const signed = await r2().sign(url.toString(), {
 		method: 'GET',
 		aws: { signQuery: true }
