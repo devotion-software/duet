@@ -103,6 +103,45 @@ export async function renderMarkdown(src: string | null | undefined): Promise<st
 	});
 }
 
+/** A run of plain text, an inline code span, or a markdown link, as parsed from a title by {@link splitTitleSegments}. */
+export type TitleSegment =
+	| { type: 'text'; text: string }
+	| { type: 'code'; text: string }
+	| { type: 'link'; text: string; href: string };
+
+const INLINE_CODE_RE = /`([^`\n]+)`/g;
+const LINK_RE = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g;
+
+/** Split a task title on backtick `code` spans and `[text](url)` links for display. */
+export function splitTitleSegments(title: string): TitleSegment[] {
+	const segments: TitleSegment[] = [];
+
+	let last = 0;
+	let match: RegExpExecArray | null;
+	INLINE_CODE_RE.lastIndex = 0;
+	while ((match = INLINE_CODE_RE.exec(title))) {
+		if (match.index > last) segments.push(...splitLinks(title.slice(last, match.index)));
+		segments.push({ type: 'code', text: match[1] });
+		last = INLINE_CODE_RE.lastIndex;
+	}
+	if (last < title.length) segments.push(...splitLinks(title.slice(last)));
+	return segments;
+}
+
+function splitLinks(text: string): TitleSegment[] {
+	const segments: TitleSegment[] = [];
+	let last = 0;
+	let match: RegExpExecArray | null;
+	LINK_RE.lastIndex = 0;
+	while ((match = LINK_RE.exec(text))) {
+		if (match.index > last) segments.push({ type: 'text', text: text.slice(last, match.index) });
+		segments.push({ type: 'link', text: match[1], href: match[2] });
+		last = LINK_RE.lastIndex;
+	}
+	if (last < text.length) segments.push({ type: 'text', text: text.slice(last) });
+	return segments;
+}
+
 /** Plain-text excerpt for list previews (strips markdown syntax). */
 export function markdownExcerpt(src: string | null | undefined, max = 140): string {
 	if (!src) return '';

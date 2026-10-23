@@ -9,6 +9,7 @@
 	import ImageViewer from '#lib/components/ui/ImageViewer.svelte';
 	import DocumentViewer from '#lib/components/ui/DocumentViewer.svelte';
 	import Markdown from '#lib/components/Markdown.svelte';
+	import TitleText from '#lib/components/ui/TitleText.svelte';
 	import SubtaskAdd from '#lib/components/todo/SubtaskAdd.svelte';
 	import TodoHistory from '#lib/components/todo/TodoHistory.svelte';
 	import { toDateInput } from '#lib/date';
@@ -322,7 +323,7 @@
 					{#each [...ancestors].reverse() as a, i (a.id)}
 						{#if i}<Icon name="chevron-right" size={12} />{/if}
 						<button class="crumb" class:done={a.completed} onclick={() => onOpenTask(a.id)}>
-							{a.title}
+							<TitleText text={a.title} />
 						</button>
 					{/each}
 				</nav>
@@ -488,7 +489,9 @@
 									{#if sub.notDoing}<Icon name="x" size={9} strokeWidth={3} />
 									{:else if sub.completed}<Icon name="check" size={10} strokeWidth={3} />{/if}
 								</button>
-								<button class="sub-title" onclick={() => onOpenTask(sub.id)}>{sub.title}</button>
+								<button class="sub-title" onclick={() => onOpenTask(sub.id)}
+									><TitleText text={sub.title} /></button
+								>
 								<Icon name="chevron-right" size={14} />
 							</li>
 						{/each}
@@ -599,7 +602,7 @@
 										onclick={(e) => openTaskLink(e, l.linkedTodo!)}
 									>
 										<Icon name="corner-down-right" size={14} />
-										<span class="truncate">{l.linkedTodo.title}</span>
+										<span class="truncate"><TitleText text={l.linkedTodo.title} /></span>
 										{#if l.linkedTodo.projectId !== todo.projectId}
 											<span class="link-project">{l.linkedTodo.projectName}</span>
 										{/if}

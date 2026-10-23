@@ -4,6 +4,7 @@
 	import DateField from '#lib/components/ui/DateField.svelte';
 	import { deadlineInfo, toDateInput } from '#lib/date';
 	import { markdownExcerpt } from '#lib/markdown';
+	import TitleText from '#lib/components/ui/TitleText.svelte';
 	import { Copied } from '#lib/copied.svelte';
 	import {
 		URGENCIES,
@@ -331,7 +332,7 @@
 					title="{URGENCY_META[urgency].label} urgency"
 				></span>
 			{/if}
-			<span class="title">{todo.title}</span>
+			<span class="title"><TitleText text={todo.title} /></span>
 		</div>
 
 		{#if excerpt || inProgress || progress || category || tags.length || deadline || size || notes || images}
