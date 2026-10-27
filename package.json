@@ -1,13 +1,13 @@
 {
 	"name": "duet",
 	"private": true,
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
 		"build": "vite build",
 		"preview": "vite preview",
-		"prepare": "svelte-kit sync || echo ''; git config core.hooksPath .githooks",
+		"prepare": "svelte-kit sync || echo ''; git config core.hooksPath .githooks 2>/dev/null || true",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"db:up": "docker compose up -d",
