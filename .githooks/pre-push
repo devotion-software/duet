@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# Prompts to bump package.json version when pushing to main, then commits the bump
+# so it's included in the push.
+set -e
+
+pushing_main=false
+while read -r local_ref local_sha remote_ref remote_sha; do
+	if [ "$remote_ref" = "refs/heads/main" ] && [ "$local_sha" != "0000000000000000000000000000000000000000" ]; then
+		pushing_main=true
+	fi
+done
+
+if [ "$pushing_main" != true ]; then
+	exit 0
+fi
+
+if [ ! -t 1 ] || [ ! -e /dev/tty ]; then
+	exit 0
+fi
+
+current_version=$(node -p "require('./package.json').version")
+echo "Pushing to main (current version: $current_version)." > /dev/tty
+echo "Bump version? [p]atch / [m]inor / [M]ajor / [n]one (default: n): " > /dev/tty
+read -r choice < /dev/tty
+
+case "$choice" in
+	p|P) bump=patch ;;
+	m) bump=minor ;;
+	M) bump=major ;;
+	*) exit 0 ;;
+esac
+
+npm version "$bump" --no-git-tag-version > /dev/null
+new_version=$(node -p "require('./package.json').version")
+
+git add package.json package-lock.json 2>/dev/null || git add package.json
+git commit -m "Bump version to $new_version" --quiet
+
+echo "Bumped version to $new_version and committed." > /dev/tty
