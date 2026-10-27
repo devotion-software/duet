@@ -27,6 +27,7 @@ export interface BulkPatchInput {
 	/** With `completed`, close as not doing rather than done. */
 	notDoing?: boolean;
 	inProgress?: boolean;
+	toTest?: boolean;
 	addTagIds?: string[];
 	removeTagIds?: string[];
 }
@@ -145,6 +146,7 @@ export class TodosController {
 			completedAt: null,
 			notDoing: false,
 			startedAt: null,
+			testingAt: null,
 			deadline: input.deadline ? new Date(input.deadline) : null,
 			urgency: (input.urgency as Todo['urgency']) ?? null,
 			size: (input.size as Todo['size']) ?? null,
@@ -273,6 +275,32 @@ export class TodosController {
 			for (const t of (todos ?? []) as Record<string, unknown>[]) this.#replace(hydrateTodo(t));
 		} catch (e) {
 			todo.startedAt = prev;
+			for (const t of reopened) {
+				t.completed = true;
+				t.completedAt = new Date();
+			}
+			toasts.error((e as Error).message);
+		}
+	}
+
+	/** Mark a task ready for testing (or clear that); marking a done task reopens it. */
+	async setTesting(id: string, toTest: boolean) {
+		const todo = this.items.find((t) => t.id === id);
+		if (!todo) return;
+		const prev = todo.testingAt;
+		const reopened = toTest ? this.#cascadeCompleted(id, false) : [];
+		todo.testingAt = toTest ? (prev ?? new Date()) : null;
+		if (toTest) todo.startedAt = null;
+		try {
+			const res = await this.#fetch(`${this.#base()}/todos/${id}`, {
+				method: 'PATCH',
+				body: JSON.stringify({ toTest })
+			});
+			const { todo: updated, todos } = await res.json();
+			if (updated) this.#replace(hydrateTodo(updated));
+			for (const t of (todos ?? []) as Record<string, unknown>[]) this.#replace(hydrateTodo(t));
+		} catch (e) {
+			todo.testingAt = prev;
 			for (const t of reopened) {
 				t.completed = true;
 				t.completedAt = new Date();

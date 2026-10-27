@@ -21,6 +21,7 @@
 		URGENCY_META,
 		SIZE_META,
 		isInProgress,
+		isToTest,
 		type Todo,
 		type Tag,
 		type Category,
@@ -41,6 +42,7 @@
 		onUpdate: (patch: Partial<NewTodoInput>) => void;
 		onToggle: (id: string) => void;
 		onSetInProgress: (id: string, inProgress: boolean) => void;
+		onSetTesting: (id: string, toTest: boolean) => void;
 		onNotDoing: (id: string) => void;
 		onDelete: (id: string) => void;
 		onDuplicate?: (id: string) => void;
@@ -75,6 +77,7 @@
 		onUpdate,
 		onToggle,
 		onSetInProgress,
+		onSetTesting,
 		onNotDoing,
 		onDelete,
 		onDuplicate,
@@ -97,6 +100,7 @@
 	}: Props = $props();
 
 	const inProgress = $derived(isInProgress(todo));
+	const toTest = $derived(isToTest(todo));
 
 	const copied = new Copied<'head' | 'cta'>();
 	async function copy(button: 'head' | 'cta') {
@@ -325,6 +329,17 @@
 					>
 						<Icon name="clock" size={13} />
 						<span>{inProgress ? 'In progress' : 'Start'}</span>
+					</button>
+					<button
+						class="check testing"
+						class:on={toTest}
+						disabled={!canEdit}
+						onclick={() => onSetTesting(todo.id, !toTest)}
+						aria-pressed={toTest}
+						title={toTest ? 'Clear to test' : 'Mark ready for testing'}
+					>
+						<Icon name="eye" size={13} />
+						<span>{toTest ? 'To test' : 'Mark to test'}</span>
 					</button>
 					<button
 						class="check"
@@ -818,7 +833,8 @@
 		border-color: var(--border-strong);
 		color: var(--text-muted);
 	}
-	.check.progress.on {
+	.check.progress.on,
+	.check.testing.on {
 		background: var(--accent-soft);
 		color: var(--accent-text);
 	}

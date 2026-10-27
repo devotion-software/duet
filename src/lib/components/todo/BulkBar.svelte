@@ -11,6 +11,7 @@
 		URGENCY_META,
 		SIZE_META,
 		isInProgress,
+		isToTest,
 		type Todo,
 		type Tag,
 		type Category,
@@ -64,6 +65,8 @@
 	const allDone = $derived(selected.length > 0 && selected.every((t) => t.completed));
 	// Likewise, if everything selected is already in progress, the action stops it.
 	const allStarted = $derived(selected.length > 0 && selected.every(isInProgress));
+	// Likewise, if everything selected is already marked to test, the action clears it.
+	const allToTest = $derived(selected.length > 0 && selected.every(isToTest));
 
 	async function deleteSelected() {
 		const n = selected.length;
@@ -287,6 +290,10 @@
 		<button class="ctl" disabled={busy} onclick={() => apply({ inProgress: !allStarted })}>
 			<Icon name="clock" size={14} />
 			{allStarted ? 'Stop' : 'Start'}
+		</button>
+		<button class="ctl" disabled={busy} onclick={() => apply({ toTest: !allToTest })}>
+			<Icon name="eye" size={14} />
+			{allToTest ? 'Clear to test' : 'To test'}
 		</button>
 		<button class="ctl" disabled={busy} onclick={() => apply({ completed: !allDone })}>
 			<Icon name={allDone ? 'circle' : 'check-circle'} size={14} />

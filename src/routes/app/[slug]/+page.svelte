@@ -710,6 +710,7 @@
 		{canEdit}
 		onToggle={(id) => controller.toggle(id)}
 		onSetInProgress={canEdit ? (id, on) => controller.setInProgress(id, on) : undefined}
+		onSetTesting={canEdit ? (id, on) => controller.setTesting(id, on) : undefined}
 		onNotDoing={canEdit ? (id) => controller.toggle(id, true) : undefined}
 		onOpen={(t) => {
 			focusedId = t.id;
@@ -1026,6 +1027,7 @@
 		onUpdate={(patch) => controller.update(selected!.id, patch)}
 		onToggle={(id) => controller.toggle(id)}
 		onSetInProgress={(id, on) => controller.setInProgress(id, on)}
+		onSetTesting={(id, on) => controller.setTesting(id, on)}
 		onNotDoing={(id) => controller.toggle(id, true)}
 		onDelete={() => requestDelete(selected!, () => selectTodo(null))}
 		onDuplicate={canEdit ? (id) => controller.duplicate(id) : undefined}

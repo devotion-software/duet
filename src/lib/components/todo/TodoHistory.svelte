@@ -123,7 +123,10 @@
 				if (e.to === 'done') return { verb: 'completed this task' };
 				if (e.to === 'not_doing') return { verb: 'closed as not doing' };
 				if (e.to === 'in_progress') return { verb: 'started work' };
-				return { verb: e.from === 'in_progress' ? 'stopped work' : 'reopened this task' };
+				if (e.to === 'to_test') return { verb: 'marked ready for testing' };
+				if (e.from === 'in_progress') return { verb: 'stopped work' };
+				if (e.from === 'to_test') return { verb: 'moved out of testing' };
+				return { verb: 'reopened this task' };
 			case 'title':
 				return { verb: 'renamed to', value: to, was: from };
 			case 'description':

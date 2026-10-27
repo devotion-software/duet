@@ -12,6 +12,7 @@
 		URGENCY_META,
 		SIZE_META,
 		isInProgress,
+		isToTest,
 		type Category,
 		type Member,
 		type RowField,
@@ -26,6 +27,7 @@
 		canEdit: boolean;
 		onToggle: (id: string) => void;
 		onSetInProgress?: (id: string, inProgress: boolean) => void;
+		onSetTesting?: (id: string, toTest: boolean) => void;
 		/** Close an open task without doing it. */
 		onNotDoing?: (id: string) => void;
 		onOpen: (todo: Todo) => void;
@@ -71,6 +73,7 @@
 		canEdit,
 		onToggle,
 		onSetInProgress,
+		onSetTesting,
 		onNotDoing,
 		onOpen,
 		onCopy,
@@ -128,6 +131,7 @@
 	const images = $derived(shows('attachments') ? todo.attachments.length : 0);
 	const excerpt = $derived(shows('excerpt') ? markdownExcerpt(todo.description, 400) : '');
 	const inProgress = $derived(isInProgress(todo));
+	const toTest = $derived(isToTest(todo));
 	let menuOpen = $state(false);
 
 	type Submenu = 'deadline' | 'assignee' | 'urgency' | 'size' | 'category' | 'tags';
@@ -306,6 +310,7 @@
 		class:on={todo.completed}
 		class:skipped={todo.notDoing}
 		class:progress={inProgress}
+		class:testing={toTest}
 		disabled={!canEdit}
 		onclick={(e) => {
 			e.stopPropagation();
@@ -319,7 +324,7 @@
 		}}
 		aria-label={todo.completed ? 'Mark as not done' : 'Mark as done'}
 		aria-pressed={todo.completed}
-		title={inProgress ? 'In progress' : todo.notDoing ? 'Not doing' : undefined}
+		title={toTest ? 'To test' : inProgress ? 'In progress' : todo.notDoing ? 'Not doing' : undefined}
 	>
 		{#if todo.notDoing}<Icon name="x" size={12} strokeWidth={3} />
 		{:else if todo.completed}<Icon name="check" size={13} strokeWidth={3} />{/if}
@@ -337,10 +342,13 @@
 			<span class="title"><TitleText text={todo.title} /></span>
 		</div>
 
-		{#if excerpt || inProgress || progress || category || tags.length || deadline || size || notes || images}
+		{#if excerpt || inProgress || toTest || progress || category || tags.length || deadline || size || notes || images}
 			<div class="meta">
 				{#if inProgress}
 					<span class="chip started"><Icon name="clock" size={12} />In progress</span>
+				{/if}
+				{#if toTest}
+					<span class="chip testing"><Icon name="eye" size={12} />To test</span>
 				{/if}
 				{#if progress}
 					<span
@@ -443,6 +451,18 @@
 									>
 										<Icon name="clock" size={15} />
 										{inProgress ? 'Stop progress' : 'Mark in progress'}
+									</button>
+								{/if}
+								{#if onSetTesting && !todo.completed}
+									<button
+										class="menu-item"
+										onclick={() => {
+											menuOpen = false;
+											onSetTesting(todo.id, !toTest);
+										}}
+									>
+										<Icon name="eye" size={15} />
+										{toTest ? 'Clear to test' : 'Mark to test'}
 									</button>
 								{/if}
 								{#if onNotDoing && !todo.completed}
@@ -612,6 +632,12 @@
 		background: linear-gradient(90deg, var(--accent) 50%, transparent 50%) content-box;
 		padding: 2px;
 	}
+	/* Three-quarter-filled ring: done and awaiting testing. */
+	.check.testing {
+		border-color: var(--accent);
+		background: conic-gradient(var(--accent) 270deg, transparent 270deg) content-box;
+		padding: 2px;
+	}
 	.check:disabled {
 		cursor: default;
 	}
@@ -704,7 +730,8 @@
 	.chip.ghost {
 		padding: 2px 5px;
 	}
-	.chip.started {
+	.chip.started,
+	.chip.testing {
 		color: var(--accent-text);
 		background: var(--accent-soft);
 	}

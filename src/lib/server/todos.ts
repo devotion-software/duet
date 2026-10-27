@@ -122,7 +122,7 @@ async function setCompleted(
 			.update(todos)
 			.set(
 				completed
-					? { completed, completedAt: new Date(), startedAt: null, notDoing }
+					? { completed, completedAt: new Date(), startedAt: null, testingAt: null, notDoing }
 					: { completed, completedAt: null, notDoing: false }
 			)
 			.where(and(inArray(todos.id, targets), eq(todos.completed, !completed)));
@@ -379,6 +379,7 @@ export async function listTodos(projectId: string): Promise<TodoItem[]> {
 		completedAt: r.todo.completedAt,
 		notDoing: r.todo.notDoing,
 		startedAt: r.todo.startedAt,
+		testingAt: r.todo.testingAt,
 		deadline: r.todo.deadline,
 		urgency: r.todo.urgency,
 		size: r.todo.size,
@@ -416,10 +417,25 @@ async function setInProgress(conn: Conn, projectId: string, ids: string[], inPro
 		return [];
 	}
 	const reopened = await setCompleted(conn, projectId, ids, false);
-	// Keep the original start time for tasks already in progress.
+	// Keep the original start time for tasks already in progress; back in progress means not awaiting testing.
 	await conn
 		.update(todos)
-		.set({ startedAt: sql`coalesce(${todos.startedAt}, now(3))` })
+		.set({ startedAt: sql`coalesce(${todos.startedAt}, now(3))`, testingAt: null })
+		.where(inArray(todos.id, ids));
+	return reopened;
+}
+
+/** Mark tasks ready for testing (or clear that); starting a done task reopens it (and its ancestors). */
+async function setTesting(conn: Conn, projectId: string, ids: string[], toTest: boolean) {
+	if (!toTest) {
+		await conn.update(todos).set({ testingAt: null }).where(inArray(todos.id, ids));
+		return [];
+	}
+	const reopened = await setCompleted(conn, projectId, ids, false);
+	// Keep the original mark time for tasks already awaiting testing; superseded by active work.
+	await conn
+		.update(todos)
+		.set({ testingAt: sql`coalesce(${todos.testingAt}, now(3))`, startedAt: null })
 		.where(inArray(todos.id, ids));
 	return reopened;
 }
@@ -458,7 +474,7 @@ export async function createTodo(projectId: string, userId: string, input: TodoI
 export async function updateTodo(
 	projectId: string,
 	todoId: string,
-	input: Partial<TodoInput> & { inProgress?: boolean },
+	input: Partial<TodoInput> & { inProgress?: boolean; toTest?: boolean },
 	actorId: string
 ): Promise<string[]> {
 	return tracked(db, projectId, actorId, async () => {
@@ -492,6 +508,8 @@ export async function updateTodo(
 		if (input.tagIds !== undefined) await setTodoTags(todoId, input.tagIds);
 		if (input.inProgress !== undefined)
 			affected = [...affected, ...(await setInProgress(db, projectId, [todoId], input.inProgress))];
+		if (input.toTest !== undefined)
+			affected = [...affected, ...(await setTesting(db, projectId, [todoId], input.toTest))];
 		return affected;
 	});
 }
@@ -506,6 +524,7 @@ export interface BulkPatch {
 	/** With `completed`, close as not doing rather than done. */
 	notDoing?: boolean;
 	inProgress?: boolean;
+	toTest?: boolean;
 	/** Tags are added/removed per todo rather than replaced wholesale. */
 	addTagIds?: string[];
 	removeTagIds?: string[];
@@ -546,6 +565,9 @@ export async function bulkUpdateTodos(
 			}
 			if (patch.inProgress !== undefined) {
 				for (const id of await setInProgress(tx, projectId, ids, patch.inProgress)) touched.add(id);
+			}
+			if (patch.toTest !== undefined) {
+				for (const id of await setTesting(tx, projectId, ids, patch.toTest)) touched.add(id);
 			}
 
 			const add = [...new Set(patch.addTagIds ?? [])].filter(Boolean);

@@ -1,0 +1,1 @@
+ALTER TABLE `todos` ADD `testing_at` timestamp(3);

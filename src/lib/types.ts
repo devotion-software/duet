@@ -123,6 +123,8 @@ export interface Todo {
 	notDoing: boolean;
 	/** Set while the task is being worked on; cleared on completion. */
 	startedAt: Date | null;
+	/** Set when work is done but awaiting testing; cleared on completion. */
+	testingAt: Date | null;
 	deadline: Date | null;
 	urgency: Urgency | null;
 	size: Size | null;
@@ -139,7 +141,7 @@ export interface Todo {
 }
 
 /** Where a task stands, as recorded in its history. */
-export type TaskStatus = 'open' | 'in_progress' | 'done' | 'not_doing';
+export type TaskStatus = 'open' | 'in_progress' | 'to_test' | 'done' | 'not_doing';
 
 /** What a history entry changed; `tag`/`image`/`link` entries are one add or removal each. */
 export type TodoField =
@@ -178,6 +180,7 @@ export function hydrateTodo(raw: Record<string, unknown>): Todo {
 		completedAt: d(raw.completedAt),
 		notDoing: !!raw.notDoing,
 		startedAt: d(raw.startedAt),
+		testingAt: d(raw.testingAt),
 		deadline: d(raw.deadline),
 		createdAt: d(raw.createdAt) ?? new Date(),
 		updatedAt: d(raw.updatedAt) ?? new Date(),
@@ -190,6 +193,10 @@ export function hydrateTodo(raw: Record<string, unknown>): Todo {
 
 export function isInProgress(t: Todo): boolean {
 	return !!t.startedAt && !t.completed;
+}
+
+export function isToTest(t: Todo): boolean {
+	return !!t.testingAt && !t.completed;
 }
 
 export const URGENCY_META: Record<Urgency, { label: string; color: string; rank: number }> = {

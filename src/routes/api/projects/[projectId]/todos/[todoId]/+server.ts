@@ -57,7 +57,8 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 		...('urgency' in body ? { urgency: asEnum<Urgency>(body.urgency, URGENCIES) } : {}),
 		...('size' in body ? { size: asEnum<Size>(body.size, SIZES) } : {}),
 		...('tagIds' in body ? { tagIds: refs.tagIds } : {}),
-		...('inProgress' in body ? { inProgress: !!body.inProgress } : {})
+		...('inProgress' in body ? { inProgress: !!body.inProgress } : {}),
+		...('toTest' in body ? { toTest: !!body.toTest } : {})
 	}, userId);
 
 	const all = await listTodos(params.projectId);

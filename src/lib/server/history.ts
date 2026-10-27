@@ -32,8 +32,14 @@ interface Snapshot {
 	tags: Map<string, string>;
 }
 
-function statusOf(t: { completed: boolean; notDoing: boolean; startedAt: Date | null }): TaskStatus {
+function statusOf(t: {
+	completed: boolean;
+	notDoing: boolean;
+	startedAt: Date | null;
+	testingAt: Date | null;
+}): TaskStatus {
 	if (t.completed) return t.notDoing ? 'not_doing' : 'done';
+	if (t.testingAt) return 'to_test';
 	return t.startedAt ? 'in_progress' : 'open';
 }
 
@@ -46,6 +52,7 @@ async function snapshot(conn: Conn, projectId: string): Promise<Map<string, Snap
 			completed: todos.completed,
 			notDoing: todos.notDoing,
 			startedAt: todos.startedAt,
+			testingAt: todos.testingAt,
 			parentId: todos.parentId,
 			categoryId: todos.categoryId,
 			category: categories.name,

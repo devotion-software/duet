@@ -208,6 +208,8 @@ export const todos = mysqlTable(
 		notDoing: boolean('not_doing').notNull().default(false),
 		// Set while a task is being worked on; cleared when it's completed.
 		startedAt: timestamp('started_at', { fsp: 3 }),
+		// Set when work is done but awaiting testing; cleared when it's completed.
+		testingAt: timestamp('testing_at', { fsp: 3 }),
 		categoryId: varchar('category_id', { length: 36 }).references(() => categories.id, {
 			onDelete: 'set null'
 		}),
