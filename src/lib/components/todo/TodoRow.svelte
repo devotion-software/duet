@@ -159,11 +159,12 @@
 		menuUp = menuEl.offsetHeight + 8 > below && host.top > below;
 	});
 
-	// Delay the toggle so a double-click (which fires two click events) can cancel it instead.
-	let checkClickTimer: ReturnType<typeof setTimeout> | undefined;
-	function handleCheckClick(id: string) {
-		clearTimeout(checkClickTimer);
-		checkClickTimer = setTimeout(() => onToggle(id), 220);
+	function handleCheckClick(id: string, e: MouseEvent) {
+		if (e.altKey && onSetTesting && canEdit) {
+			onSetTesting(id, !toTest);
+			return;
+		}
+		onToggle(id);
 	}
 
 	function toggleMenu() {
@@ -321,14 +322,7 @@
 		disabled={!canEdit}
 		onclick={(e) => {
 			e.stopPropagation();
-			handleCheckClick(todo.id);
-		}}
-		ondblclick={(e) => {
-			// Cancel the pending single-click toggle and mark/clear to-test instead.
-			e.stopPropagation();
-			clearTimeout(checkClickTimer);
-			if (!onSetTesting || !canEdit) return;
-			onSetTesting(todo.id, !toTest);
+			handleCheckClick(todo.id, e);
 		}}
 		oncontextmenu={(e) => {
 			// Right-click toggles in progress; starting a done task reopens it.
