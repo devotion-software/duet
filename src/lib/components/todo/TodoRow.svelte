@@ -159,6 +159,13 @@
 		menuUp = menuEl.offsetHeight + 8 > below && host.top > below;
 	});
 
+	// Delay the toggle so a double-click (which fires two click events) can cancel it instead.
+	let checkClickTimer: ReturnType<typeof setTimeout> | undefined;
+	function handleCheckClick(id: string) {
+		clearTimeout(checkClickTimer);
+		checkClickTimer = setTimeout(() => onToggle(id), 220);
+	}
+
 	function toggleMenu() {
 		menuOpen = !menuOpen;
 		submenu = null;
@@ -314,7 +321,14 @@
 		disabled={!canEdit}
 		onclick={(e) => {
 			e.stopPropagation();
-			onToggle(todo.id);
+			handleCheckClick(todo.id);
+		}}
+		ondblclick={(e) => {
+			// Cancel the pending single-click toggle and mark/clear to-test instead.
+			e.stopPropagation();
+			clearTimeout(checkClickTimer);
+			if (!onSetTesting || !canEdit) return;
+			onSetTesting(todo.id, !toTest);
 		}}
 		oncontextmenu={(e) => {
 			// Right-click toggles in progress; starting a done task reopens it.
@@ -635,7 +649,7 @@
 	/* Three-quarter-filled ring: done and awaiting testing. */
 	.check.testing {
 		border-color: var(--accent);
-		background: conic-gradient(var(--accent) 270deg, transparent 270deg) content-box;
+		background: conic-gradient(from 90deg, var(--accent) 270deg, transparent 270deg) content-box;
 		padding: 2px;
 	}
 	.check:disabled {
