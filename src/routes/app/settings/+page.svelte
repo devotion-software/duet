@@ -6,6 +6,7 @@
 	import { APP_STYLE_OPTIONS } from '#lib/palette';
 	import type { AppStyle } from '#lib/types';
 	import { confirmDelete } from '#lib/confirmDelete.svelte';
+	import { Copied } from '#lib/copied.svelte';
 	import { toasts } from '#lib/components/ui/toast.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Avatar from '#lib/components/ui/Avatar.svelte';
@@ -19,6 +20,12 @@
 	let addingPasskey = $state(false);
 	let creatingApiKey = $state(false);
 	let newApiKeyName = $state('');
+	const copiedKey = new Copied();
+
+	async function copyNewApiKey(key: string) {
+		await navigator.clipboard.writeText(key);
+		copiedKey.mark(true);
+	}
 	let renamingId = $state<string | null>(null);
 	let renameValue = $state('');
 	let savingRename = $state(false);
@@ -390,14 +397,25 @@
 				<p>
 					<strong>{form.newKeyName}</strong> — copy this now, it won't be shown again:
 				</p>
-				<code class="new-key-value">{form.newKey}</code>
+				<div class="new-key-row">
+					<code class="new-key-value">{form.newKey}</code>
+					<button
+						type="button"
+						class="pk-action new-key-copy"
+						aria-label="Copy key"
+						title="Copy key"
+						onclick={() => copyNewApiKey(form.newKey)}
+					>
+						<Icon name={copiedKey.icon(true)} size={15} />
+					</button>
+				</div>
 			</div>
 		{/if}
 
 		<form
 			method="POST"
 			action="?/createApiKey"
-			class="pdefaults"
+			class="pdefaults api-key-form"
 			use:enhance={() => {
 				creatingApiKey = true;
 				return async ({ result, update }) => {
@@ -414,6 +432,7 @@
 					id="new-key-name"
 					name="name"
 					type="text"
+					class="key-name-input"
 					placeholder="e.g. Claude Code"
 					bind:value={newApiKeyName}
 					maxlength="80"
@@ -796,13 +815,31 @@
 		background: var(--accent-soft);
 		font-size: var(--text-sm);
 	}
+	.new-key-row {
+		display: flex;
+		align-items: stretch;
+		gap: var(--space-2);
+	}
 	.new-key-value {
+		flex: 1;
+		min-width: 0;
 		font-family: var(--font-mono, monospace);
 		font-size: var(--text-sm);
 		word-break: break-all;
 		padding: var(--space-2);
 		background: var(--surface);
 		border-radius: var(--radius-sm);
+	}
+	.new-key-copy {
+		flex-shrink: 0;
+		align-self: center;
+	}
+	.api-key-form {
+		margin-bottom: var(--space-5);
+	}
+	.field input.key-name-input {
+		height: auto;
+		padding: var(--space-3);
 	}
 	.providers {
 		display: flex;
