@@ -210,6 +210,9 @@ export const todos = mysqlTable(
 		startedAt: timestamp('started_at', { fsp: 3 }),
 		// Set when work is done but awaiting testing; cleared when it's completed.
 		testingAt: timestamp('testing_at', { fsp: 3 }),
+		// Last time an AI-agent (API-key) request changed this task; shown as a
+		// badge in the task row. Never cleared, so it stays visible after the fact.
+		aiTouchedAt: timestamp('ai_touched_at', { fsp: 3 }),
 		categoryId: varchar('category_id', { length: 36 }).references(() => categories.id, {
 			onDelete: 'set null'
 		}),
@@ -304,6 +307,11 @@ export const todoLinks = mysqlTable(
 	]
 );
 
+// Who/what made a change: a human through the app, or an AI agent through an
+// API-key-authenticated request (see server/request-context.ts).
+export const EVENT_SOURCES = ['user', 'ai'] as const;
+export type EventSource = (typeof EVENT_SOURCES)[number];
+
 // Edit history: one row per changed field. Values are stored as display text
 // (names, not ids) so entries still read correctly after a tag or category is
 // deleted. Rows written by the same request share a createdAt.
@@ -321,6 +329,7 @@ export const todoEvents = mysqlTable(
 		field: varchar('field', { length: 32 }).notNull(),
 		fromValue: text('from_value'),
 		toValue: text('to_value'),
+		source: mysqlEnum('source', EVENT_SOURCES).notNull().default('user'),
 		createdAt: createdAt()
 	},
 	(t) => [index('todo_events_todo_idx').on(t.todoId, t.createdAt)]

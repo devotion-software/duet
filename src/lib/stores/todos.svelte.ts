@@ -147,6 +147,7 @@ export class TodosController {
 			notDoing: false,
 			startedAt: null,
 			testingAt: null,
+			aiTouchedAt: null,
 			deadline: input.deadline ? new Date(input.deadline) : null,
 			urgency: (input.urgency as Todo['urgency']) ?? null,
 			size: (input.size as Todo['size']) ?? null,

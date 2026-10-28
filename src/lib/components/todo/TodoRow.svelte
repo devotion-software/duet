@@ -350,7 +350,7 @@
 			<span class="title"><TitleText text={todo.title} /></span>
 		</div>
 
-		{#if excerpt || inProgress || toTest || progress || category || tags.length || deadline || size || notes || images}
+		{#if excerpt || inProgress || toTest || progress || category || tags.length || deadline || size || notes || images || todo.aiTouchedAt}
 			<div class="meta">
 				{#if inProgress}
 					<span class="chip started"><Icon name="clock" size={12} />In progress</span>
@@ -389,6 +389,11 @@
 				{#if images}
 					<span class="chip ghost" title="{images} image(s)">
 						<Icon name="image" size={12} />{images}
+					</span>
+				{/if}
+				{#if todo.aiTouchedAt}
+					<span class="chip ghost" title="Last changed by an AI agent on {new Date(todo.aiTouchedAt).toLocaleString()}">
+						<Icon name="sparkles" size={12} />
 					</span>
 				{/if}
 				{#if excerpt}

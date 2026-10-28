@@ -125,6 +125,8 @@ export interface Todo {
 	startedAt: Date | null;
 	/** Set when work is done but awaiting testing; cleared on completion. */
 	testingAt: Date | null;
+	/** Last time an AI-agent (API key) request changed this task. Never cleared. */
+	aiTouchedAt: Date | null;
 	deadline: Date | null;
 	urgency: Urgency | null;
 	size: Size | null;
@@ -181,6 +183,7 @@ export function hydrateTodo(raw: Record<string, unknown>): Todo {
 		notDoing: !!raw.notDoing,
 		startedAt: d(raw.startedAt),
 		testingAt: d(raw.testingAt),
+		aiTouchedAt: d(raw.aiTouchedAt),
 		deadline: d(raw.deadline),
 		createdAt: d(raw.createdAt) ?? new Date(),
 		updatedAt: d(raw.updatedAt) ?? new Date(),

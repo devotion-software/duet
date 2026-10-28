@@ -1,8 +1,9 @@
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { db } from './db';
-import { todos, todoTags, tags, categories, todoEvents } from './db/app.schema';
+import { todos, todoTags, tags, categories, todoEvents, type EventSource } from './db/app.schema';
 import { user } from './db/auth.schema';
 import { newId } from './ids';
+import { isAiRequest } from './request-context';
 import type { TaskStatus, TodoEvent, TodoField } from '#lib/types';
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -127,6 +128,8 @@ export async function recordEvents(conn: Conn, actorId: string | null, events: E
 	if (!events.length) return;
 	// One timestamp per call so the UI can group a request's changes together.
 	const createdAt = new Date();
+	const ai = isAiRequest();
+	const source: EventSource = ai ? 'ai' : 'user';
 	await conn.insert(todoEvents).values(
 		events.map((e) => ({
 			id: newId(),
@@ -135,9 +138,14 @@ export async function recordEvents(conn: Conn, actorId: string | null, events: E
 			field: e.field,
 			fromValue: e.from ?? null,
 			toValue: e.to ?? null,
+			source,
 			createdAt
 		}))
 	);
+	if (ai) {
+		const todoIds = [...new Set(events.map((e) => e.todoId))];
+		await conn.update(todos).set({ aiTouchedAt: createdAt }).where(inArray(todos.id, todoIds));
+	}
 }
 
 /**

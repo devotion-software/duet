@@ -244,6 +244,7 @@ export interface TodoItem {
 	completedAt: Date | null;
 	notDoing: boolean;
 	startedAt: Date | null;
+	aiTouchedAt: Date | null;
 	deadline: Date | null;
 	urgency: Urgency | null;
 	size: Size | null;
@@ -380,6 +381,7 @@ export async function listTodos(projectId: string): Promise<TodoItem[]> {
 		notDoing: r.todo.notDoing,
 		startedAt: r.todo.startedAt,
 		testingAt: r.todo.testingAt,
+		aiTouchedAt: r.todo.aiTouchedAt,
 		deadline: r.todo.deadline,
 		urgency: r.todo.urgency,
 		size: r.todo.size,

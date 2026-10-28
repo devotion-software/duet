@@ -3,6 +3,7 @@ import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { emailOTP } from 'better-auth/plugins';
 import { passkey } from '@better-auth/passkey';
+import { apiKey } from '@better-auth/api-key';
 import { db } from './server/db';
 import * as schema from './server/db/schema';
 import { sendOtpEmail } from './server/email';
@@ -79,6 +80,13 @@ export const auth = betterAuth({
 			rpID,
 			rpName: 'Duet',
 			origin: baseURL
+		}),
+		// Lets a user mint a long-lived key (Settings → API keys) for scripts/MCP
+		// tools to call the REST API with an `x-api-key` header instead of a cookie
+		// session. Scoped to whatever that user can already do; requireMember still
+		// enforces per-project role on every request.
+		apiKey({
+			enableSessionForAPIKeys: true
 		})
 	]
 });

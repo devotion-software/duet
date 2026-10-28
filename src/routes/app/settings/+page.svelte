@@ -12,11 +12,13 @@
 	import Icon, { type IconName } from '#lib/components/ui/Icon.svelte';
 	import ListWidthField from '#lib/components/ListWidthField.svelte';
 
-	let { data } = $props();
+	let { data, form } = $props();
 
 	let name = $state(data.user.name ?? '');
 	let savingName = $state(false);
 	let addingPasskey = $state(false);
+	let creatingApiKey = $state(false);
+	let newApiKeyName = $state('');
 	let renamingId = $state<string | null>(null);
 	let renameValue = $state('');
 	let savingRename = $state(false);
@@ -370,6 +372,109 @@
 			</ul>
 		{/if}
 	</section>
+
+	<!-- API keys -->
+	<section class="card span-2" id="api-keys">
+		<div class="card-head row-between">
+			<div class="card-head-main">
+				<span class="card-icon"><Icon name="sparkles" size={16} /></span>
+				<div>
+					<h2>API keys</h2>
+					<p>For scripts and MCP tools (like Claude Code) calling Duet over the API.</p>
+				</div>
+			</div>
+		</div>
+
+		{#if form?.newKey}
+			<div class="new-key-reveal">
+				<p>
+					<strong>{form.newKeyName}</strong> — copy this now, it won't be shown again:
+				</p>
+				<code class="new-key-value">{form.newKey}</code>
+			</div>
+		{/if}
+
+		<form
+			method="POST"
+			action="?/createApiKey"
+			class="pdefaults"
+			use:enhance={() => {
+				creatingApiKey = true;
+				return async ({ result, update }) => {
+					creatingApiKey = false;
+					if (result.type === 'failure') toasts.error((result.data?.message as string) ?? 'Could not create key');
+					newApiKeyName = '';
+					await update();
+				};
+			}}
+		>
+			<div class="field">
+				<label for="new-key-name">Name</label>
+				<input
+					id="new-key-name"
+					name="name"
+					type="text"
+					placeholder="e.g. Claude Code"
+					bind:value={newApiKeyName}
+					maxlength="80"
+				/>
+			</div>
+			<div>
+				<Button variant="primary" size="sm" type="submit" loading={creatingApiKey} icon="plus">
+					Create key
+				</Button>
+			</div>
+		</form>
+
+		{#if data.apiKeys.length === 0}
+			<div class="empty-list">
+				<Icon name="sparkles" size={22} />
+				<p>No API keys yet.</p>
+			</div>
+		{:else}
+			<ul class="pk-list">
+				{#each data.apiKeys as k (k.id)}
+					<li class="pk">
+						<span class="pk-icon"><Icon name="sparkles" size={16} /></span>
+						<div class="pk-info">
+							<span class="pk-name">{k.name || 'Untitled key'}</span>
+							<span class="pk-meta">
+								{k.start ? `${k.start}…` : ''} · Created {new Date(k.createdAt).toLocaleDateString()}
+								{#if k.lastRequest}
+									· Last used {new Date(k.lastRequest).toLocaleDateString()}
+								{/if}
+							</span>
+						</div>
+						<form
+							method="POST"
+							action="?/revokeApiKey"
+							use:enhance={() => {
+								return async ({ result, update }) => {
+									if (result.type === 'failure')
+										toasts.error((result.data?.message as string) ?? 'Could not revoke key');
+									else toasts.success('Key revoked');
+									await update();
+								};
+							}}
+						>
+							<input type="hidden" name="keyId" value={k.id} />
+							<button
+								type="submit"
+								class="pk-action pk-remove"
+								aria-label="Revoke key"
+								onclick={(e) => {
+									if (!confirm(`Revoke "${k.name || 'this key'}"? Anything using it will stop working.`))
+										e.preventDefault();
+								}}
+							>
+								<Icon name="trash" size={15} />
+							</button>
+						</form>
+					</li>
+				{/each}
+			</ul>
+		{/if}
+	</section>
 </div>
 
 <style>
@@ -679,6 +784,25 @@
 	.pk-remove:hover {
 		background: var(--danger-soft);
 		color: var(--danger);
+	}
+	.new-key-reveal {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-2);
+		padding: var(--space-3);
+		margin-bottom: var(--space-3);
+		border: 1px solid var(--accent);
+		border-radius: var(--radius-md);
+		background: var(--accent-soft);
+		font-size: var(--text-sm);
+	}
+	.new-key-value {
+		font-family: var(--font-mono, monospace);
+		font-size: var(--text-sm);
+		word-break: break-all;
+		padding: var(--space-2);
+		background: var(--surface);
+		border-radius: var(--radius-sm);
 	}
 	.providers {
 		display: flex;
