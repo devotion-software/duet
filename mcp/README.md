@@ -8,19 +8,27 @@ with an API key — no cookie session needed.
 
 1. In Duet, go to **Settings → API keys** and create a key. Copy it now; it's
    only shown once.
-2. Register the server with Claude Code (run from anywhere, not just this repo):
+2. Register the server with Claude Code, using `--scope user` so it's available
+   in every repo, not just whichever one you happen to be in when you run this
+   (replace the path with wherever you cloned this repo):
 
    ```sh
-   claude mcp add duet \
+   claude mcp add duet --scope user \
      --env DUET_API_KEY=<your key> \
-     --env DUET_BASE_URL=https://duet.devotion.software \
      -- bun run /absolute/path/to/duet/mcp/src/index.ts
    ```
 
-   (`DUET_BASE_URL` defaults to the production URL above, so it can be omitted
-   unless you're pointing at a different instance.)
+   (`DUET_BASE_URL` defaults to `https://duet.devotion.software`; only pass
+   `--env DUET_BASE_URL=...` if you're pointing at a different instance.)
 
-3. In a new Claude Code session: "work through the open tasks in project X".
+3. Start (or restart) Claude Code anywhere and check it picked up the server:
+
+   ```sh
+   claude mcp list
+   ```
+
+   You should see `duet` listed as connected. Then just ask, e.g. "work
+   through the open tasks in project X".
 
 ## Tracking AI changes
 
