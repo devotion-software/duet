@@ -86,7 +86,17 @@ export const auth = betterAuth({
 		// session. Scoped to whatever that user can already do; requireMember still
 		// enforces per-project role on every request.
 		apiKey({
-			enableSessionForAPIKeys: true
+			enableSessionForAPIKeys: true,
+			// The plugin's own default is 10 requests per 24h, meant for sparse
+			// server-to-server calls — far too tight for an MCP tool driving
+			// interactive sessions, where a single status update can cost two
+			// requests (list-to-find-by-id, then patch). 120/min gives headroom
+			// for bursty tool use while still bounding a runaway/leaked key.
+			rateLimit: {
+				enabled: true,
+				timeWindow: 60 * 1000,
+				maxRequests: 120
+			}
 		})
 	]
 });
