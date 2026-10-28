@@ -16,11 +16,10 @@
 		"db:migrate": "drizzle-kit migrate",
 		"db:push": "drizzle-kit push",
 		"db:studio": "drizzle-kit studio",
-		"auth:generate": "better-auth generate --config src/lib/auth.ts --output src/lib/server/db/auth.schema.ts",
+		"auth:generate": "bunx --bun @better-auth/cli@1.7.14 generate --config src/lib/auth.ts --output src/lib/server/db/auth.schema.ts",
 		"mcp": "bun run mcp/src/index.ts"
 	},
 	"devDependencies": {
-		"@better-auth/cli": "^1.4.21",
 		"@modelcontextprotocol/sdk": "^1.32.2",
 		"@sveltejs/adapter-node": "^6.0.0",
 		"@sveltejs/kit": "^3.0.0",
