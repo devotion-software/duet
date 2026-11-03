@@ -44,6 +44,13 @@ an agent.
 | `list_projects` | Projects the key's owner is a member of |
 | `list_tasks` | Tasks in a project, optionally filtered by status |
 | `get_task` | One task's full details |
-| `create_task` | Create a task or subtask |
+| `create_task` | Create a task or subtask, optionally with a category and tags |
 | `update_task_status` | Move a task between open/in_progress/to_test/done/not_doing |
-| `update_task` | Edit title/description/urgency/size/deadline |
+| `update_task` | Edit title/description/urgency/size/deadline/category, and replace (`tags`), add (`addTags`) or remove (`removeTags`) tags |
+| `list_tags` / `list_categories` | Tags or categories defined in a project, with usage counts |
+| `create_tag` / `create_category` | Create one (returns the existing one if the name is taken) |
+| `update_tag` / `update_category` | Rename and/or recolour |
+| `delete_tag` / `delete_category` | Delete from the project, removing it from every task |
+
+Tags and categories can be referred to by id or by name (case-insensitive).
+When assigning them to a task, unknown names are created automatically.
