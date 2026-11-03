@@ -44,7 +44,7 @@ an agent.
 | `list_projects` | Projects the key's owner is a member of |
 | `list_tasks` | Tasks in a project, optionally filtered by status |
 | `get_task` | One task's full details |
-| `create_task` | Create a task or subtask, optionally with a category and tags |
+| `create_task` | Create a task or subtask, optionally with urgency, size, deadline, category and tags |
 | `update_task_status` | Move a task between open/in_progress/to_test/done/not_doing |
 | `update_task` | Edit title/description/urgency/size/deadline/category, and replace (`tags`), add (`addTags`) or remove (`removeTags`) tags |
 | `list_tags` / `list_categories` | Tags or categories defined in a project, with usage counts |

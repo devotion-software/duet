@@ -147,16 +147,19 @@ server.registerTool(
 			title: z.string(),
 			description: z.string().optional(),
 			parentId: z.string().optional().describe('Set to create this as a subtask'),
+			urgency: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+			size: z.enum(['xs', 's', 'm', 'l', 'xl']).optional(),
+			deadline: z.string().optional().describe('ISO date'),
 			category: categoryRef,
 			tags: tagRefs('Tags to apply.')
 		}
 	},
-	async ({ projectId, title, description, parentId, category, tags }) => {
+	async ({ projectId, category, tags, ...fields }) => {
 		try {
 			const categoryId = category ? await duet.resolveCategoryId(projectId, category, true) : null;
 			const tagIds = tags?.length ? await duet.resolveTagIds(projectId, tags, true) : [];
 			return text(
-				summarize(await duet.createTask(projectId, { title, description, parentId, categoryId, tagIds }))
+				summarize(await duet.createTask(projectId, { ...fields, categoryId, tagIds }))
 			);
 		} catch (e) {
 			return toolError(e);

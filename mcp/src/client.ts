@@ -100,6 +100,9 @@ export const duet = {
 			title: string;
 			description?: string;
 			parentId?: string | null;
+			urgency?: string;
+			size?: string;
+			deadline?: string | null;
 			categoryId?: string | null;
 			tagIds?: string[];
 		}
