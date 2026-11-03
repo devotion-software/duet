@@ -1,6 +1,14 @@
 import { json, error } from '@sveltejs/kit';
 import { requireMember } from '#lib/server/guard';
-import { bulkUpdateTodos, bulkDeleteTodos, listTodos, validateRefs } from '#lib/server/todos';
+import {
+	bulkCreateTodos,
+	bulkUpdateTodos,
+	bulkDeleteTodos,
+	listTodos,
+	validateRefs,
+	BulkCreateError,
+	type BulkCreateItem
+} from '#lib/server/todos';
 import { publish } from '#lib/server/realtime';
 import { URGENCIES, SIZES, type Urgency, type Size } from '#lib/server/db/app.schema';
 import type { RequestHandler } from './$types';
@@ -16,6 +24,48 @@ function asDate(v: unknown): Date | null {
 function asIds(v: unknown): string[] {
 	return Array.isArray(v) ? v.map(String) : [];
 }
+
+const MAX_BULK_CREATE = 100;
+
+/** Create many tasks atomically; body `{ todos: [{ title, ..., parentId?, parentIndex? }] }`. */
+export const POST: RequestHandler = async ({ params, request, locals }) => {
+	const { userId } = await requireMember(locals, params.projectId, { edit: true });
+
+	const body = await request.json().catch(() => null);
+	const input = body?.todos;
+	if (!Array.isArray(input) || !input.length) throw error(400, 'todos array required');
+	if (input.length > MAX_BULK_CREATE) throw error(400, `At most ${MAX_BULK_CREATE} todos per request`);
+
+	const items: BulkCreateItem[] = input.map((t: Record<string, unknown> | null) => ({
+		title: String(t?.title ?? ''),
+		description: typeof t?.description === 'string' ? t.description : null,
+		parentId: typeof t?.parentId === 'string' ? t.parentId : null,
+		parentIndex: typeof t?.parentIndex === 'number' ? t.parentIndex : null,
+		categoryId: typeof t?.categoryId === 'string' ? t.categoryId : null,
+		assigneeId: typeof t?.assigneeId === 'string' ? t.assigneeId : null,
+		deadline: asDate(t?.deadline),
+		urgency: asEnum<Urgency>(t?.urgency, URGENCIES),
+		size: asEnum<Size>(t?.size, SIZES),
+		tagIds: asIds(t?.tagIds)
+	}));
+
+	let result: Awaited<ReturnType<typeof bulkCreateTodos>>;
+	try {
+		result = await bulkCreateTodos(params.projectId, userId, items);
+	} catch (e) {
+		if (e instanceof BulkCreateError) throw error(400, e.message);
+		throw e;
+	}
+
+	const all = await listTodos(params.projectId);
+	const byId = new Map(all.map((t) => [t.id, t]));
+	const created = result.ids.map((id) => byId.get(id)).filter((t) => !!t);
+	const reopened = result.affected.map((id) => byId.get(id)).filter((t) => !!t);
+	const origin = request.headers.get('x-client-id') ?? undefined;
+	for (const todo of created) publish(params.projectId, { type: 'todo.created', origin, payload: todo });
+	if (reopened.length) publish(params.projectId, { type: 'todos.updated', origin, payload: reopened });
+	return json({ todos: created, reopened }, { status: 201 });
+};
 
 export const PATCH: RequestHandler = async ({ params, request, locals }) => {
 	const { userId } = await requireMember(locals, params.projectId, { edit: true });

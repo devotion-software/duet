@@ -47,6 +47,8 @@ an agent.
 | `create_task` | Create a task or subtask, optionally with urgency, size, deadline, category and tags |
 | `update_task_status` | Move a task between open/in_progress/to_test/done/not_doing |
 | `update_task` | Edit title/description/urgency/size/deadline/category, and replace (`tags`), add (`addTags`) or remove (`removeTags`) tags |
+| `bulk_create_tasks` | Create up to 100 tasks atomically in one request, with subtasks nested via `parentIndex` |
+| `bulk_update_tasks` | Apply the same status/urgency/size/deadline/category/tag changes to many tasks at once (atomic) |
 | `list_tags` / `list_categories` | Tags or categories defined in a project, with usage counts |
 | `create_tag` / `create_category` | Create one (returns the existing one if the name is taken) |
 | `update_tag` / `update_category` | Rename and/or recolour |

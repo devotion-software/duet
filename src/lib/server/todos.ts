@@ -875,6 +875,115 @@ export async function importTodos(projectId: string, userId: string, items: Impo
 	});
 }
 
+export interface BulkCreateItem extends Omit<TodoInput, 'completed'> {
+	/** Index of an earlier item in the same batch to nest this under (instead of `parentId`). */
+	parentIndex?: number | null;
+}
+
+/** A bad reference in a bulk create; the whole batch is rejected. */
+export class BulkCreateError extends Error {}
+
+/**
+ * Create many tasks in one transaction, all or nothing. Unlike single creates,
+ * unknown category/assignee/tag/parent references reject the batch rather than
+ * being silently dropped. Top-level items land at the top of the list in the
+ * given order; subtasks are appended to their parent in the given order.
+ * Returns the new ids (in input order) and any existing ancestors reopened.
+ */
+export async function bulkCreateTodos(projectId: string, userId: string, items: BulkCreateItem[]) {
+	items.forEach((i, idx) => {
+		if (!i.title.trim()) throw new BulkCreateError(`Item ${idx}: a title is required`);
+		if (i.parentIndex != null && i.parentId)
+			throw new BulkCreateError(`Item ${idx}: give parentId or parentIndex, not both`);
+		if (i.parentIndex != null && !(Number.isInteger(i.parentIndex) && i.parentIndex >= 0 && i.parentIndex < idx))
+			throw new BulkCreateError(`Item ${idx}: parentIndex must refer to an earlier item`);
+	});
+
+	return db.transaction(async (tx) => {
+		const want = <T>(xs: (T | null | undefined)[]) => [...new Set(xs.filter((x): x is T => !!x))];
+		const known = async (ids: string[], load: (ids: string[]) => Promise<{ id: string }[]>) =>
+			ids.length ? new Set((await load(ids)).map((r) => r.id)) : new Set<string>();
+
+		const categoryIds = want(items.map((i) => i.categoryId));
+		const okCategories = await known(categoryIds, (ids) =>
+			tx.select({ id: categories.id }).from(categories)
+				.where(and(eq(categories.projectId, projectId), inArray(categories.id, ids)))
+		);
+		const tagIds = want(items.flatMap((i) => i.tagIds ?? []));
+		const okTags = await known(tagIds, (ids) =>
+			tx.select({ id: tags.id }).from(tags).where(and(eq(tags.projectId, projectId), inArray(tags.id, ids)))
+		);
+		const assigneeIds = want(items.map((i) => i.assigneeId));
+		const okAssignees = await known(assigneeIds, (ids) =>
+			tx.select({ id: projectMembers.userId }).from(projectMembers)
+				.where(and(eq(projectMembers.projectId, projectId), inArray(projectMembers.userId, ids)))
+		);
+		const tree = await loadTree(tx, projectId);
+		items.forEach((i, idx) => {
+			if (i.categoryId && !okCategories.has(i.categoryId))
+				throw new BulkCreateError(`Item ${idx}: unknown category`);
+			if (i.assigneeId && !okAssignees.has(i.assigneeId))
+				throw new BulkCreateError(`Item ${idx}: assignee is not a member`);
+			const badTag = i.tagIds?.find((t) => !okTags.has(t));
+			if (badTag) throw new BulkCreateError(`Item ${idx}: unknown tag ${badTag}`);
+			if (i.parentId && !tree.has(i.parentId)) throw new BulkCreateError(`Item ${idx}: parent task not found`);
+		});
+
+		const ids = items.map(() => newId());
+		const parentOf = (i: BulkCreateItem) =>
+			i.parentIndex != null ? ids[i.parentIndex] : (i.parentId ?? null);
+
+		// Siblings created together keep their given order within each parent.
+		const groups = new Map<string | null, number[]>();
+		items.forEach((i, idx) => {
+			const key = parentOf(i);
+			groups.set(key, [...(groups.get(key) ?? []), idx]);
+		});
+		const sortOrders: number[] = [];
+		for (const [parentId, members] of groups) {
+			if (!parentId) {
+				// Larger sortOrder floats to the top, so the first item gets the highest.
+				const base = await siblingSortOrder(tx, projectId, null);
+				members.forEach((idx, k) => (sortOrders[idx] = base + members.length - 1 - k));
+			} else {
+				// Subtasks: smaller sortOrder sorts later, so each goes after the previous.
+				const base = tree.has(parentId) ? await siblingSortOrder(tx, projectId, parentId) : 0;
+				members.forEach((idx, k) => (sortOrders[idx] = base - k));
+			}
+		}
+
+		// parentIndex only points backwards, so input order is already parents-first.
+		await tx.insert(todos).values(
+			items.map((i, idx) => ({
+				id: ids[idx],
+				projectId,
+				parentId: parentOf(i),
+				title: i.title.trim().slice(0, 500),
+				description: i.description?.trim().slice(0, MAX_DESCRIPTION_LEN) || null,
+				categoryId: i.categoryId || null,
+				assigneeId: i.assigneeId || null,
+				deadline: i.deadline ?? null,
+				urgency: i.urgency ?? null,
+				size: i.size ?? null,
+				sortOrder: sortOrders[idx],
+				createdById: userId
+			}))
+		);
+		const links = items.flatMap((i, idx) =>
+			[...new Set(i.tagIds ?? [])].map((tagId) => ({ todoId: ids[idx], tagId }))
+		);
+		if (links.length) await tx.insert(todoTags).values(links);
+		await recordCreated(tx, userId, ids);
+
+		// New open subtasks mean their existing ancestors aren't done any more.
+		const existingParents = want(items.map((i) => (i.parentIndex == null ? i.parentId : null)));
+		const affected = existingParents.length
+			? await tracked(tx, projectId, userId, () => setCompleted(tx, projectId, existingParents, false))
+			: [];
+		return { ids, affected };
+	});
+}
+
 /** Order rows so every parent precedes its children; cyclic links are dropped. */
 function parentsFirst<T extends { id: string; parentId: string | null }>(rows: T[]): T[] {
 	const byId = new Map(rows.map((r) => [r.id, r]));

@@ -81,6 +81,27 @@ function findLabel(all: Label[], ref: string) {
 	return all.find((l) => l.id === ref) ?? all.find((l) => l.name.toLowerCase() === name);
 }
 
+async function resolveLabels(
+	all: Label[],
+	refs: string[],
+	kind: string,
+	projectId: string,
+	create?: (name: string) => Promise<Label>
+) {
+	const out = new Map<string, string>();
+	for (const ref of refs) {
+		if (out.has(ref)) continue;
+		let found = findLabel(all, ref);
+		if (!found && create) {
+			found = await create(ref.trim());
+			all.push(found);
+		}
+		if (!found) throw new DuetApiError(404, `${kind} "${ref}" not found in project ${projectId}`);
+		out.set(ref, found.id);
+	}
+	return out;
+}
+
 export const duet = {
 	listProjects: () => request<{ projects: Project[] }>('GET', '/api/projects').then((r) => r.projects),
 
@@ -158,32 +179,65 @@ export const duet = {
 		request<{ ok: true }>('DELETE', `/api/projects/${projectId}/categories/${categoryId}`),
 
 	/**
-	 * Resolves tag ids-or-names to ids. Unknown names are created when `create` is set
-	 * (without a colour, so an existing tag's colour is never overwritten); otherwise they throw.
+	 * Maps each tag id-or-name to its id with a single listing. Unknown names are created when
+	 * `create` is set (without a colour, so an existing tag's colour is never overwritten);
+	 * otherwise they throw.
 	 */
-	resolveTagIds: async (projectId: string, refs: string[], create = false) => {
-		const all = await duet.listTags(projectId);
-		const ids: string[] = [];
-		for (const ref of refs) {
-			const found = findLabel(all, ref);
-			if (found) ids.push(found.id);
-			else if (create) {
-				const tag = await duet.createTag(projectId, { name: ref.trim() });
-				all.push(tag);
-				ids.push(tag.id);
-			} else throw new DuetApiError(404, `Tag "${ref}" not found in project ${projectId}`);
-		}
-		return [...new Set(ids)];
-	},
+	resolveTagMap: async (projectId: string, refs: string[], create = false) =>
+		resolveLabels(await duet.listTags(projectId), refs, 'Tag', projectId, create
+			? (name) => duet.createTag(projectId, { name })
+			: undefined),
 
-	/** Resolves a category id-or-name to its id, creating it by name when `create` is set. */
-	resolveCategoryId: async (projectId: string, ref: string, create = false) => {
-		const all = await duet.listCategories(projectId);
-		const found = findLabel(all, ref);
-		if (found) return found.id;
-		if (create) return (await duet.createCategory(projectId, { name: ref.trim() })).id;
-		throw new DuetApiError(404, `Category "${ref}" not found in project ${projectId}`);
-	},
+	resolveTagIds: async (projectId: string, refs: string[], create = false) => [
+		...new Set((await duet.resolveTagMap(projectId, refs, create)).values())
+	],
+
+	/** Maps each category id-or-name to its id, creating unknown names when `create` is set. */
+	resolveCategoryMap: async (projectId: string, refs: string[], create = false) =>
+		resolveLabels(await duet.listCategories(projectId), refs, 'Category', projectId, create
+			? (name) => duet.createCategory(projectId, { name })
+			: undefined),
+
+	resolveCategoryId: async (projectId: string, ref: string, create = false) =>
+		(await duet.resolveCategoryMap(projectId, [ref], create)).get(ref)!,
+
+	/** Creates many tasks atomically (all or nothing). Returns them in input order. */
+	bulkCreateTasks: (
+		projectId: string,
+		todos: {
+			title: string;
+			description?: string;
+			parentId?: string;
+			parentIndex?: number;
+			urgency?: string;
+			size?: string;
+			deadline?: string;
+			categoryId?: string;
+			tagIds?: string[];
+		}[]
+	) =>
+		request<{ todos: Todo[]; reopened: Todo[] }>('POST', `/api/projects/${projectId}/todos/bulk`, { todos }),
+
+	/** Applies one patch to many tasks atomically. Returns every task touched (incl. reopened ancestors). */
+	bulkUpdateTasks: (
+		projectId: string,
+		ids: string[],
+		patch: Partial<{
+			urgency: string | null;
+			size: string | null;
+			deadline: string | null;
+			categoryId: string | null;
+			addTagIds: string[];
+			removeTagIds: string[];
+			completed: boolean;
+			notDoing: boolean;
+			inProgress: boolean;
+			toTest: boolean;
+		}>
+	) =>
+		request<{ todos: Todo[] }>('PATCH', `/api/projects/${projectId}/todos/bulk`, { ids, patch }).then(
+			(r) => r.todos
+		),
 
 	toggleTask: (projectId: string, todoId: string, completed: boolean, notDoing: boolean) =>
 		request<{ todo: Todo }>('POST', `/api/projects/${projectId}/todos/${todoId}/toggle`, {

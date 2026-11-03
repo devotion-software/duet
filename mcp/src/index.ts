@@ -232,6 +232,132 @@ server.registerTool(
 	}
 );
 
+// ─── Bulk ───────────────────────────────────────────────────────────────────
+const MAX_BULK = 100;
+const urgencySchema = z.enum(['low', 'medium', 'high', 'urgent']);
+const sizeSchema = z.enum(['xs', 's', 'm', 'l', 'xl']);
+const statusSchema = z.enum(['open', 'in_progress', 'to_test', 'done', 'not_doing']);
+
+server.registerTool(
+	'bulk_create_tasks',
+	{
+		title: 'Create many tasks',
+		description:
+			`Create up to ${MAX_BULK} tasks in one call, in the order given. A task can be made a subtask of an ` +
+			'existing task (parentId) or of an earlier task in the same call (parentIndex). Tags and categories ' +
+			'are matched by id or name; unknown names are created. All or nothing: if any task is invalid, none are created.',
+		inputSchema: {
+			projectId: z.string(),
+			tasks: z
+				.array(
+					z.object({
+						title: z.string(),
+						description: z.string().optional(),
+						parentId: z.string().optional().describe('Existing task to nest this under'),
+						parentIndex: z
+							.number()
+							.int()
+							.min(0)
+							.optional()
+							.describe('Index of an earlier task in this list to nest this under'),
+						urgency: urgencySchema.optional(),
+						size: sizeSchema.optional(),
+						deadline: z.string().optional().describe('ISO date'),
+						category: z.string().optional().describe('Category id or name'),
+						tags: z.array(z.string()).optional().describe('Tag ids or names')
+					})
+				)
+				.min(1)
+				.max(MAX_BULK)
+		}
+	},
+	async ({ projectId, tasks }) => {
+		try {
+			tasks.forEach((t, i) => {
+				if (t.parentIndex !== undefined && t.parentIndex >= i)
+					throw new Error(`tasks[${i}].parentIndex must refer to an earlier task`);
+				if (t.parentIndex !== undefined && t.parentId)
+					throw new Error(`tasks[${i}] has both parentId and parentIndex`);
+			});
+			// Resolve every tag/category name up front so each is looked up (or created) once.
+			const tagIds = await duet.resolveTagMap(projectId, tasks.flatMap((t) => t.tags ?? []), true);
+			const categoryIds = await duet.resolveCategoryMap(
+				projectId,
+				tasks.flatMap((t) => (t.category ? [t.category] : [])),
+				true
+			);
+			const { todos, reopened } = await duet.bulkCreateTasks(
+				projectId,
+				tasks.map(({ category, tags, ...t }) => ({
+					...t,
+					categoryId: category ? categoryIds.get(category) : undefined,
+					tagIds: [...new Set((tags ?? []).map((n) => tagIds.get(n)!))]
+				}))
+			);
+			return text({
+				created: todos.map(summarize),
+				...(reopened.length ? { reopenedParents: reopened.map(summarize) } : {})
+			});
+		} catch (e) {
+			return toolError(e);
+		}
+	}
+);
+
+server.registerTool(
+	'bulk_update_tasks',
+	{
+		title: 'Update many tasks',
+		description:
+			'Apply the same changes to many tasks at once, atomically: status, urgency, size, deadline, category, ' +
+			'and adding/removing tags. To give tasks different titles or descriptions, use update_task per task. ' +
+			'Returns every task touched, including parents reopened as a side effect.',
+		inputSchema: {
+			projectId: z.string(),
+			taskIds: z.array(z.string()).min(1),
+			status: statusSchema.optional(),
+			urgency: urgencySchema.nullable().optional().describe('null to clear'),
+			size: sizeSchema.nullable().optional().describe('null to clear'),
+			deadline: z.string().nullable().optional().describe('ISO date, or null to clear'),
+			category: categoryRef,
+			addTags: tagRefs('Add these tags to every task.'),
+			removeTags: z
+				.array(z.string())
+				.optional()
+				.describe('Remove these tags (ids or names) from every task. The tags themselves are kept.')
+		}
+	},
+	async ({ projectId, taskIds, status, category, addTags, removeTags, ...fields }) => {
+		try {
+			const patch: Parameters<typeof duet.bulkUpdateTasks>[2] = { ...fields };
+			if (status === 'done' || status === 'not_doing') {
+				patch.completed = true;
+				patch.notDoing = status === 'not_doing';
+			} else if (status) {
+				patch.completed = false;
+				patch.inProgress = status === 'in_progress';
+				patch.toTest = status === 'to_test';
+			}
+			if (category !== undefined) {
+				patch.categoryId = category === null ? null : await duet.resolveCategoryId(projectId, category, true);
+			}
+			if (addTags?.length) patch.addTagIds = await duet.resolveTagIds(projectId, addTags, true);
+			if (removeTags?.length) {
+				const all = await duet.listTags(projectId);
+				const names = new Set(removeTags.map((r) => r.trim().toLowerCase()));
+				patch.removeTagIds = all
+					.filter((t) => removeTags.includes(t.id) || names.has(t.name.toLowerCase()))
+					.map((t) => t.id);
+				if (!patch.removeTagIds.length) delete patch.removeTagIds;
+			}
+			if (!Object.keys(patch).length) throw new Error('Nothing to update');
+			return text((await duet.bulkUpdateTasks(projectId, [...new Set(taskIds)], patch)).map(summarize));
+		} catch (e) {
+			return toolError(e);
+		}
+	}
+);
+
 // ─── Tags & categories ──────────────────────────────────────────────────────
 for (const kind of ['tag', 'category'] as const) {
 	const plural = kind === 'tag' ? 'tags' : 'categories';
