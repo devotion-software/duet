@@ -74,12 +74,23 @@
 		'image'
 	];
 	const groups = $derived.by(() => {
-		const out: { key: string; actor: TodoEvent['actor']; at: Date; events: TodoEvent[] }[] = [];
+		const out: {
+			key: string;
+			actor: TodoEvent['actor'];
+			source: TodoEvent['source'];
+			at: Date;
+			events: TodoEvent[];
+		}[] = [];
 		for (const e of events ?? []) {
 			const last = out.at(-1);
-			if (last && last.actor?.id === e.actor?.id && last.at.getTime() === e.createdAt.getTime())
+			if (
+				last &&
+				last.actor?.id === e.actor?.id &&
+				last.source === e.source &&
+				last.at.getTime() === e.createdAt.getTime()
+			)
 				last.events.push(e);
-			else out.push({ key: e.id, actor: e.actor, at: e.createdAt, events: [e] });
+			else out.push({ key: e.id, actor: e.actor, source: e.source, at: e.createdAt, events: [e] });
 		}
 		for (const g of out)
 			g.events.sort((a, b) => FIELD_ORDER.indexOf(a.field) - FIELD_ORDER.indexOf(b.field));
@@ -171,7 +182,13 @@
 						<Avatar name={g.actor?.name} email={g.actor?.email} image={g.actor?.image} size={20} />
 						<div class="body">
 							<div class="who">
-								<strong>{g.actor ? g.actor.name || g.actor.email : 'Someone'}</strong>
+								<strong
+									>{g.source === 'ai'
+										? `AI on behalf of ${g.actor ? g.actor.name || g.actor.email : 'Someone'}`
+										: g.actor
+											? g.actor.name || g.actor.email
+											: 'Someone'}</strong
+								>
 								<time datetime={g.at.toISOString()} title={g.at.toLocaleString()}>
 									{timeAgo(g.at)}
 								</time>

@@ -178,6 +178,7 @@ export async function listHistory(projectId: string, todoId: string): Promise<To
 			field: todoEvents.field,
 			from: todoEvents.fromValue,
 			to: todoEvents.toValue,
+			source: todoEvents.source,
 			createdAt: todoEvents.createdAt,
 			actorId: user.id,
 			actorName: user.name,
@@ -195,6 +196,7 @@ export async function listHistory(projectId: string, todoId: string): Promise<To
 		from: r.from,
 		to: r.to,
 		actor: r.actorId ? { id: r.actorId, name: r.actorName!, email: r.actorEmail!, image: r.actorImage } : null,
+		source: r.source,
 		createdAt: r.createdAt
 	}));
 }

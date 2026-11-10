@@ -170,6 +170,7 @@ export interface TodoEvent {
 	from: string | null;
 	to: string | null;
 	actor: { id: string; name: string; email: string; image: string | null } | null;
+	source: 'user' | 'ai';
 	createdAt: Date;
 }
 
