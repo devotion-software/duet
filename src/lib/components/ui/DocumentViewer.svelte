@@ -20,7 +20,8 @@
 	const open = $derived(doc !== null);
 	const isPdf = $derived(doc?.mime === 'application/pdf');
 	const isText = $derived(!!doc?.mime?.startsWith('text/'));
-	const previewable = $derived(isPdf || isText);
+	const isVideo = $derived(!!doc?.mime?.startsWith('video/'));
+	const previewable = $derived(isPdf || isText || isVideo);
 
 	let text = $state<string | null>(null);
 	let textFailed = $state(false);
@@ -117,6 +118,18 @@
 						title={doc.name ?? 'Document'}
 						in:scaleIn={{ duration: 180, start: 0.98, opacity: 0 }}
 					></iframe>
+				{/key}
+			{:else if isVideo}
+				{#key doc.src}
+					<video
+						class="video-panel"
+						src={doc.src}
+						controls
+						autoplay
+						in:scaleIn={{ duration: 180, start: 0.98, opacity: 0 }}
+					>
+						<track kind="captions" />
+					</video>
 				{/key}
 			{:else if isText}
 				<div class="text-panel" in:scaleIn={{ duration: 180, start: 0.98, opacity: 0 }}>
@@ -218,6 +231,13 @@
 		overflow: auto;
 		background: #fff;
 		border-radius: var(--radius-sm);
+		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+	}
+	.video-panel {
+		max-width: 100%;
+		max-height: 100%;
+		border-radius: var(--radius-sm);
+		background: #000;
 		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 	}
 	.text-panel pre {

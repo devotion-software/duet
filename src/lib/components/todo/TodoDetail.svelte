@@ -568,6 +568,7 @@
 					<div class="img-grid">
 						{#each todo.attachments as att (att.id)}
 							{@const isImage = !!att.mime?.startsWith('image/')}
+							{@const isVideo = !!att.mime?.startsWith('video/')}
 							<div class="thumb">
 								{#if isImage}
 									<button
@@ -576,6 +577,15 @@
 										aria-label="View image"
 									>
 										<img src={att.url} alt={att.name ?? 'attachment'} loading="lazy" />
+									</button>
+								{:else if isVideo}
+									<button
+										class="thumb-open file video"
+										onclick={() => (viewingDoc = att)}
+										aria-label="Play video"
+									>
+										<Icon name="play" size={22} />
+										<span class="file-name" title={att.name}>{att.name}</span>
 									</button>
 								{:else}
 									<button class="thumb-open file" onclick={() => (viewingDoc = att)}>
