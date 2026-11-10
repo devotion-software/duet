@@ -1351,5 +1351,12 @@
 		.attrs {
 			grid-template-columns: 1fr;
 		}
+		.icon-act {
+			padding: var(--space-3);
+			min-width: 44px;
+			min-height: 44px;
+			align-items: center;
+			justify-content: center;
+		}
 	}
 </style>
