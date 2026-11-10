@@ -83,5 +83,15 @@ export const actions: Actions = {
 		if (!keyId) return fail(400, { message: 'Missing key id' });
 		await auth.api.deleteApiKey({ body: { keyId }, headers: request.headers });
 		return { success: true };
+	},
+
+	renameApiKey: async ({ request, locals }) => {
+		if (!locals.user) return fail(401, { message: 'Not signed in' });
+		const form = await request.formData();
+		const keyId = String(form.get('keyId') ?? '');
+		const name = String(form.get('name') ?? '').trim().slice(0, 80) || 'Untitled key';
+		if (!keyId) return fail(400, { message: 'Missing key id' });
+		await auth.api.updateApiKey({ body: { keyId, name }, headers: request.headers });
+		return { success: true };
 	}
 };

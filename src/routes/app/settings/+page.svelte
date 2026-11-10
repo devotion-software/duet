@@ -117,6 +117,32 @@
 		}
 	}
 
+	function startRenameKey(k: { id: string; name: string | null }) {
+		renamingId = k.id;
+		renameValue = k.name ?? '';
+	}
+
+	async function saveRenameKey(k: { id: string; name: string | null }) {
+		const n = renameValue.trim();
+		if (savingRename || renamingId !== k.id) return;
+		if (!n || n === k.name) {
+			renamingId = null;
+			return;
+		}
+		savingRename = true;
+		const body = new FormData();
+		body.set('keyId', k.id);
+		body.set('name', n);
+		const res = await fetch('?/renameApiKey', { method: 'POST', body });
+		savingRename = false;
+		renamingId = null;
+		if (!res.ok) toasts.error('Could not rename key');
+		else {
+			toasts.success('Key renamed');
+			await invalidateAll();
+		}
+	}
+
 	async function removePasskey(id: string) {
 		if (!confirm('Remove this passkey?')) return;
 		const res = await authClient.passkey.deletePasskey({ id });
@@ -456,7 +482,24 @@
 					<li class="pk">
 						<span class="pk-icon"><Icon name="sparkles" size={16} /></span>
 						<div class="pk-info">
-							<span class="pk-name">{k.name || 'Untitled key'}</span>
+							{#if renamingId === k.id}
+								<!-- svelte-ignore a11y_autofocus -->
+								<input
+									class="pk-rename"
+									bind:value={renameValue}
+									maxlength="80"
+									aria-label="API key name"
+									autofocus
+									disabled={savingRename}
+									onkeydown={(e) => {
+										if (e.key === 'Enter') saveRenameKey(k);
+										else if (e.key === 'Escape') renamingId = null;
+									}}
+									onblur={() => saveRenameKey(k)}
+								/>
+							{:else}
+								<span class="pk-name">{k.name || 'Untitled key'}</span>
+							{/if}
 							<span class="pk-meta">
 								{k.start ? `${k.start}…` : ''} · Created {new Date(k.createdAt).toLocaleDateString()}
 								{#if k.lastRequest}
@@ -464,6 +507,11 @@
 								{/if}
 							</span>
 						</div>
+						{#if renamingId !== k.id}
+							<button class="pk-action" onclick={() => startRenameKey(k)} aria-label="Rename key">
+								<Icon name="pencil" size={15} />
+							</button>
+						{/if}
 						<form
 							method="POST"
 							action="?/revokeApiKey"
