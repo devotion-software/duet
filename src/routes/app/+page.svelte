@@ -8,13 +8,12 @@
 	import ProjectBulkBar from '#lib/components/ProjectBulkBar.svelte';
 	import ProjectIcon from '#lib/components/ProjectIcon.svelte';
 	import ProjectStatusBadge from '#lib/components/ProjectStatusBadge.svelte';
-	import TitleText from '#lib/components/ui/TitleText.svelte';
+	import UrgencyTaskList from '#lib/components/UrgencyTaskList.svelte';
 	import { toasts } from '#lib/components/ui/toast.svelte';
 	import { buildSidebar, moveSidebarItem, type SidebarDrag, type SidebarDrop } from '#lib/sidebar';
-	import { deadlineInfo } from '#lib/date';
 	import { fontStyle } from '#lib/font';
 	import { formatTodosAsChecklist, formatTodosAsJson } from '#lib/todoFormat';
-	import { hydrateTodo, type ProjectStatus, type Member } from '#lib/types';
+	import { hydrateTodo, URGENCIES, URGENCY_META, type ProjectStatus, type Member } from '#lib/types';
 
 	let { data } = $props();
 
@@ -380,42 +379,22 @@
 		</header>
 
 		<section class="section">
-			<h2><Icon name="alert-circle" size={16} /> Urgent</h2>
-			{#if data.urgent.length}
-				<ul class="urgent-list">
-					{#each data.urgent as t (t.id)}
-						{@const p = projectById.get(t.projectId)!}
-						{@const due = deadlineInfo(t.deadline ? new Date(t.deadline) : null)}
-						<li>
-							<a class="urgent-row" href="/app/{p.slug}?task={t.id}" style="--accent: {p.color}">
-								<span class="u-dot" title="Urgent"></span>
-								<span class="u-main">
-									<span class="u-title"><TitleText text={t.title} /></span>
-									{#if t.parentTitle}
-										<span class="u-parent truncate">
-											<Icon name="corner-down-right" size={12} /><TitleText text={t.parentTitle} />
-										</span>
-									{/if}
-								</span>
-								{#if t.startedAt}
-									<span class="chip started"><Icon name="clock" size={12} />In progress</span>
-								{/if}
-								{#if due}
-									<span class="chip deadline {due.state}">
-										<Icon name="calendar" size={12} />{due.label}
-									</span>
-								{/if}
-								<span class="u-project">
-									<span class="u-icon"><ProjectIcon icon={p.icon} iconUrl={p.iconUrl} /></span>
-									<span class="truncate">{p.name}</span>
-								</span>
-							</a>
-						</li>
+			<h2>
+				<Icon name="alert-circle" size={16} /> Urgent
+				<span class="h2-tools urgency-links">
+					{#each URGENCIES as level (level)}
+						<a class="tool-btn" href="/app/urgency/{level}">
+							<span class="level-dot" style="background: {URGENCY_META[level].color}"></span>
+							{URGENCY_META[level].label}
+						</a>
 					{/each}
-				</ul>
-			{:else}
-				<p class="none">Nothing urgent right now. 🎉</p>
-			{/if}
+				</span>
+			</h2>
+			<UrgencyTaskList
+				tasks={data.urgent}
+				{projectById}
+				emptyMessage="Nothing urgent right now. 🎉"
+			/>
 		</section>
 
 		<section class="section">
@@ -691,96 +670,14 @@
 		border-radius: var(--radius-lg);
 	}
 
-	/* Urgent tasks */
-	.urgent-list {
-		background: var(--surface);
-		border: 1px solid var(--border);
-		border-radius: var(--radius-lg);
-		overflow: hidden;
+	/* Urgent section header links */
+	.urgency-links {
+		gap: var(--space-2);
 	}
-	.urgent-list li + li {
-		border-top: 1px solid var(--border-subtle);
-	}
-	.urgent-row {
-		display: flex;
-		align-items: center;
-		gap: var(--space-3);
-		padding: var(--space-3) var(--space-4);
-		color: var(--text);
-		font-size: var(--text-sm);
-		transition: background var(--transition-fast);
-	}
-	.urgent-row:hover {
-		background: var(--surface-hover);
-	}
-	.u-dot {
-		width: 8px;
-		height: 8px;
-		flex-shrink: 0;
+	.level-dot {
+		width: 6px;
+		height: 6px;
 		border-radius: var(--radius-full);
-		background: var(--danger);
-	}
-	.u-main {
-		flex: 1;
-		min-width: 0;
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-	}
-	.u-title {
-		overflow-wrap: anywhere;
-	}
-	.u-parent {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-		font-size: var(--text-xs);
-		color: var(--text-subtle);
-	}
-	.chip {
-		display: inline-flex;
-		align-items: center;
-		gap: 4px;
-		padding: 2px var(--space-2);
-		border-radius: var(--radius-full);
-		background: var(--surface-inset);
-		color: var(--text-muted);
-		font-size: var(--text-xs);
-		font-weight: var(--weight-medium);
-		white-space: nowrap;
-	}
-	.chip.started {
-		color: var(--accent-text);
-		background: var(--accent-soft);
-	}
-	.deadline.overdue {
-		color: var(--danger);
-		background: var(--danger-soft);
-	}
-	.deadline.today {
-		color: var(--warning);
-		background: var(--warning-soft);
-	}
-	.deadline.soon {
-		color: var(--text);
-	}
-	.u-project {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		max-width: 180px;
-		flex-shrink: 0;
-		padding: 2px var(--space-2) 2px 4px;
-		border-radius: var(--radius-full);
-		font-size: var(--text-xs);
-		font-weight: var(--weight-medium);
-		color: var(--accent-text);
-		background: var(--accent-soft);
-	}
-	.u-icon {
-		display: grid;
-		place-items: center;
-		font-size: 12px;
 	}
 
 	/* Project groups */

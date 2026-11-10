@@ -3,6 +3,7 @@ import { alias } from 'drizzle-orm/mysql-core';
 import { db } from './db';
 import { todos } from './db/app.schema';
 import type { ProjectSummary } from './projects';
+import type { Urgency } from '#lib/types';
 
 export interface ProjectStats {
 	/** Open and done tasks, counting subtasks only if the project summary's `countSubtasks` is set. */
@@ -22,12 +23,38 @@ export interface UrgentTask {
 	startedAt: Date | null;
 }
 
+/** Every open task at a given urgency, across the given projects. */
+export async function listUrgencyTasks(projectIds: string[], urgency: Urgency): Promise<UrgentTask[]> {
+	if (!projectIds.length) return [];
+	const parent = alias(todos, 'parent');
+	return db
+		.select({
+			id: todos.id,
+			projectId: todos.projectId,
+			title: todos.title,
+			parentTitle: parent.title,
+			deadline: todos.deadline,
+			startedAt: todos.startedAt
+		})
+		.from(todos)
+		.leftJoin(parent, eq(parent.id, todos.parentId))
+		.where(
+			and(
+				inArray(todos.projectId, projectIds),
+				isNull(todos.deletedAt),
+				eq(todos.completed, false),
+				eq(todos.urgency, urgency)
+			)
+		)
+		// Soonest deadline first, undated ones last.
+		.orderBy(sql`${todos.deadline} is null`, asc(todos.deadline), asc(todos.createdAt));
+}
+
 /** Per-project task counts and every open urgent task across the given projects. */
 export async function getHomeOverview(projects: ProjectSummary[]) {
 	const ids = projects.map((p) => p.id);
 	if (!ids.length) return { stats: {} as Record<string, ProjectStats>, urgent: [] as UrgentTask[] };
 
-	const parent = alias(todos, 'parent');
 	const [counts, urgent] = await Promise.all([
 		db
 			.select({
@@ -41,27 +68,7 @@ export async function getHomeOverview(projects: ProjectSummary[]) {
 			.from(todos)
 			.where(and(inArray(todos.projectId, ids), isNull(todos.deletedAt)))
 			.groupBy(todos.projectId),
-		db
-			.select({
-				id: todos.id,
-				projectId: todos.projectId,
-				title: todos.title,
-				parentTitle: parent.title,
-				deadline: todos.deadline,
-				startedAt: todos.startedAt
-			})
-			.from(todos)
-			.leftJoin(parent, eq(parent.id, todos.parentId))
-			.where(
-				and(
-					inArray(todos.projectId, ids),
-					isNull(todos.deletedAt),
-					eq(todos.completed, false),
-					eq(todos.urgency, 'urgent')
-				)
-			)
-			// Soonest deadline first, undated ones last.
-			.orderBy(sql`${todos.deadline} is null`, asc(todos.deadline), asc(todos.createdAt))
+		listUrgencyTasks(ids, 'urgent')
 	]);
 
 	const countMap = new Map(counts.map((c) => [c.projectId, c]));
