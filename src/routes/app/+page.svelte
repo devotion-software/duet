@@ -8,6 +8,7 @@
 	import ProjectBulkBar from '#lib/components/ProjectBulkBar.svelte';
 	import ProjectIcon from '#lib/components/ProjectIcon.svelte';
 	import ProjectStatusBadge from '#lib/components/ProjectStatusBadge.svelte';
+	import TitleText from '#lib/components/ui/TitleText.svelte';
 	import { toasts } from '#lib/components/ui/toast.svelte';
 	import { buildSidebar, moveSidebarItem, type SidebarDrag, type SidebarDrop } from '#lib/sidebar';
 	import { deadlineInfo } from '#lib/date';
@@ -389,10 +390,10 @@
 							<a class="urgent-row" href="/app/{p.slug}?task={t.id}" style="--accent: {p.color}">
 								<span class="u-dot" title="Urgent"></span>
 								<span class="u-main">
-									<span class="u-title">{t.title}</span>
+									<span class="u-title"><TitleText text={t.title} /></span>
 									{#if t.parentTitle}
 										<span class="u-parent truncate">
-											<Icon name="corner-down-right" size={12} />{t.parentTitle}
+											<Icon name="corner-down-right" size={12} /><TitleText text={t.parentTitle} />
 										</span>
 									{/if}
 								</span>
