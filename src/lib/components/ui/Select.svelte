@@ -133,6 +133,19 @@
 		close();
 	}
 
+	/** ↑/↓ on the closed trigger cycle the value directly, like a native `<select>`. */
+	function onTriggerKeydown(e: KeyboardEvent) {
+		if (open || (e.key !== 'ArrowDown' && e.key !== 'ArrowUp')) return;
+		const enabled = options.filter((o) => !o.disabled);
+		if (!enabled.length) return;
+		e.preventDefault();
+		const dir = e.key === 'ArrowDown' ? 1 : -1;
+		const current = enabled.findIndex((o) => o.value === value);
+		const next = enabled[current < 0 ? (dir > 0 ? 0 : enabled.length - 1) : (current + dir + enabled.length) % enabled.length];
+		if (!momentary) value = next.value;
+		onvalue?.(next.value);
+	}
+
 	async function createNew() {
 		const q = query.trim();
 		if (!q || !onCreate || creating) return;
@@ -208,6 +221,7 @@
 			aria-expanded={open}
 			aria-label={ariaLabel ?? label}
 			onclick={() => (open ? close() : openList())}
+			onkeydown={onTriggerKeydown}
 		>
 			{#if icon}
 				<Icon name={icon} size={size === 'sm' ? 15 : 17} class="leading-icon" />
