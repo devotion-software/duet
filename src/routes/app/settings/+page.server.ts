@@ -72,7 +72,18 @@ export const actions: Actions = {
 		if (!locals.user) return fail(401, { message: 'Not signed in' });
 		const form = await request.formData();
 		const name = String(form.get('name') ?? '').trim().slice(0, 80) || 'Untitled key';
-		const rateLimit = Number(form.get('rateLimit') ?? NaN);
+		const rawMax = form.get('rateLimitMax');
+		const rawWindow = form.get('rateLimitWindowMs');
+		// Both fields are absent when the "No limit" checkbox is ticked.
+		const hasLimit = rawMax !== null && rawWindow !== null;
+		const rateLimitMax = hasLimit ? Math.trunc(Number(rawMax)) : undefined;
+		const rateLimitTimeWindow = hasLimit ? Math.trunc(Number(rawWindow)) : undefined;
+		if (hasLimit && (!Number.isFinite(rateLimitMax) || rateLimitMax! < 1)) {
+			return fail(400, { message: 'Requests must be at least 1' });
+		}
+		if (hasLimit && (!Number.isFinite(rateLimitTimeWindow) || rateLimitTimeWindow! < 1000)) {
+			return fail(400, { message: 'Window must be at least a second' });
+		}
 		// Passing `userId` directly (instead of `headers`) takes the server-trusted
 		// path, which is the only one allowed to set rateLimitMax/Enabled — the
 		// plugin rejects those fields on any request carrying session headers.
@@ -80,8 +91,8 @@ export const actions: Actions = {
 			body: {
 				name,
 				userId: locals.user.id,
-				rateLimitEnabled: rateLimit > 0,
-				...(rateLimit > 0 ? { rateLimitMax: rateLimit, rateLimitTimeWindow: 60 * 1000 } : {})
+				rateLimitEnabled: hasLimit,
+				...(hasLimit ? { rateLimitMax, rateLimitTimeWindow } : {})
 			}
 		});
 		return { success: true, newKey: result.key, newKeyName: result.name };

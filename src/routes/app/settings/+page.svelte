@@ -21,14 +21,39 @@
 	let addingPasskey = $state(false);
 	let creatingApiKey = $state(false);
 	let newApiKeyName = $state('');
-	let newApiKeyRateLimit = $state('120');
-	const RATE_LIMIT_OPTIONS = [
-		{ value: '60', label: '60 requests / minute' },
-		{ value: '120', label: '120 requests / minute (default)' },
-		{ value: '300', label: '300 requests / minute' },
-		{ value: '600', label: '600 requests / minute' },
-		{ value: '0', label: 'No limit' }
+	let newApiKeyUnlimited = $state(false);
+	let newApiKeyMax = $state('120');
+	let newApiKeyWindowAmount = $state('1');
+	let newApiKeyWindowUnit = $state('minute');
+	const RATE_LIMIT_UNIT_MS: Record<string, number> = {
+		minute: 60_000,
+		hour: 60 * 60_000,
+		day: 24 * 60 * 60_000
+	};
+	const RATE_LIMIT_UNIT_OPTIONS = [
+		{ value: 'minute', label: 'minute(s)' },
+		{ value: 'hour', label: 'hour(s)' },
+		{ value: 'day', label: 'day(s)' }
 	];
+	const newApiKeyWindowMs = $derived(
+		Math.max(1, Number(newApiKeyWindowAmount) || 1) * RATE_LIMIT_UNIT_MS[newApiKeyWindowUnit]
+	);
+	/** Human-readable window, e.g. "minute", "3 hours", "day". */
+	function formatWindow(ms: number): string {
+		const units: [string, number][] = [
+			['day', 24 * 60 * 60_000],
+			['hour', 60 * 60_000],
+			['minute', 60_000]
+		];
+		for (const [label, unitMs] of units) {
+			if (ms % unitMs === 0) {
+				const n = ms / unitMs;
+				return n === 1 ? label : `${n} ${label}s`;
+			}
+		}
+		const s = Math.round(ms / 1000);
+		return s === 1 ? 'second' : `${s} seconds`;
+	}
 	const copiedKey = new Copied();
 
 	async function copyNewApiKey(key: string) {
@@ -473,10 +498,42 @@
 					maxlength="80"
 				/>
 			</div>
-			<div class="field">
+			<div class="field rate-limit-field">
 				<span>Rate limit</span>
-				<input type="hidden" name="rateLimit" value={newApiKeyRateLimit} />
-				<Select options={RATE_LIMIT_OPTIONS} bind:value={newApiKeyRateLimit} size="sm" searchable={false} />
+				<label class="check unlimited-check">
+					<input type="checkbox" bind:checked={newApiKeyUnlimited} />
+					No limit
+				</label>
+				{#if !newApiKeyUnlimited}
+					<div class="rate-limit-row">
+						<input type="hidden" name="rateLimitMax" value={newApiKeyMax} />
+						<input type="hidden" name="rateLimitWindowMs" value={newApiKeyWindowMs} />
+						<input
+							type="number"
+							min="1"
+							step="1"
+							class="rate-limit-count"
+							aria-label="Number of requests"
+							bind:value={newApiKeyMax}
+						/>
+						<span>requests every</span>
+						<input
+							type="number"
+							min="1"
+							step="1"
+							class="rate-limit-count"
+							aria-label="Window amount"
+							bind:value={newApiKeyWindowAmount}
+						/>
+						<Select
+							options={RATE_LIMIT_UNIT_OPTIONS}
+							bind:value={newApiKeyWindowUnit}
+							size="sm"
+							searchable={false}
+							aria-label="Window unit"
+						/>
+					</div>
+				{/if}
 			</div>
 			<div>
 				<Button variant="primary" size="sm" type="submit" loading={creatingApiKey} icon="plus">
@@ -521,7 +578,7 @@
 								{/if}
 								·
 								{#if k.rateLimitEnabled && k.rateLimitMax && k.rateLimitTimeWindow}
-									{Math.round(k.rateLimitMax / (k.rateLimitTimeWindow / 60000))} req/min
+									{k.rateLimitMax} / {formatWindow(k.rateLimitTimeWindow)}
 								{:else}
 									No limit
 								{/if}
@@ -908,6 +965,29 @@
 	.field input.key-name-input {
 		height: auto;
 		padding: var(--space-3);
+	}
+	.unlimited-check {
+		margin-top: 0;
+	}
+	.rate-limit-field .check input {
+		width: auto;
+		height: auto;
+		flex: none;
+		background: none;
+		border: none;
+		padding: 0;
+	}
+	.rate-limit-row {
+		display: flex;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: var(--space-2);
+		font-size: var(--text-sm);
+		color: var(--text-muted);
+	}
+	.rate-limit-count {
+		width: 72px;
+		flex: none;
 	}
 	.providers {
 		display: flex;
