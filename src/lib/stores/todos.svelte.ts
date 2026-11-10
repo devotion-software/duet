@@ -130,9 +130,9 @@ export class TodosController {
 
 	async add(input: NewTodoInput): Promise<Todo | null> {
 		const parentId = input.parentId ?? null;
-		// New top-level tasks go first; new subtasks go last among their siblings.
+		// New top-level tasks and new subtasks both go first among their siblings.
 		const sortOrder = parentId
-			? Math.min(1, ...this.childrenOf(parentId).map((t) => t.sortOrder)) - 1
+			? Math.max(0, ...this.childrenOf(parentId).map((t) => t.sortOrder)) + 1
 			: this.items.reduce((m, t) => Math.max(m, t.sortOrder), 0) + 1;
 		const tempId = `temp-${Math.random().toString(36).slice(2)}`;
 		const now = new Date();

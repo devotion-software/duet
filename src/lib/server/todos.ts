@@ -151,7 +151,7 @@ async function deleteSubtrees(conn: Conn, projectId: string, ids: string[], acto
 	return deleted;
 }
 
-/** sortOrder for a task joining `parentId`: top of the list, or last subtask. */
+/** sortOrder for a task joining `parentId`: top of the list, or top of the subtasks. */
 async function siblingSortOrder(conn: Conn, projectId: string, parentId: string | null) {
 	if (!parentId) {
 		const [row] = await conn
@@ -161,10 +161,10 @@ async function siblingSortOrder(conn: Conn, projectId: string, parentId: string 
 		return Number(row?.max ?? 0) + 1;
 	}
 	const [row] = await conn
-		.select({ min: sql<number>`coalesce(min(${todos.sortOrder}), 1)` })
+		.select({ max: sql<number>`coalesce(max(${todos.sortOrder}), 0)` })
 		.from(todos)
 		.where(and(liveIn(projectId), eq(todos.parentId, parentId)));
-	return Number(row?.min ?? 1) - 1;
+	return Number(row?.max ?? 0) + 1;
 }
 
 /**

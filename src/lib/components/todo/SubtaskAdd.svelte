@@ -56,6 +56,7 @@
 		align-items: center;
 		gap: var(--space-2);
 		padding: var(--space-2) var(--space-3);
+		margin-top: var(--space-1);
 		color: var(--text-faint);
 		border-radius: var(--radius-md);
 	}

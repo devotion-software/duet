@@ -743,9 +743,6 @@
 	/>
 	{#if (kids.length || addingTo === todo.id) && !isCollapsed(todo.id)}
 		<div class="subtasks" class:capped={depth >= MAX_INDENT} transition:slide={{ duration: 150 }}>
-			{#each kids as child (child.id)}
-				<div animate:flip={{ duration: 200 }}>{@render node(child, depth + 1)}</div>
-			{/each}
 			{#if addingTo === todo.id}
 				<SubtaskAdd
 					autofocus
@@ -753,6 +750,9 @@
 					onClose={() => (addingTo = null)}
 				/>
 			{/if}
+			{#each kids as child (child.id)}
+				<div animate:flip={{ duration: 200 }}>{@render node(child, depth + 1)}</div>
+			{/each}
 		</div>
 	{/if}
 {/snippet}

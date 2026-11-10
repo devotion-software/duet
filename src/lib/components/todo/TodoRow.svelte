@@ -409,6 +409,16 @@
 			<Avatar name={assignee.name} image={assignee.image} size={22} />
 		{/if}
 		<div class="actions" class:open={menuOpen}>
+			{#if canEdit && onAddSubtask}
+				<button
+					class="act"
+					title="Add subtask"
+					onclick={() => onAddSubtask(todo)}
+					aria-label="Add subtask"
+				>
+					<Icon name="corner-down-right" size={15} />
+				</button>
+			{/if}
 			<button
 				class="act"
 				title="Copy for AI"
