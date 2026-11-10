@@ -516,8 +516,8 @@
 		>
 			<span class="p-icon"><ProjectIcon icon={p.icon} iconUrl={p.iconUrl} /></span>
 			<span class="p-name truncate">{p.name}</span>
-			{#if p.status === 'live'}
-				<span class="p-live" title="Live"></span>
+			{#if p.status === 'live' || p.status === 'in_progress'}
+				<span class="p-live p-live-{p.status}" title={p.status === 'live' ? 'Live' : 'In progress'}></span>
 			{/if}
 			{#if openCount > 0}
 				<span class="p-count">{openCount}</span>
@@ -985,6 +985,9 @@
 		flex-shrink: 0;
 		border-radius: var(--radius-full);
 		background: var(--success);
+	}
+	.p-live-in_progress {
+		background: var(--warning);
 	}
 	.p-link.archived:not(.active) {
 		opacity: 0.65;
