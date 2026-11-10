@@ -650,6 +650,7 @@
 	.section h2 {
 		display: flex;
 		align-items: center;
+		flex-wrap: wrap;
 		gap: var(--space-2);
 		font-size: var(--text-sm);
 		font-weight: var(--weight-semibold);
@@ -660,6 +661,7 @@
 	}
 	.h2-tools {
 		display: inline-flex;
+		flex-wrap: wrap;
 		gap: var(--space-1);
 		margin-left: auto;
 		text-transform: none;
