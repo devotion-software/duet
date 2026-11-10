@@ -16,6 +16,8 @@
 	import {
 		SIZES,
 		SIZE_META,
+		TASK_STATUSES,
+		TASK_STATUS_META,
 		URGENCIES,
 		URGENCY_META,
 		type Category,
@@ -38,6 +40,7 @@
 
 	type Option = { value: string; label: string; color?: string };
 	const options = $derived<Record<FilterField, Option[]>>({
+		statuses: TASK_STATUSES.map((s) => ({ value: s, label: TASK_STATUS_META[s].label })),
 		categories: [
 			...categories.map((c) => ({ value: c.id, label: c.name, color: c.color })),
 			{ value: '', label: 'No category' }

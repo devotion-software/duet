@@ -2,8 +2,11 @@ import { compareSiblings } from './todoTree';
 import {
 	SIZES,
 	SIZE_META,
+	TASK_STATUSES,
+	TASK_STATUS_META,
 	URGENCIES,
 	URGENCY_META,
+	taskStatus,
 	type Category,
 	type Member,
 	type Tag,
@@ -13,10 +16,19 @@ import {
 // Sorting, grouping and filtering of the task list. `''` stands for "no value"
 // (no category, unassigned, no deadline…) wherever a filter or group key is used.
 
-export type SortKey = 'manual' | 'deadline' | 'urgency' | 'size' | 'category' | 'assignee' | 'title' | 'created';
-export type GroupKey = 'none' | 'category' | 'tag' | 'assignee' | 'deadline' | 'urgency' | 'size';
+export type SortKey =
+	| 'manual'
+	| 'status'
+	| 'deadline'
+	| 'urgency'
+	| 'size'
+	| 'category'
+	| 'assignee'
+	| 'title'
+	| 'created';
+export type GroupKey = 'none' | 'status' | 'category' | 'tag' | 'assignee' | 'deadline' | 'urgency' | 'size';
 export type DeadlineBucket = 'overdue' | 'today' | 'week' | 'later' | '';
-export type FilterField = 'categories' | 'tags' | 'assignees' | 'deadlines' | 'urgencies' | 'sizes';
+export type FilterField = 'statuses' | 'categories' | 'tags' | 'assignees' | 'deadlines' | 'urgencies' | 'sizes';
 
 export type ViewFilter = Record<FilterField, string[]>;
 
@@ -30,6 +42,7 @@ export interface ViewState {
 
 export const SORT_LABELS: Record<SortKey, string> = {
 	manual: 'Manual',
+	status: 'Status',
 	deadline: 'Deadline',
 	urgency: 'Urgency',
 	size: 'Size',
@@ -40,6 +53,7 @@ export const SORT_LABELS: Record<SortKey, string> = {
 };
 export const GROUP_LABELS: Record<GroupKey, string> = {
 	none: 'None',
+	status: 'Status',
 	category: 'Category',
 	tag: 'Tag',
 	assignee: 'Assignee',
@@ -48,6 +62,7 @@ export const GROUP_LABELS: Record<GroupKey, string> = {
 	size: 'Size'
 };
 export const FILTER_LABELS: Record<FilterField, string> = {
+	statuses: 'Status',
 	categories: 'Category',
 	tags: 'Tag',
 	assignees: 'Assignee',
@@ -64,7 +79,7 @@ export const DEADLINE_BUCKETS: { key: DeadlineBucket; label: string; color: stri
 ];
 
 export function emptyFilter(): ViewFilter {
-	return { categories: [], tags: [], assignees: [], deadlines: [], urgencies: [], sizes: [] };
+	return { statuses: [], categories: [], tags: [], assignees: [], deadlines: [], urgencies: [], sizes: [] };
 }
 export function defaultView(): ViewState {
 	return { sort: 'manual', reverse: false, group: 'none', filter: emptyFilter() };
@@ -106,6 +121,7 @@ export function deadlineBucket(deadline: Date | null, now = new Date()): Deadlin
 export function matchesFilter(t: Todo, f: ViewFilter): boolean {
 	const has = (list: string[], v: string) => !list.length || list.includes(v);
 	return (
+		has(f.statuses, taskStatus(t)) &&
 		has(f.categories, t.categoryId ?? '') &&
 		has(f.assignees, t.assigneeId ?? '') &&
 		has(f.urgencies, t.urgency ?? '') &&
@@ -122,6 +138,8 @@ const SIZE_RANK = Object.fromEntries(SIZES.map((s, i) => [s, i]));
 /** Sort value for a task; `null` means "no value" and always sorts last. */
 function sortValue(t: Todo, key: SortKey): number | string | null {
 	switch (key) {
+		case 'status':
+			return TASK_STATUS_META[taskStatus(t)].rank;
 		case 'deadline':
 			return t.deadline?.getTime() ?? null;
 		case 'urgency':
@@ -178,6 +196,8 @@ export interface GroupContext {
 /** The ordered list of possible groups for a grouping, empty bucket last. */
 function groupDefs(group: GroupKey, ctx: GroupContext): Omit<TodoGroup, 'todos'>[] {
 	switch (group) {
+		case 'status':
+			return TASK_STATUSES.map((s) => ({ key: s, label: TASK_STATUS_META[s].label, color: '' }));
 		case 'category':
 			return [
 				...ctx.categories.map((c) => ({ key: c.id, label: c.name, color: c.color })),
@@ -213,6 +233,8 @@ function groupDefs(group: GroupKey, ctx: GroupContext): Omit<TodoGroup, 'todos'>
 /** Keys of the groups a task belongs to — several for a task with several tags. */
 function groupKeys(t: Todo, group: GroupKey): string[] {
 	switch (group) {
+		case 'status':
+			return [taskStatus(t)];
 		case 'category':
 			return [t.categoryId ?? ''];
 		case 'tag':

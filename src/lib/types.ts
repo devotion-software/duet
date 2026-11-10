@@ -202,6 +202,24 @@ export function isToTest(t: Todo): boolean {
 	return !!t.testingAt && !t.completed;
 }
 
+/** Where a task stands right now, derived from its fields. */
+export function taskStatus(t: Todo): TaskStatus {
+	if (t.completed) return t.notDoing ? 'not_doing' : 'done';
+	if (t.testingAt) return 'to_test';
+	return t.startedAt ? 'in_progress' : 'open';
+}
+
+/** Display order: default, in progress, to test, done, not doing. */
+export const TASK_STATUSES: TaskStatus[] = ['open', 'in_progress', 'to_test', 'done', 'not_doing'];
+
+export const TASK_STATUS_META: Record<TaskStatus, { label: string; rank: number }> = {
+	open: { label: 'To do', rank: 0 },
+	in_progress: { label: 'In progress', rank: 1 },
+	to_test: { label: 'To test', rank: 2 },
+	done: { label: 'Done', rank: 3 },
+	not_doing: { label: 'Not doing', rank: 4 }
+};
+
 export const URGENCY_META: Record<Urgency, { label: string; color: string; rank: number }> = {
 	low: { label: 'Low', color: '#64748b', rank: 1 },
 	medium: { label: 'Medium', color: '#0ea5e9', rank: 2 },
