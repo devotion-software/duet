@@ -189,6 +189,24 @@
 		open = true;
 	}
 
+	// Only pop the calendar open for a pointer-driven focus (click on the field or
+	// its icon) — a Tab-driven focus should just land in the text field ready to
+	// type, the same as any other input.
+	let focusedByPointer = false;
+	function onControlPointerDown() {
+		focusedByPointer = true;
+	}
+	function onInputFocus() {
+		if (focusedByPointer) {
+			openPanel();
+		} else {
+			draft = selectedDate ? toInput(selectedDate) : '';
+			dirty = false;
+			inputEl?.select();
+		}
+		focusedByPointer = false;
+	}
+
 	// Inline mode has no trigger to call openPanel() from, so seed the
 	// calendar's view month from the selection (or today) once on mount.
 	$effect(() => {
@@ -269,7 +287,10 @@
 	}
 
 	function onInputKeydown(e: KeyboardEvent) {
-		if (e.key === 'Enter') {
+		if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+			e.preventDefault();
+			openPanel();
+		} else if (e.key === 'Enter') {
 			e.preventDefault();
 			commitDraft();
 			close();
@@ -347,6 +368,7 @@
 			<label for={fieldId}>{label}</label>
 		{/if}
 		<div class="date-host">
+			<!-- svelte-ignore a11y_no_static_element_interactions (pointerdown here only distinguishes a click-focus from a Tab-focus on the input inside it) -->
 			<div
 				bind:this={controlEl}
 				class="control {variant} {size}"
@@ -354,6 +376,7 @@
 				class:has-clear={clearable && selectedDate && !disabled}
 				class:disabled
 				class:open
+				onpointerdown={onControlPointerDown}
 			>
 				<button
 					type="button"
@@ -379,7 +402,7 @@
 					{disabled}
 					placeholder={open ? 'yyyy-mm-dd' : placeholder}
 					value={open ? draft : selectedDate ? display : ''}
-					onfocus={openPanel}
+					onfocus={onInputFocus}
 					oninput={onInputChange}
 					onkeydown={onInputKeydown}
 					onblur={commitDraft}

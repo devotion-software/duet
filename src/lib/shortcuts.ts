@@ -72,7 +72,8 @@ export const SHORTCUTS: { title: string; items: { keys: string[]; label: string 
 	{
 		title: 'Task details',
 		items: [
-			{ keys: ['↑', '↓'], label: 'Previous / next task (also k / j)' },
+			{ keys: ['Tab'], label: 'Move between fields and actions (wraps within the panel)' },
+			{ keys: ['↑', '↓'], label: 'Previous / next task (also k / j, before you Tab into a field)' },
 			{ keys: ['⌘', 'Enter'], label: 'Save and close details' },
 			{ keys: ['Esc'], label: 'Close details' }
 		]

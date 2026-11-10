@@ -121,6 +121,7 @@
 	let description = $state(todo.description ?? '');
 	let descMode = $state<'write' | 'preview'>('write');
 	let titleEl = $state<HTMLTextAreaElement | undefined>();
+	let panelEl = $state<HTMLElement | undefined>();
 
 	// Keep the title textarea sized to its content (incl. programmatic changes).
 	$effect(() => {
@@ -131,12 +132,16 @@
 		}
 	});
 
-	// Opened via keyboard: focus the title with the cursor at the end.
+	// Opened via keyboard: focus the title with the cursor at the end. Opened any
+	// other way (click, switching tasks): focus the panel itself, so Tab starts
+	// cycling through its fields right away instead of needing a mouse click first.
 	$effect(() => {
 		if (focusTitle && titleEl) {
 			titleEl.focus();
 			const end = titleEl.value.length;
 			titleEl.setSelectionRange(end, end);
+		} else {
+			panelEl?.focus();
 		}
 	});
 	let newTagName = $state('');
@@ -175,9 +180,36 @@
 		newTagName = '';
 		if (tag) onUpdate({ tagIds: [...selectedTagIds, tag.id] });
 	}
+	const FOCUSABLE =
+		'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), ' +
+		'textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+	/** Keeps Tab cycling within the panel instead of escaping to the page behind it. */
+	function trapTab(e: KeyboardEvent) {
+		if (!panelEl) return;
+		const items = [...panelEl.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
+			(el) => el.offsetParent !== null
+		);
+		if (!items.length) return;
+		const first = items[0];
+		const last = items[items.length - 1];
+		const active = document.activeElement;
+		if (e.shiftKey && (active === first || active === panelEl)) {
+			e.preventDefault();
+			last.focus();
+		} else if (!e.shiftKey && active === last) {
+			e.preventDefault();
+			first.focus();
+		}
+	}
+
 	function onkeydown(e: KeyboardEvent) {
 		// A dialog on top (e.g. delete confirmation) owns Escape.
 		if (e.defaultPrevented || dialogOpen()) return;
+		if (e.key === 'Tab') {
+			trapTab(e);
+			return;
+		}
 		if (e.key === 'Escape') {
 			onClose();
 			return;
@@ -191,10 +223,14 @@
 		}
 		if (e.metaKey || e.ctrlKey || e.altKey || e.isComposing || (!onPrevTask && !onNextTask)) return;
 
-		// The title field auto-focuses when a task is opened via the keyboard, which
-		// would otherwise swallow every ↑/↓ press as a no-op cursor move. Let them
-		// through for prev/next-task navigation once the caret is already at the
-		// start/end of the title — same boundary behaviour as a code editor.
+		// Prev/next-task stepping only kicks in when focus isn't on a specific
+		// field — i.e. right after opening the panel, before Tab has been used to
+		// move into it — or when the caret in the title is already at its start/end
+		// (so it doesn't eat ↑/↓ as a no-op cursor move while not actually editing
+		// anything that would move). Once focus is on any real control (a meta
+		// field, a status button, an action), arrows are left alone so they don't
+		// hijack normal keyboard use of that control — that's what Tab is for.
+		const typing = isTyping(e);
 		const onTitleBoundary =
 			!!titleEl &&
 			e.target === titleEl &&
@@ -202,14 +238,14 @@
 				(e.key === 'ArrowDown' &&
 					titleEl.selectionStart === titleEl.value.length &&
 					titleEl.selectionEnd === titleEl.value.length));
-		const typing = isTyping(e);
-		if (typing && !onTitleBoundary) return;
+		const neutral = !typing && (e.target === panelEl || e.target === document.body);
+		if (!neutral && !onTitleBoundary) return;
 
 		let dir = 0;
 		if (e.key === 'ArrowDown') dir = 1;
 		else if (e.key === 'ArrowUp') dir = -1;
-		else if (!typing && e.key === 'j') dir = 1;
-		else if (!typing && e.key === 'k') dir = -1;
+		else if (neutral && e.key === 'j') dir = 1;
+		else if (neutral && e.key === 'k') dir = -1;
 		if (!dir) return;
 
 		e.preventDefault();
@@ -346,6 +382,8 @@
 	<button class="panel-scrim" aria-label="Close" onclick={onClose}></button>
 	<aside
 		class="panel"
+		bind:this={panelEl}
+		tabindex="-1"
 		transition:fly={{ x: 420, duration: 240 }}
 		aria-label="Task details"
 		onpaste={onPaste}
@@ -861,6 +899,11 @@
 		box-shadow: var(--shadow-xl);
 		display: flex;
 		flex-direction: column;
+	}
+	.panel:focus {
+		/* It's only ever focused programmatically, as a Tab anchor — never by the
+		   user directly, so it doesn't need its own focus ring. */
+		outline: none;
 	}
 	.panel-head {
 		display: flex;
