@@ -427,6 +427,17 @@
 		focusRow((visibleTodos[at] ?? visibleTodos.at(-1))?.id);
 	}
 
+	/** Step the open details panel to the previous/next task in list order. */
+	function stepTask(step: 1 | -1) {
+		if (!selected) return;
+		const order = visibleTodos;
+		const next = order[order.findIndex((t) => t.id === selected!.id) + step];
+		if (next) {
+			selectTodo(next.id);
+			focusRow(next.id);
+		}
+	}
+
 	function onkeydown(e: KeyboardEvent) {
 		const step = e.key === 'ArrowDown' || e.key === 'j' ? 1 : e.key === 'ArrowUp' || e.key === 'k' ? -1 : 0;
 		// Alt-arrows move the task under the cursor.
@@ -440,17 +451,10 @@
 		if (!shortcutAllowed(e)) return;
 		const order = visibleTodos;
 
-		// With the details panel open, up/down step through tasks in the panel.
-		if (selected) {
-			if (!step) return;
-			e.preventDefault();
-			const next = order[order.findIndex((t) => t.id === selected.id) + step];
-			if (next) {
-				selectTodo(next.id);
-				focusRow(next.id);
-			}
-			return;
-		}
+		// With the details panel open, TodoDetail's own window-level keydown
+		// handler owns up/down task stepping (it needs to special-case the
+		// auto-focused title field, which this page-level handler can't see into).
+		if (selected) return;
 
 		const at = focusedId ? order.findIndex((t) => t.id === focusedId) : -1;
 		const current = at >= 0 ? order[at] : null;
@@ -1048,6 +1052,8 @@
 		onOpenTask={selectTodo}
 		onAddSubtask={(title) => controller.add({ title, parentId: selected!.id })}
 		focusTitle={focusTitleOnOpen}
+		onPrevTask={() => stepTask(-1)}
+		onNextTask={() => stepTask(1)}
 	/>
 {/if}
 

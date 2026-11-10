@@ -14,7 +14,7 @@
 	import TodoHistory from '#lib/components/todo/TodoHistory.svelte';
 	import { toDateInput } from '#lib/date';
 	import { Copied } from '#lib/copied.svelte';
-	import { dialogOpen } from '#lib/shortcuts';
+	import { dialogOpen, isTyping } from '#lib/shortcuts';
 	import {
 		URGENCIES,
 		SIZES,
@@ -66,6 +66,9 @@
 		onAddSubtask: (title: string) => Promise<unknown>;
 		/** Focus the title field, cursor at the end, as soon as the panel opens. */
 		focusTitle?: boolean;
+		/** Step to the previous/next task in list order (↑ ↓ / k j). */
+		onPrevTask?: () => void;
+		onNextTask?: () => void;
 	}
 	let {
 		todo,
@@ -96,7 +99,9 @@
 		parentOptions,
 		onOpenTask,
 		onAddSubtask,
-		focusTitle = false
+		focusTitle = false,
+		onPrevTask,
+		onNextTask
 	}: Props = $props();
 
 	const inProgress = $derived(isInProgress(todo));
@@ -173,13 +178,44 @@
 	function onkeydown(e: KeyboardEvent) {
 		// A dialog on top (e.g. delete confirmation) owns Escape.
 		if (e.defaultPrevented || dialogOpen()) return;
-		if (e.key === 'Escape') onClose();
-		else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+		if (e.key === 'Escape') {
+			onClose();
+			return;
+		}
+		if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
 			e.preventDefault();
 			// Blurring the focused field fires its onblur save before closing.
 			(document.activeElement as HTMLElement | null)?.blur();
 			onClose();
+			return;
 		}
+		if (e.metaKey || e.ctrlKey || e.altKey || e.isComposing || (!onPrevTask && !onNextTask)) return;
+
+		// The title field auto-focuses when a task is opened via the keyboard, which
+		// would otherwise swallow every ↑/↓ press as a no-op cursor move. Let them
+		// through for prev/next-task navigation once the caret is already at the
+		// start/end of the title — same boundary behaviour as a code editor.
+		const onTitleBoundary =
+			!!titleEl &&
+			e.target === titleEl &&
+			((e.key === 'ArrowUp' && titleEl.selectionStart === 0 && titleEl.selectionEnd === 0) ||
+				(e.key === 'ArrowDown' &&
+					titleEl.selectionStart === titleEl.value.length &&
+					titleEl.selectionEnd === titleEl.value.length));
+		const typing = isTyping(e);
+		if (typing && !onTitleBoundary) return;
+
+		let dir = 0;
+		if (e.key === 'ArrowDown') dir = 1;
+		else if (e.key === 'ArrowUp') dir = -1;
+		else if (!typing && e.key === 'j') dir = 1;
+		else if (!typing && e.key === 'k') dir = -1;
+		if (!dir) return;
+
+		e.preventDefault();
+		(document.activeElement as HTMLElement | null)?.blur();
+		if (dir > 0) onNextTask?.();
+		else onPrevTask?.();
 	}
 
 	// ── Attachments ──
