@@ -331,6 +331,9 @@
 
 	let taskOptions = $state<TodoRef[] | null>(null);
 	let loadingTaskOptions = $state(false);
+	// Completed/not-doing tasks are rarely what you want to link to, so they're
+	// hidden by default — but still reachable via the checkbox below the picker.
+	let includeCompletedInPicker = $state(false);
 	async function loadTaskOptions() {
 		if (taskOptions || loadingTaskOptions) return;
 		loadingTaskOptions = true;
@@ -347,7 +350,12 @@
 	);
 	const taskPickerOptions = $derived(
 		(taskOptions ?? [])
-			.filter((t) => t.id !== todo.id && !linkedTaskIds.has(t.id))
+			.filter(
+				(t) =>
+					t.id !== todo.id &&
+					!linkedTaskIds.has(t.id) &&
+					(includeCompletedInPicker || !t.completed)
+			)
 			// Current project's tasks first, then the rest grouped by project name.
 			.sort((a, b) => {
 				const aMine = a.projectId === todo.projectId;
@@ -820,7 +828,14 @@
 								aria-label="Link a task"
 								options={taskPickerOptions}
 								onvalue={pickTask}
-							/>
+							>
+								{#snippet panelHeader()}
+									<label class="link-picker-filter">
+										<input type="checkbox" bind:checked={includeCompletedInPicker} />
+										Include done
+									</label>
+								{/snippet}
+							</Select>
 						</div>
 					</div>
 				{/if}
@@ -1291,8 +1306,26 @@
 	.link-url {
 		flex: 1;
 	}
+	.link-task-picker {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		flex-shrink: 0;
+	}
 	.link-task-picker :global(.control.ghost) {
 		white-space: nowrap;
+	}
+	.link-picker-filter {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		color: var(--text-faint);
+		font-size: var(--text-xs);
+		white-space: nowrap;
+		cursor: pointer;
+	}
+	.link-picker-filter input {
+		accent-color: var(--accent);
 	}
 
 	.desc-head {

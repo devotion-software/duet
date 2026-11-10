@@ -9,6 +9,7 @@
 </script>
 
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import Icon, { type IconName } from './Icon.svelte';
 
 	interface Props {
@@ -38,6 +39,8 @@
 		id?: string;
 		class?: string;
 		'aria-label'?: string;
+		/** Extra content pinned below the search box, above the option list — e.g. a filter toggle. */
+		panelHeader?: Snippet;
 	}
 
 	let {
@@ -60,7 +63,8 @@
 		onvalue,
 		id,
 		class: klass = '',
-		'aria-label': ariaLabel
+		'aria-label': ariaLabel,
+		panelHeader
 	}: Props = $props();
 
 	const generatedId = `s-${Math.random().toString(36).slice(2, 9)}`;
@@ -249,6 +253,11 @@
 						placeholder="Search…"
 						aria-label="Search options"
 					/>
+				{/if}
+				{#if panelHeader}
+					<div class="panel-header">
+						{@render panelHeader()}
+					</div>
 				{/if}
 				<div class="list">
 					{#each groupedFiltered as { opt, i, showGroup } (opt.value)}
@@ -450,6 +459,12 @@
 		border: 1px solid var(--border-strong);
 		border-radius: var(--radius-sm);
 		padding: var(--space-1) var(--space-2);
+	}
+	.panel-header {
+		flex-shrink: 0;
+		padding: 0 var(--space-2) var(--space-1);
+		border-bottom: 1px solid var(--border-subtle);
+		margin-bottom: var(--space-1);
 	}
 	.search:focus {
 		outline: none;
