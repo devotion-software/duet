@@ -276,7 +276,18 @@
 	const taskPickerOptions = $derived(
 		(taskOptions ?? [])
 			.filter((t) => t.id !== todo.id && !linkedTaskIds.has(t.id))
-			.map((t) => ({ value: `${t.projectId}:${t.id}`, label: `${t.title} — ${t.projectName}` }))
+			// Current project's tasks first, then the rest grouped by project name.
+			.sort((a, b) => {
+				const aMine = a.projectId === todo.projectId;
+				const bMine = b.projectId === todo.projectId;
+				if (aMine !== bMine) return aMine ? -1 : 1;
+				return a.projectName.localeCompare(b.projectName) || a.projectId.localeCompare(b.projectId);
+			})
+			.map((t) => ({
+				value: `${t.projectId}:${t.id}`,
+				label: t.title,
+				group: t.projectId === todo.projectId ? 'This project' : t.projectName
+			}))
 	);
 	async function pickTask(value: string | null) {
 		if (!value) return;

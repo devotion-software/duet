@@ -3,6 +3,8 @@
 		value: string;
 		label: string;
 		disabled?: boolean;
+		/** Groups consecutive options under a heading in the dropdown list. */
+		group?: string;
 	}
 </script>
 
@@ -77,9 +79,22 @@
 
 	const filtered = $derived(
 		query.trim()
-			? options.filter((o) => o.label.toLowerCase().includes(query.trim().toLowerCase()))
+			? options.filter((o) =>
+					`${o.label} ${o.group ?? ''}`.toLowerCase().includes(query.trim().toLowerCase())
+				)
 			: options
 	);
+
+	// Pairs each option with whether it starts a new group heading, without
+	// disturbing `filtered`'s indices (keyboard nav indexes into it directly).
+	const groupedFiltered = $derived.by(() => {
+		let prevGroup: string | undefined;
+		return filtered.map((opt, i) => {
+			const showGroup = !!opt.group && opt.group !== prevGroup;
+			prevGroup = opt.group;
+			return { opt, i, showGroup };
+		});
+	});
 
 	const exactMatch = $derived(filtered.some((o) => o.label.toLowerCase() === query.trim().toLowerCase()));
 	const showCreate = $derived(creatable && !!onCreate && query.trim().length > 0 && !exactMatch);
@@ -222,7 +237,10 @@
 					/>
 				{/if}
 				<div class="list">
-					{#each filtered as opt, i (opt.value)}
+					{#each groupedFiltered as { opt, i, showGroup } (opt.value)}
+						{#if showGroup}
+							<div class="group-label">{opt.group}</div>
+						{/if}
 						<button
 							type="button"
 							role="option"
@@ -430,6 +448,17 @@
 		flex-direction: column;
 		gap: 1px;
 		padding: var(--space-1);
+	}
+	.group-label {
+		padding: var(--space-2) var(--space-3) var(--space-1);
+		font-size: var(--text-xs);
+		font-weight: var(--weight-semibold);
+		text-transform: uppercase;
+		letter-spacing: 0.03em;
+		color: var(--text-faint);
+	}
+	.group-label:first-child {
+		padding-top: var(--space-1);
 	}
 	.item {
 		display: flex;
