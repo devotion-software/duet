@@ -34,7 +34,10 @@ export const load: PageServerLoad = async ({ locals }) => {
 			start: apikey.start,
 			enabled: apikey.enabled,
 			lastRequest: apikey.lastRequest,
-			createdAt: apikey.createdAt
+			createdAt: apikey.createdAt,
+			rateLimitEnabled: apikey.rateLimitEnabled,
+			rateLimitMax: apikey.rateLimitMax,
+			rateLimitTimeWindow: apikey.rateLimitTimeWindow
 		})
 		.from(apikey)
 		.where(eq(apikey.referenceId, locals.user.id))
@@ -69,9 +72,17 @@ export const actions: Actions = {
 		if (!locals.user) return fail(401, { message: 'Not signed in' });
 		const form = await request.formData();
 		const name = String(form.get('name') ?? '').trim().slice(0, 80) || 'Untitled key';
+		const rateLimit = Number(form.get('rateLimit') ?? NaN);
+		// Passing `userId` directly (instead of `headers`) takes the server-trusted
+		// path, which is the only one allowed to set rateLimitMax/Enabled — the
+		// plugin rejects those fields on any request carrying session headers.
 		const result = await auth.api.createApiKey({
-			body: { name },
-			headers: request.headers
+			body: {
+				name,
+				userId: locals.user.id,
+				rateLimitEnabled: rateLimit > 0,
+				...(rateLimit > 0 ? { rateLimitMax: rateLimit, rateLimitTimeWindow: 60 * 1000 } : {})
+			}
 		});
 		return { success: true, newKey: result.key, newKeyName: result.name };
 	},

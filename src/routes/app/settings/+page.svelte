@@ -12,6 +12,7 @@
 	import Avatar from '#lib/components/ui/Avatar.svelte';
 	import Icon, { type IconName } from '#lib/components/ui/Icon.svelte';
 	import ListWidthField from '#lib/components/ListWidthField.svelte';
+	import Select from '#lib/components/ui/Select.svelte';
 
 	let { data, form } = $props();
 
@@ -20,6 +21,14 @@
 	let addingPasskey = $state(false);
 	let creatingApiKey = $state(false);
 	let newApiKeyName = $state('');
+	let newApiKeyRateLimit = $state('120');
+	const RATE_LIMIT_OPTIONS = [
+		{ value: '60', label: '60 requests / minute' },
+		{ value: '120', label: '120 requests / minute (default)' },
+		{ value: '300', label: '300 requests / minute' },
+		{ value: '600', label: '600 requests / minute' },
+		{ value: '0', label: 'No limit' }
+	];
 	const copiedKey = new Copied();
 
 	async function copyNewApiKey(key: string) {
@@ -464,6 +473,11 @@
 					maxlength="80"
 				/>
 			</div>
+			<div class="field">
+				<span>Rate limit</span>
+				<input type="hidden" name="rateLimit" value={newApiKeyRateLimit} />
+				<Select options={RATE_LIMIT_OPTIONS} bind:value={newApiKeyRateLimit} size="sm" searchable={false} />
+			</div>
 			<div>
 				<Button variant="primary" size="sm" type="submit" loading={creatingApiKey} icon="plus">
 					Create key
@@ -504,6 +518,12 @@
 								{k.start ? `${k.start}…` : ''} · Created {new Date(k.createdAt).toLocaleDateString()}
 								{#if k.lastRequest}
 									· Last used {new Date(k.lastRequest).toLocaleDateString()}
+								{/if}
+								·
+								{#if k.rateLimitEnabled && k.rateLimitMax && k.rateLimitTimeWindow}
+									{Math.round(k.rateLimitMax / (k.rateLimitTimeWindow / 60000))} req/min
+								{:else}
+									No limit
 								{/if}
 							</span>
 						</div>
