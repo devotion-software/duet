@@ -412,8 +412,8 @@
 		pendingDelete ? controller.withDescendants([pendingDelete.todo.id]).size - 1 : 0
 	);
 
-	function requestDelete(todo: Todo, after?: () => void) {
-		if (confirmDelete.value) pendingDelete = { todo, after };
+	function requestDelete(todo: Todo, after?: () => void, opts?: { force?: boolean }) {
+		if (opts?.force || confirmDelete.value) pendingDelete = { todo, after };
 		else deleteTodo(todo.id, after);
 	}
 
@@ -1034,6 +1034,7 @@
 		onSetTesting={(id, on) => controller.setTesting(id, on)}
 		onNotDoing={(id) => controller.toggle(id, true)}
 		onDelete={() => requestDelete(selected!, () => selectTodo(null))}
+		onDeleteKeyboard={() => requestDelete(selected!, () => selectTodo(null), { force: true })}
 		onDuplicate={canEdit ? (id) => controller.duplicate(id) : undefined}
 		onCopy={copyTodo}
 		onClose={() => selectTodo(null)}

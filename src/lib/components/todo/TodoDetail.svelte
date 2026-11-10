@@ -14,6 +14,7 @@
 	import TodoHistory from '#lib/components/todo/TodoHistory.svelte';
 	import { toDateInput } from '#lib/date';
 	import { Copied } from '#lib/copied.svelte';
+	import { toasts } from '#lib/components/ui/toast.svelte';
 	import { dialogOpen, isTyping } from '#lib/shortcuts';
 	import {
 		URGENCIES,
@@ -45,6 +46,8 @@
 		onSetTesting: (id: string, toTest: boolean) => void;
 		onNotDoing: (id: string) => void;
 		onDelete: (id: string) => void;
+		/** Deleting via the keyboard shortcut always confirms, even if "don't ask again" is set. */
+		onDeleteKeyboard?: () => void;
 		onDuplicate?: (id: string) => void;
 		onCopy: (todo: Todo) => Promise<boolean>;
 		onClose: () => void;
@@ -83,6 +86,7 @@
 		onSetTesting,
 		onNotDoing,
 		onDelete,
+		onDeleteKeyboard,
 		onDuplicate,
 		onCopy,
 		onClose,
@@ -110,6 +114,10 @@
 	const copied = new Copied<'head' | 'cta'>();
 	async function copy(button: 'head' | 'cta') {
 		if (await onCopy(todo)) copied.mark(button);
+	}
+	async function copyTitle() {
+		await navigator.clipboard.writeText(todo.title);
+		toasts.success('Title copied');
 	}
 	const subtasksDone = $derived(subtasks.filter((t) => t.completed).length);
 	function optionLabel(t: Todo, depth: number) {
@@ -184,6 +192,15 @@
 		'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), ' +
 		'textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+	/** Jumps keyboard focus to a section identified by DOM id, landing on its first focusable control. */
+	function focusSection(id: string) {
+		const root = panelEl?.querySelector<HTMLElement>(`#${id}`);
+		if (!root) return;
+		const target = root.matches(FOCUSABLE) ? root : root.querySelector<HTMLElement>(FOCUSABLE);
+		target?.focus();
+		target?.scrollIntoView({ block: 'nearest' });
+	}
+
 	/** Keeps Tab cycling within the panel instead of escaping to the page behind it. */
 	function trapTab(e: KeyboardEvent) {
 		if (!panelEl) return;
@@ -221,6 +238,80 @@
 			onClose();
 			return;
 		}
+		if (!e.metaKey && !e.ctrlKey && !e.altKey && !e.isComposing && !isTyping(e)) {
+			switch (e.key) {
+				case 'd':
+					if (canEdit) {
+						e.preventDefault();
+						onToggle(todo.id);
+					}
+					return;
+				case 'p':
+					if (canEdit && !todo.completed) {
+						e.preventDefault();
+						onSetInProgress(todo.id, !inProgress);
+					}
+					return;
+				case 't':
+					if (canEdit && !todo.completed) {
+						e.preventDefault();
+						onSetTesting(todo.id, !toTest);
+					}
+					return;
+				case 'w':
+					if (canEdit && !todo.completed) {
+						e.preventDefault();
+						onNotDoing(todo.id);
+					}
+					return;
+				case 'D':
+					if (canEdit && onDuplicate) {
+						e.preventDefault();
+						onDuplicate(todo.id);
+					}
+					return;
+				case 'c':
+					e.preventDefault();
+					copyTitle();
+					return;
+				case 'C':
+					e.preventDefault();
+					copy('head');
+					return;
+				case 'Delete':
+					if (canEdit) {
+						e.preventDefault();
+						if (onDeleteKeyboard) onDeleteKeyboard();
+						else onDelete(todo.id);
+					}
+					return;
+				case '1':
+					e.preventDefault();
+					titleEl?.focus();
+					return;
+				case '2':
+					e.preventDefault();
+					focusSection('jump-subtasks');
+					return;
+				case '3':
+					e.preventDefault();
+					focusSection('jump-attachments');
+					return;
+				case '4':
+					e.preventDefault();
+					focusSection('jump-links');
+					return;
+				case '5':
+					e.preventDefault();
+					focusSection('jump-notes');
+					return;
+				case '6':
+					e.preventDefault();
+					focusSection('jump-history');
+					return;
+			}
+		}
+
 		if (e.metaKey || e.ctrlKey || e.altKey || e.isComposing || (!onPrevTask && !onNextTask)) return;
 
 		// Prev/next-task stepping only kicks in when focus isn't on a specific
@@ -610,7 +701,7 @@
 
 			<!-- Subtasks -->
 			{#if subtasks.length || canEdit}
-				<div class="section">
+				<div class="section" id="jump-subtasks">
 					<div class="desc-head">
 						<span class="section-label"><Icon name="check-circle" size={14} /> Subtasks</span>
 						{#if subtasks.length}
@@ -651,7 +742,7 @@
 			{/if}
 
 			<!-- Attachments -->
-			<div class="section">
+			<div class="section" id="jump-attachments">
 				<div class="desc-head">
 					<span class="section-label"><Icon name="image" size={14} /> Attachments</span>
 					{#if canEdit && uploading}<Spinner size={13} />{/if}
@@ -740,7 +831,7 @@
 			</div>
 
 			<!-- Links -->
-			<div class="section">
+			<div class="section" id="jump-links">
 				<span class="section-label"><Icon name="link" size={14} /> Links</span>
 
 				{#if todo.links.length}
@@ -842,7 +933,7 @@
 			</div>
 
 			<!-- Description -->
-			<div class="section">
+			<div class="section" id="jump-notes">
 				<div class="desc-head">
 					<span class="section-label"><Icon name="clipboard" size={14} /> Notes</span>
 					<div class="desc-tabs">
@@ -872,7 +963,7 @@
 				{/if}
 			</div>
 
-			<TodoHistory {todo} />
+			<div id="jump-history"><TodoHistory {todo} /></div>
 
 			<div class="foot-meta">
 				{#if todo.assignee}

@@ -74,6 +74,20 @@ export const SHORTCUTS: { title: string; items: { keys: string[]; label: string 
 		items: [
 			{ keys: ['Tab'], label: 'Move between fields and actions (wraps within the panel)' },
 			{ keys: ['↑', '↓'], label: 'Previous / next task (also k / j, before you Tab into a field)' },
+			{ keys: ['d'], label: 'Mark done / reopen' },
+			{ keys: ['p'], label: 'Toggle in progress' },
+			{ keys: ['t'], label: 'Toggle to test' },
+			{ keys: ['w'], label: "Mark as not doing (won't do)" },
+			{ keys: ['Shift', 'd'], label: 'Duplicate task' },
+			{ keys: ['c'], label: 'Copy title' },
+			{ keys: ['Shift', 'c'], label: 'Copy task for AI' },
+			{ keys: ['Del'], label: 'Delete task' },
+			{ keys: ['1'], label: 'Jump to title' },
+			{ keys: ['2'], label: 'Jump to subtasks' },
+			{ keys: ['3'], label: 'Jump to attachments' },
+			{ keys: ['4'], label: 'Jump to links' },
+			{ keys: ['5'], label: 'Jump to notes' },
+			{ keys: ['6'], label: 'Jump to history' },
 			{ keys: ['⌘', 'Enter'], label: 'Save and close details' },
 			{ keys: ['Esc'], label: 'Close details' }
 		]
