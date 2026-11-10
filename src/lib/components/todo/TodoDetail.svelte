@@ -866,6 +866,8 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: var(--space-2);
 		padding: var(--space-4) var(--space-4);
 		border-bottom: 1px solid var(--project-border, var(--border-subtle));
 	}
@@ -897,10 +899,12 @@
 	}
 	.status {
 		display: flex;
+		flex-wrap: wrap;
 		gap: var(--space-2);
 	}
 	.head-actions {
 		display: flex;
+		flex-wrap: wrap;
 		gap: var(--space-1);
 	}
 	.icon-act {
