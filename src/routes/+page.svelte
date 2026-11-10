@@ -149,11 +149,14 @@
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
+		flex-wrap: wrap;
+		gap: var(--space-3);
 		padding: var(--space-5) 0;
 	}
 	.nav-actions {
 		display: flex;
 		align-items: center;
+		flex-wrap: wrap;
 		gap: var(--space-2);
 	}
 
