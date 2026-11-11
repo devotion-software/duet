@@ -9,6 +9,7 @@
 <script lang="ts">
 	import { fade, scale as scaleIn } from 'svelte/transition';
 	import Icon from './Icon.svelte';
+	import Markdown from '#lib/components/Markdown.svelte';
 
 	interface Props {
 		/** The document being shown; `null` keeps the viewer closed. */
@@ -19,19 +20,22 @@
 
 	const open = $derived(doc !== null);
 	const isPdf = $derived(doc?.mime === 'application/pdf');
-	const isText = $derived(!!doc?.mime?.startsWith('text/'));
+	const isMarkdown = $derived(
+		doc?.mime === 'text/markdown' || !!doc?.name?.toLowerCase().endsWith('.md')
+	);
+	const isText = $derived(!isMarkdown && !!doc?.mime?.startsWith('text/'));
 	const isVideo = $derived(!!doc?.mime?.startsWith('video/'));
-	const previewable = $derived(isPdf || isText || isVideo);
+	const previewable = $derived(isPdf || isText || isMarkdown || isVideo);
 
 	let text = $state<string | null>(null);
 	let textFailed = $state(false);
 
-	// Fetch plain-text/CSV bodies ourselves so they render legibly instead of
+	// Fetch plain-text/CSV/markdown bodies ourselves so they render legibly instead of
 	// downloading or showing as a blank browser plaintext page in an iframe.
 	$effect(() => {
 		text = null;
 		textFailed = false;
-		if (!doc || !isText) return;
+		if (!doc || !(isText || isMarkdown)) return;
 		const src = doc.src;
 		fetch(src)
 			.then((r) => {
@@ -131,6 +135,18 @@
 						<track kind="captions" />
 					</video>
 				{/key}
+			{:else if isMarkdown}
+				<div class="text-panel markdown-panel" in:scaleIn={{ duration: 180, start: 0.98, opacity: 0 }}>
+					{#if textFailed}
+						<p class="status">Couldn't load this file.</p>
+					{:else if text === null}
+						<p class="status">Loading…</p>
+					{:else}
+						<div class="markdown-body">
+							<Markdown source={text} />
+						</div>
+					{/if}
+				</div>
 			{:else if isText}
 				<div class="text-panel" in:scaleIn={{ duration: 180, start: 0.98, opacity: 0 }}>
 					{#if textFailed}
@@ -239,6 +255,9 @@
 		border-radius: var(--radius-sm);
 		background: #000;
 		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+	}
+	.markdown-body {
+		padding: var(--space-5);
 	}
 	.text-panel pre {
 		margin: 0;

@@ -20,6 +20,7 @@ const EXT: Record<string, string> = {
 	'application/pdf': 'pdf',
 	'text/plain': 'txt',
 	'text/csv': 'csv',
+	'text/markdown': 'md',
 	'application/msword': 'doc',
 	'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
 	'application/vnd.ms-excel': 'xls',

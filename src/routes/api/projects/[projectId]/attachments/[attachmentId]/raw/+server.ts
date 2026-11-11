@@ -15,7 +15,8 @@ function canRenderInline(mime: string | null | undefined) {
 		mime.startsWith('video/') ||
 		mime === 'application/pdf' ||
 		mime === 'text/plain' ||
-		mime === 'text/csv'
+		mime === 'text/csv' ||
+		mime === 'text/markdown'
 	);
 }
 
