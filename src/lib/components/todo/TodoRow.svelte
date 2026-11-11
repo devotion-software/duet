@@ -38,6 +38,7 @@
 		/** Quick edits from the menu; the field submenus show only when this is set. */
 		onUpdate?: (id: string, patch: Partial<NewTodoInput>) => void;
 		onCreateTag?: (name: string) => Promise<Tag | null>;
+		onCreateCategory?: (name: string) => Promise<Category | null>;
 		members?: Member[];
 		categories?: Category[];
 		projectTags?: Tag[];
@@ -81,6 +82,7 @@
 		onDuplicate,
 		onUpdate,
 		onCreateTag,
+		onCreateCategory,
 		members = [],
 		categories = [],
 		projectTags = [],
@@ -138,6 +140,7 @@
 	// The menu drills into one field at a time rather than flying out, so it never runs off-screen.
 	let submenu = $state<Submenu | null>(null);
 	let newTagName = $state('');
+	let newCategoryName = $state('');
 	const SUBMENUS: { key: Submenu; label: string; icon: IconName }[] = [
 		{ key: 'deadline', label: 'Deadline', icon: 'calendar' },
 		{ key: 'assignee', label: 'Assignee', icon: 'user' },
@@ -191,6 +194,13 @@
 		const tag = await onCreateTag(name);
 		if (tag) onUpdate?.(todo.id, { tagIds: [...todo.tags.map((t) => t.id), tag.id] });
 	}
+	async function addNewCategory() {
+		const name = newCategoryName.trim();
+		if (!name || !onCreateCategory) return;
+		newCategoryName = '';
+		const category = await onCreateCategory(name);
+		if (category) set({ categoryId: category.id });
+	}
 </script>
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && menuOpen && (submenu ? (submenu = null) : closeMenu())} />
@@ -237,6 +247,16 @@
 			{#each categories as c (c.id)}
 				{@render option(c.name, todo.categoryId === c.id, () => set({ categoryId: c.id }), c.color)}
 			{/each}
+			{#if onCreateCategory}
+				<form
+					onsubmit={(e) => {
+						e.preventDefault();
+						addNewCategory();
+					}}
+				>
+					<input class="new-item" bind:value={newCategoryName} placeholder="+ new category" maxlength="60" />
+				</form>
+			{/if}
 		{:else if key === 'tags'}
 			{#each projectTags as tag (tag.id)}
 				{@render option(tag.name, todo.tags.some((t) => t.id === tag.id), () => toggleTag(tag.id), tag.color)}
@@ -250,7 +270,7 @@
 						addNewTag();
 					}}
 				>
-					<input class="new-tag" bind:value={newTagName} placeholder="+ new tag" maxlength="60" />
+					<input class="new-item" bind:value={newTagName} placeholder="+ new tag" maxlength="60" />
 				</form>
 			{/if}
 		{/if}
@@ -902,7 +922,7 @@
 		border-color: var(--accent);
 		box-shadow: 0 0 0 3px var(--accent-ring);
 	}
-	.menu input.new-tag {
+	.menu input.new-item {
 		border-style: dashed;
 	}
 </style>

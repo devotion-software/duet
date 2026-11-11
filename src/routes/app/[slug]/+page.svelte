@@ -725,6 +725,7 @@
 		onDuplicate={canEdit ? (id) => controller.duplicate(id) : undefined}
 		onUpdate={canEdit ? (id, patch) => controller.update(id, patch) : undefined}
 		onCreateTag={createTag}
+		onCreateCategory={createCategory}
 		members={data.members}
 		categories={data.categories}
 		projectTags={data.tags}
