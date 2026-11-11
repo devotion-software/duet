@@ -49,7 +49,6 @@
 
 	async function load(pid: string) {
 		loading = true;
-		kind = 'tag';
 		try {
 			const [{ tags: t }, { categories: c }] = await Promise.all([
 				api(`/api/projects/${pid}/tags`),
