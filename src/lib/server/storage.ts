@@ -92,3 +92,10 @@ export async function presignGet(
 export async function readLocal(key: string): Promise<Uint8Array> {
 	return fs.readFile(localPath(key));
 }
+
+/** Read an object straight from R2 through our server, for callers that need a same-origin body. */
+export async function readR2(key: string): Promise<Uint8Array> {
+	const res = await r2().fetch(objectUrl(key), { method: 'GET' });
+	if (!res.ok) throw new Error(`R2 read failed (${res.status})`);
+	return new Uint8Array(await res.arrayBuffer());
+}

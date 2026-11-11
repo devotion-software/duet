@@ -1,7 +1,7 @@
 import { error, redirect } from '@sveltejs/kit';
 import { requireMember } from '#lib/server/guard';
 import { getAttachment } from '#lib/server/todos';
-import { usingR2, presignGet, readLocal } from '#lib/server/storage';
+import { usingR2, presignGet, readLocal, readR2 } from '#lib/server/storage';
 import type { RequestHandler } from './$types';
 
 // Only these are ever rendered inline in the browser. Anything else — notably
@@ -20,6 +20,15 @@ function canRenderInline(mime: string | null | undefined) {
 	);
 }
 
+// These are fetched client-side (DocumentViewer) so they can be rendered as
+// text/markdown instead of downloaded or shown as a blank plaintext page in
+// an iframe. That fetch() enforces CORS on its response, which a redirect to
+// R2's origin wouldn't satisfy — so unlike other inline types, these must be
+// streamed back same-origin rather than handed off via a 302.
+function needsSameOriginBody(mime: string | null | undefined) {
+	return mime === 'text/plain' || mime === 'text/csv' || mime === 'text/markdown';
+}
+
 export const GET: RequestHandler = async ({ params, locals, url, request }) => {
 	// Only project members can view an image.
 	await requireMember(locals, params.projectId);
@@ -30,7 +39,9 @@ export const GET: RequestHandler = async ({ params, locals, url, request }) => {
 	const dispositionType = download || !canRenderInline(att.mime) ? 'attachment' : 'inline';
 	const filename = encodeURIComponent(att.name ?? 'image');
 
-	if (usingR2) {
+	const proxyBody = dispositionType === 'inline' && needsSameOriginBody(att.mime);
+
+	if (usingR2 && !proxyBody) {
 		// Hand off to R2 with a short-lived signed URL (no server bandwidth).
 		// SvelteKit 3 rejects external redirects unless explicitly allowed.
 		// The disposition is passed to R2 so it survives the cross-origin redirect
@@ -42,9 +53,10 @@ export const GET: RequestHandler = async ({ params, locals, url, request }) => {
 		);
 	}
 
-	// Local dev fallback: stream the file from disk.
+	// Local dev fallback, and R2 text/markdown previews (streamed same-origin so the
+	// client-side fetch() in DocumentViewer isn't subject to R2's CORS policy).
 	try {
-		const bytes = await readLocal(att.key);
+		const bytes = usingR2 ? await readR2(att.key) : await readLocal(att.key);
 		const headers: Record<string, string> = {
 			'content-type': att.mime ?? 'application/octet-stream',
 			'cache-control': 'private, max-age=300',
