@@ -17,6 +17,7 @@
 	import Icon from '#lib/components/ui/Icon.svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import QuickAdd from '#lib/components/todo/QuickAdd.svelte';
+	import AddTaskDefaults, { type TaskDefaults } from '#lib/components/todo/AddTaskDefaults.svelte';
 	import TodoRow from '#lib/components/todo/TodoRow.svelte';
 	import TodoDetail from '#lib/components/todo/TodoDetail.svelte';
 	import BulkBar from '#lib/components/todo/BulkBar.svelte';
@@ -139,6 +140,33 @@
 	$effect(() => {
 		const json = JSON.stringify(view);
 		if (browser && viewLoadedFor === viewKey) localStorage.setItem(viewKey, json);
+	});
+
+	// Defaults applied to every task created from the quick-add bar, remembered per project.
+	const emptyTaskDefaults = (): TaskDefaults => ({
+		categoryId: null,
+		assigneeId: null,
+		deadline: null,
+		urgency: null,
+		size: null,
+		tagIds: []
+	});
+	let taskDefaults = $state<TaskDefaults>(emptyTaskDefaults());
+	const taskDefaultsKey = $derived(`duet:add-defaults:${data.project.id}`);
+	let taskDefaultsLoadedFor: string | null = null;
+	$effect(() => {
+		if (!browser) return;
+		try {
+			const raw = localStorage.getItem(taskDefaultsKey);
+			taskDefaults = raw ? { ...emptyTaskDefaults(), ...JSON.parse(raw) } : emptyTaskDefaults();
+		} catch {
+			taskDefaults = emptyTaskDefaults();
+		}
+		taskDefaultsLoadedFor = taskDefaultsKey;
+	});
+	$effect(() => {
+		const json = JSON.stringify(taskDefaults);
+		if (browser && taskDefaultsLoadedFor === taskDefaultsKey) localStorage.setItem(taskDefaultsKey, json);
 	});
 	const filtering = $derived(filterCount(view.filter) > 0);
 	const narrowed = $derived(!!query || filtering);
@@ -584,7 +612,15 @@
 	}
 
 	async function addTodo(title: string) {
-		await controller.add({ title });
+		await controller.add({
+			title,
+			categoryId: taskDefaults.categoryId,
+			assigneeId: taskDefaults.assigneeId,
+			deadline: taskDefaults.deadline,
+			urgency: taskDefaults.urgency,
+			size: taskDefaults.size,
+			tagIds: taskDefaults.tagIds
+		});
 	}
 	function openImport(text = '') {
 		importText = text;
@@ -914,7 +950,19 @@
 	>
 		{#if canEdit}
 			<div class="quick" class:glass={data.appStyle === 'glass'}>
-				<QuickAdd bind:this={quickAdd} glass={data.appStyle === 'glass'} onAdd={addTodo} onPasteMultiline={openImport} />
+				<QuickAdd bind:this={quickAdd} glass={data.appStyle === 'glass'} onAdd={addTodo} onPasteMultiline={openImport}>
+					{#snippet trailing()}
+						<AddTaskDefaults
+							value={taskDefaults}
+							onChange={(v) => (taskDefaults = v)}
+							members={data.members}
+							categories={data.categories}
+							projectTags={data.tags}
+							onCreateTag={createTag}
+							onCreateCategory={createCategory}
+						/>
+					{/snippet}
+				</QuickAdd>
 			</div>
 		{/if}
 

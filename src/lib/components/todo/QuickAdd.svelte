@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
 	import Icon from '#lib/components/ui/Icon.svelte';
 	import Spinner from '#lib/components/ui/Spinner.svelte';
 
@@ -8,8 +9,10 @@
 		disabled?: boolean;
 		/** Match the project's glass style with a frosted, accent-tinted surface. */
 		glass?: boolean;
+		/** Extra controls anchored to the right of the input, e.g. defaults for new tasks. */
+		trailing?: Snippet;
 	}
-	let { onAdd, onPasteMultiline, disabled = false, glass = false }: Props = $props();
+	let { onAdd, onPasteMultiline, disabled = false, glass = false, trailing }: Props = $props();
 
 	let title = $state('');
 	let busy = $state(false);
@@ -67,6 +70,9 @@
 		<span class="char-count" class:limit={title.length >= 500}>{title.length}/500</span>
 	{:else if title.trim()}
 		<kbd>↵</kbd>
+	{/if}
+	{#if trailing}
+		<div class="trailing">{@render trailing()}</div>
 	{/if}
 </div>
 
@@ -139,6 +145,11 @@
 	}
 	.char-count.limit {
 		color: var(--danger);
+	}
+	.trailing {
+		display: flex;
+		align-items: center;
+		flex-shrink: 0;
 	}
 	kbd {
 		font-family: var(--font-mono);
