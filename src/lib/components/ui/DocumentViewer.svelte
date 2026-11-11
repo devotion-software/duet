@@ -136,7 +136,7 @@
 					</video>
 				{/key}
 			{:else if isMarkdown}
-				<div class="text-panel markdown-panel" in:scaleIn={{ duration: 180, start: 0.98, opacity: 0 }}>
+				<div class="text-panel" in:scaleIn={{ duration: 180, start: 0.98, opacity: 0 }}>
 					{#if textFailed}
 						<p class="status">Couldn't load this file.</p>
 					{:else if text === null}
@@ -245,7 +245,7 @@
 		width: 100%;
 		height: 100%;
 		overflow: auto;
-		background: #fff;
+		background: var(--surface);
 		border-radius: var(--radius-sm);
 		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 	}
@@ -262,7 +262,7 @@
 	.text-panel pre {
 		margin: 0;
 		padding: var(--space-5);
-		color: #1a1a1a;
+		color: var(--text);
 		font-family: var(--font-mono);
 		font-size: var(--text-sm);
 		line-height: var(--leading-normal);
@@ -271,7 +271,7 @@
 	}
 	.status {
 		padding: var(--space-5);
-		color: #1a1a1a;
+		color: var(--text);
 		font-size: var(--text-sm);
 	}
 	.fallback {
