@@ -4,19 +4,25 @@ import { getAttachment } from '#lib/server/todos';
 import { usingR2, presignGet, readLocal, readR2 } from '#lib/server/storage';
 import type { RequestHandler } from './$types';
 
+// Browsers often report an empty mime type for .md uploads (text/markdown
+// isn't in most OS mime databases), so fall back to the filename extension.
+function isMarkdown(mime: string | null | undefined, name: string | null | undefined) {
+	return mime === 'text/markdown' || !!name?.toLowerCase().endsWith('.md');
+}
+
 // Only these are ever rendered inline in the browser. Anything else — notably
 // HTML/SVG/XML, which could carry a <script> and run as stored XSS on our
 // origin if the browser rendered it — is always forced to download instead,
 // regardless of the `download` query param.
-function canRenderInline(mime: string | null | undefined) {
+function canRenderInline(mime: string | null | undefined, name: string | null | undefined) {
+	if (isMarkdown(mime, name)) return true;
 	if (!mime) return false;
 	return (
 		mime.startsWith('image/') ||
 		mime.startsWith('video/') ||
 		mime === 'application/pdf' ||
 		mime === 'text/plain' ||
-		mime === 'text/csv' ||
-		mime === 'text/markdown'
+		mime === 'text/csv'
 	);
 }
 
@@ -25,8 +31,8 @@ function canRenderInline(mime: string | null | undefined) {
 // an iframe. That fetch() enforces CORS on its response, which a redirect to
 // R2's origin wouldn't satisfy — so unlike other inline types, these must be
 // streamed back same-origin rather than handed off via a 302.
-function needsSameOriginBody(mime: string | null | undefined) {
-	return mime === 'text/plain' || mime === 'text/csv' || mime === 'text/markdown';
+function needsSameOriginBody(mime: string | null | undefined, name: string | null | undefined) {
+	return mime === 'text/plain' || mime === 'text/csv' || isMarkdown(mime, name);
 }
 
 export const GET: RequestHandler = async ({ params, locals, url, request }) => {
@@ -36,10 +42,10 @@ export const GET: RequestHandler = async ({ params, locals, url, request }) => {
 	if (!att) throw error(404, 'Attachment not found');
 
 	const download = url.searchParams.has('download');
-	const dispositionType = download || !canRenderInline(att.mime) ? 'attachment' : 'inline';
+	const dispositionType = download || !canRenderInline(att.mime, att.name) ? 'attachment' : 'inline';
 	const filename = encodeURIComponent(att.name ?? 'image');
 
-	const proxyBody = dispositionType === 'inline' && needsSameOriginBody(att.mime);
+	const proxyBody = dispositionType === 'inline' && needsSameOriginBody(att.mime, att.name);
 
 	if (usingR2 && !proxyBody) {
 		// Hand off to R2 with a short-lived signed URL (no server bandwidth).
@@ -57,8 +63,9 @@ export const GET: RequestHandler = async ({ params, locals, url, request }) => {
 	// client-side fetch() in DocumentViewer isn't subject to R2's CORS policy).
 	try {
 		const bytes = usingR2 ? await readR2(att.key) : await readLocal(att.key);
+		const contentType = att.mime || (isMarkdown(att.mime, att.name) ? 'text/markdown' : 'application/octet-stream');
 		const headers: Record<string, string> = {
-			'content-type': att.mime ?? 'application/octet-stream',
+			'content-type': contentType,
 			'cache-control': 'private, max-age=300',
 			'content-disposition': `${dispositionType}; filename="${filename}"`,
 			'accept-ranges': 'bytes',
