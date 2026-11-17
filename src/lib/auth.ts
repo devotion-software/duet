@@ -64,6 +64,14 @@ export const auth = betterAuth({
 				required: false,
 				defaultValue: true,
 				input: false
+			},
+			// Marks the single, shared "AI" pseudo-user that projects can add as a
+			// member so tasks can be assigned to it. Never set through sign-up.
+			isAi: {
+				type: 'boolean',
+				required: false,
+				defaultValue: false,
+				input: false
 			}
 		}
 	},

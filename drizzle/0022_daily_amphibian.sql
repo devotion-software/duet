@@ -1,0 +1,1 @@
+ALTER TABLE `user` ADD `is_ai` boolean DEFAULT false NOT NULL;

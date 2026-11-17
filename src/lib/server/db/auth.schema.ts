@@ -25,6 +25,7 @@ export const user = mysqlTable("user", {
   appStyle: text("app_style").default("soft").notNull(),
   defaultListWidth: int("default_list_width").default(820).notNull(),
   defaultCountSubtasks: boolean("default_count_subtasks").default(true).notNull(),
+  isAi: boolean("is_ai").default(false).notNull(),
 });
 
 export const session = mysqlTable(

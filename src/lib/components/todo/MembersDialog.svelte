@@ -40,6 +40,10 @@
 	let email = $state('');
 	let role = $state<Role>('editor');
 	let adding = $state(false);
+	let aiToggling = $state(false);
+
+	let aiMember = $derived(members.find((m) => m.isAi));
+	let humanMembers = $derived(members.filter((m) => !m.isAi));
 
 	async function api(url: string, init: RequestInit) {
 		const res = await fetch(url, {
@@ -97,6 +101,23 @@
 			toasts.error((err as Error).message);
 		}
 	}
+
+	async function toggleAi(enabled: boolean) {
+		if (aiToggling) return;
+		aiToggling = true;
+		try {
+			if (enabled) {
+				await api(`/api/projects/${projectId}/members/ai`, { method: 'POST' });
+			} else if (aiMember) {
+				await api(`/api/projects/${projectId}/members/${aiMember.userId}`, { method: 'DELETE' });
+			}
+			onChanged();
+		} catch (err) {
+			toasts.error((err as Error).message);
+		} finally {
+			aiToggling = false;
+		}
+	}
 </script>
 
 <Modal bind:open title="Members" subtitle="Who can see and edit this project" size="md">
@@ -122,8 +143,25 @@
 		<p class="role-hint">{ROLE_DESCRIPTIONS[role]}</p>
 	{/if}
 
+	<div class="ai-row">
+		<div class="ai-icon"><Icon name="sparkles" size={16} /></div>
+		<div class="info">
+			<span class="name">AI</span>
+			<span class="email">Add AI as a member so tasks can be assigned to it</span>
+		</div>
+		<label class="switch" aria-label="Toggle AI member">
+			<input
+				type="checkbox"
+				checked={!!aiMember}
+				disabled={!canManage || aiToggling}
+				onchange={(e) => toggleAi((e.target as HTMLInputElement).checked)}
+			/>
+			<span class="slider"></span>
+		</label>
+	</div>
+
 	<ul class="members">
-		{#each members as m (m.userId)}
+		{#each humanMembers as m (m.userId)}
 			<li class="member">
 				<Avatar name={m.name} email={m.email} image={m.image} size={34} />
 				<div class="info">
@@ -196,6 +234,72 @@
 		color: var(--text-subtle);
 		font-size: var(--text-xs);
 		margin-bottom: var(--space-4);
+	}
+	.ai-row {
+		display: flex;
+		align-items: center;
+		gap: var(--space-3);
+		padding: var(--space-2);
+		border-radius: var(--radius-md);
+		margin-bottom: var(--space-2);
+		background: var(--surface-inset);
+	}
+	.ai-icon {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 34px;
+		height: 34px;
+		flex-shrink: 0;
+		border-radius: var(--radius-full);
+		background: var(--accent-soft);
+		color: var(--accent-text);
+	}
+	.ai-row .email {
+		font-size: var(--text-xs);
+		color: var(--text-subtle);
+	}
+	.switch {
+		position: relative;
+		display: inline-block;
+		width: 36px;
+		height: 20px;
+		flex-shrink: 0;
+	}
+	.switch input {
+		position: absolute;
+		inset: 0;
+		opacity: 0;
+		margin: 0;
+		cursor: pointer;
+	}
+	.switch .slider {
+		position: absolute;
+		inset: 0;
+		background: var(--border-strong);
+		border-radius: var(--radius-full);
+		transition: background-color 0.15s ease;
+	}
+	.switch .slider::before {
+		content: '';
+		position: absolute;
+		top: 2px;
+		left: 2px;
+		width: 16px;
+		height: 16px;
+		border-radius: 50%;
+		background: var(--surface);
+		transition: transform 0.15s ease;
+	}
+	.switch input:checked + .slider {
+		background: var(--accent);
+	}
+	.switch input:checked + .slider::before {
+		transform: translateX(16px);
+	}
+	.switch input:disabled + .slider {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 	.members {
 		display: flex;

@@ -81,6 +81,8 @@ export interface Member {
 	email: string;
 	image: string | null;
 	role: Role;
+	/** True for the single, shared "AI" pseudo-member a project can add so tasks can be assigned to it. */
+	isAi: boolean;
 }
 export interface Attachment {
 	id: string;

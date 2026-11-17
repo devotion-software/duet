@@ -452,6 +452,7 @@ export interface MemberRow {
 	email: string;
 	image: string | null;
 	role: Role;
+	isAi: boolean;
 }
 
 export async function listMembers(projectId: string): Promise<MemberRow[]> {
@@ -461,12 +462,54 @@ export async function listMembers(projectId: string): Promise<MemberRow[]> {
 			name: user.name,
 			email: user.email,
 			image: user.image,
-			role: projectMembers.role
+			role: projectMembers.role,
+			isAi: user.isAi
 		})
 		.from(projectMembers)
 		.innerJoin(user, eq(user.id, projectMembers.userId))
 		.where(eq(projectMembers.projectId, projectId))
 		.orderBy(asc(projectMembers.createdAt));
+}
+
+// The AI pseudo-member is a single, shared user row (not one per project) so it
+// can be added to any project's member list and picked as a task assignee
+// through the exact same plumbing as a human member.
+const AI_USER_EMAIL = 'ai@duet.internal';
+
+async function getOrCreateAiUser(): Promise<typeof user.$inferSelect> {
+	const [existing] = await db.select().from(user).where(eq(user.isAi, true)).limit(1);
+	if (existing) return existing;
+
+	const row = {
+		id: newId(),
+		name: 'AI',
+		email: AI_USER_EMAIL,
+		emailVerified: true,
+		isAi: true
+	};
+	await db
+		.insert(user)
+		.values(row)
+		.onDuplicateKeyUpdate({ set: { isAi: true } });
+	const [created] = await db.select().from(user).where(eq(user.email, AI_USER_EMAIL)).limit(1);
+	return created;
+}
+
+/** Adds the shared AI user as an editor on `projectId`, creating it first if needed. */
+export async function enableAiMember(projectId: string): Promise<MemberRow> {
+	const aiUser = await getOrCreateAiUser();
+	const already = await getMembership(aiUser.id, projectId);
+	if (!already) {
+		await db.insert(projectMembers).values({ id: newId(), projectId, userId: aiUser.id, role: 'editor' });
+	}
+	return {
+		userId: aiUser.id,
+		name: aiUser.name,
+		email: aiUser.email,
+		image: aiUser.image,
+		role: 'editor',
+		isAi: true
+	};
 }
 
 export async function listInvites(projectId: string) {
@@ -516,7 +559,8 @@ export async function addMemberByEmail(
 				name: existingUser.name,
 				email: existingUser.email,
 				image: existingUser.image,
-				role
+				role,
+				isAi: false
 			}
 		};
 	}
