@@ -962,6 +962,10 @@
 		ondragover={onListDragOver}
 		ondragleave={onListDragLeave}
 		ondrop={onListDrop}
+		onclick={(e) => {
+			// A click on the background (not a task or control) ends an active multi-select.
+			if (selecting && selectedIds.size && e.target === e.currentTarget) clearSelection();
+		}}
 	>
 		{#if canEdit}
 			<div class="quick" class:glass={data.appStyle === 'glass'}>
