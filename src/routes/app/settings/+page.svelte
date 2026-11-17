@@ -18,6 +18,10 @@
 
 	let name = $state(data.user.name ?? '');
 	let savingName = $state(false);
+	let avatarInput = $state<HTMLInputElement>();
+	let avatarPreview = $state<string | null>(null);
+	let uploadingAvatar = $state(false);
+	let removingAvatar = $state(false);
 	let addingPasskey = $state(false);
 	let creatingApiKey = $state(false);
 	let newApiKeyName = $state('');
@@ -111,6 +115,48 @@
 			toasts.success('Name updated');
 			await invalidateAll();
 		}
+	}
+
+	async function onAvatarFile(e: Event) {
+		const input = e.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = '';
+		if (!file) return;
+		if (!file.type.startsWith('image/')) {
+			toasts.error('Choose an image file');
+			return;
+		}
+		if (file.size > 2 * 1024 * 1024) {
+			toasts.error('Images must be under 2MB');
+			return;
+		}
+		uploadingAvatar = true;
+		avatarPreview = URL.createObjectURL(file);
+		const formData = new FormData();
+		formData.set('avatar', file);
+		const res = await fetch('/api/user/avatar', { method: 'POST', body: formData });
+		uploadingAvatar = false;
+		URL.revokeObjectURL(avatarPreview);
+		avatarPreview = null;
+		if (!res.ok) {
+			const body = await res.json().catch(() => null);
+			toasts.error(body?.message ?? 'Could not upload image');
+			return;
+		}
+		toasts.success('Profile picture updated');
+		await invalidateAll();
+	}
+
+	async function removeAvatar() {
+		if (removingAvatar) return;
+		removingAvatar = true;
+		const res = await fetch('/api/user/avatar', { method: 'DELETE' });
+		removingAvatar = false;
+		if (!res.ok) {
+			toasts.error('Could not remove image');
+			return;
+		}
+		await invalidateAll();
 	}
 
 	async function addPasskey() {
@@ -221,7 +267,37 @@
 			</div>
 		</div>
 		<div class="profile">
-			<Avatar name={data.user.name} email={data.user.email} image={data.user.image} size={56} />
+			<div class="avatar-edit">
+				<Avatar
+					name={data.user.name}
+					email={data.user.email}
+					image={avatarPreview ?? data.user.image}
+					size={56}
+				/>
+				<div class="avatar-actions">
+					<Button
+						variant="ghost"
+						size="sm"
+						icon="upload"
+						loading={uploadingAvatar}
+						onclick={() => avatarInput?.click()}
+					>
+						Upload
+					</Button>
+					{#if data.user.image}
+						<Button variant="ghost" size="sm" loading={removingAvatar} onclick={removeAvatar}>
+							Remove
+						</Button>
+					{/if}
+				</div>
+				<input
+					bind:this={avatarInput}
+					type="file"
+					accept="image/*"
+					hidden
+					onchange={onAvatarFile}
+				/>
+			</div>
 			<div class="pfields">
 				<label class="field">
 					<span>Display name</span>
@@ -714,6 +790,18 @@
 		flex-direction: column;
 		gap: var(--space-3);
 		min-width: 0;
+	}
+	.avatar-edit {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: var(--space-2);
+		flex-shrink: 0;
+	}
+	.avatar-actions {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-1);
 	}
 	.field {
 		display: flex;

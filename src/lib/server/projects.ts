@@ -269,7 +269,7 @@ export async function deleteProject(projectId: string) {
 }
 
 // ─── Image icons ────────────────────────────────────────────────────────────
-const ICON_EXT: Record<string, string> = {
+export const ICON_EXT: Record<string, string> = {
 	'image/svg+xml': 'svg',
 	'image/png': 'png',
 	'image/jpeg': 'jpg',
