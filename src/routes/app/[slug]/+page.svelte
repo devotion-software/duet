@@ -969,6 +969,9 @@
 		{#if controller.items.length}
 			<div class="toolbar-row">
 				<ViewBar bind:view categories={data.categories} tags={data.tags} members={data.members} />
+				{#if filtering}
+					<span class="filtered-count">{matches?.size ?? 0} of {controller.items.length} tasks</span>
+				{/if}
 				{#if view.group !== 'none' && !narrowed && openGroups.length > 1}
 					<div class="group-tools">
 						{#if anyGroupExpanded}
@@ -1375,6 +1378,15 @@
 		flex-shrink: 0;
 		/* Line up with the 28px-tall ViewBar controls. */
 		height: 28px;
+	}
+	.filtered-count {
+		display: inline-flex;
+		align-items: center;
+		height: 28px;
+		flex-shrink: 0;
+		color: var(--text-subtle);
+		font-size: var(--text-sm);
+		white-space: nowrap;
 	}
 	.tool-btn {
 		display: inline-flex;
