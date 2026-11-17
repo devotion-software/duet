@@ -125,6 +125,9 @@
 		return `${'\u00a0\u00a0\u00a0'.repeat(depth)}${depth ? '↳ ' : ''}${title}`;
 	}
 
+	// AI goes first in the assignee list, ahead of human members.
+	const assigneeOptions = $derived([...members].sort((a, b) => Number(b.isAi) - Number(a.isAi)));
+
 	let title = $state(todo.title);
 	let description = $state(todo.description ?? '');
 	let descMode = $state<'write' | 'preview'>('write');
@@ -627,7 +630,13 @@
 						value={todo.assigneeId ?? ''}
 						placeholder="Unassigned"
 						aria-label="Assignee"
-						options={[{ value: '', label: 'Unassigned' }, ...members.map((m) => ({ value: m.userId, label: m.name || m.email }))]}
+						options={[
+							{ value: '', label: 'Unassigned' },
+							...assigneeOptions.map((m) => ({
+								value: m.userId,
+								label: m.isAi ? `✨ ${m.name}` : m.name || m.email
+							}))
+						]}
 						onvalue={(v) => onUpdate({ assigneeId: v || null })}
 					/>
 				</label>
@@ -967,7 +976,7 @@
 
 			<div class="foot-meta">
 				{#if todo.assignee}
-					<span class="fm"><Avatar name={todo.assignee.name} image={todo.assignee.image} size={18} /> {todo.assignee.name}</span>
+					<span class="fm"><Avatar name={todo.assignee.name} image={todo.assignee.image} isAi={todo.assignee.isAi} size={18} /> {todo.assignee.name}</span>
 				{/if}
 				<span class="fm">Created {todo.createdAt.toLocaleDateString()}</span>
 			</div>

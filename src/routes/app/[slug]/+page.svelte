@@ -40,6 +40,9 @@
 
 	const canEdit = $derived(data.project.role === 'owner' || data.project.role === 'editor');
 	const canManage = $derived(data.project.role === 'owner');
+	// AI is a project member for assignment purposes but isn't a real teammate,
+	// so it's left out of member counts shown around the page.
+	const humanMemberCount = $derived(data.members.filter((m) => !m.isAi).length);
 
 	// Inline accent for the project subtree; a gradient adds --accent-gradient alongside
 	// the solid --accent that all the derived tokens keep using.
@@ -856,7 +859,7 @@
 				{/if}
 				<p class="counts">
 					{controller.open.length} open · {controller.done.length} done
-					{#if data.members.length > 1}· {data.members.length} members{/if}
+					{#if humanMemberCount > 1}· {humanMemberCount} members{/if}
 				</p>
 			</div>
 		</div>
@@ -894,7 +897,7 @@
 				</Button>
 			{/if}
 			<Button class="btn-members" variant="ghost" size="sm" icon="users" onclick={() => (membersOpen = true)}>
-				{data.members.length}
+				{humanMemberCount}
 			</Button>
 			{#if canManage || canEdit || controller.items.length}
 				<div class="menu-host" bind:this={projectMenuHost}>

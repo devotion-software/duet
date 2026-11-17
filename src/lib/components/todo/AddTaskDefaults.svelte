@@ -55,6 +55,8 @@
 	let newCategoryName = $state('');
 	let host = $state<HTMLElement>();
 
+	// AI goes first in the assignee list, ahead of human members.
+	const assigneeOptions = $derived([...members].sort((a, b) => Number(b.isAi) - Number(a.isAi)));
 	const activeCount = $derived(
 		(value.categoryId ? 1 : 0) +
 			(value.assigneeId ? 1 : 0) +
@@ -104,10 +106,11 @@
 	onkeydown={(e) => e.key === 'Escape' && menuOpen && (submenu ? (submenu = null) : closeMenu())}
 />
 
-{#snippet option(label: string, on: boolean, pick: () => void, color?: string)}
+{#snippet option(label: string, on: boolean, pick: () => void, color?: string, icon?: IconName)}
 	<button class="menu-item" class:on onclick={pick}>
 		<span class="menu-check">{#if on}<Icon name="check" size={14} strokeWidth={2.5} />{/if}</span>
 		{#if color}<span class="swatch" style="--c: {color}"></span>{/if}
+		{#if icon}<Icon name={icon} size={13} />{/if}
 		<span class="truncate">{label}</span>
 	</button>
 {/snippet}
@@ -150,8 +153,14 @@
 						{/if}
 					{:else if submenu === 'assignee'}
 						{@render option('Unassigned', !value.assigneeId, () => set({ assigneeId: null }))}
-						{#each members as m (m.userId)}
-							{@render option(m.name || m.email, value.assigneeId === m.userId, () => set({ assigneeId: m.userId }))}
+						{#each assigneeOptions as m (m.userId)}
+							{@render option(
+								m.name || m.email,
+								value.assigneeId === m.userId,
+								() => set({ assigneeId: m.userId }),
+								undefined,
+								m.isAi ? 'sparkles' : undefined
+							)}
 						{/each}
 					{:else if submenu === 'urgency'}
 						{@render option('None', !value.urgency, () => set({ urgency: null }))}

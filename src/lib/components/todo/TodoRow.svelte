@@ -122,6 +122,8 @@
 		!shows('tags') ? [] : hides('tag') ? todo.tags.filter((t) => t.id !== group!.key) : todo.tags
 	);
 	const assignee = $derived(hides('assignee') || !shows('assignee') ? null : todo.assignee);
+	// AI goes first in the assignee list, ahead of human members.
+	const assigneeOptions = $derived([...members].sort((a, b) => Number(b.isAi) - Number(a.isAi)));
 	const urgency = $derived(hides('urgency') || !shows('urgency') ? null : todo.urgency);
 	const size = $derived(hides('size') || !shows('size') ? null : todo.size);
 	// Deadline buckets are ranges, so the date still adds detail — except under "Today".
@@ -229,8 +231,14 @@
 			{/if}
 		{:else if key === 'assignee'}
 			{@render option('Unassigned', !todo.assigneeId, () => set({ assigneeId: null }))}
-			{#each members as m (m.userId)}
-				{@render option(m.name || m.email, todo.assigneeId === m.userId, () => set({ assigneeId: m.userId }))}
+			{#each assigneeOptions as m (m.userId)}
+				{@render option(
+					m.name || m.email,
+					todo.assigneeId === m.userId,
+					() => set({ assigneeId: m.userId }),
+					undefined,
+					m.isAi ? 'sparkles' : undefined
+				)}
 			{/each}
 		{:else if key === 'urgency'}
 			{@render option('None', !todo.urgency, () => set({ urgency: null }))}
@@ -277,10 +285,11 @@
 	</div>
 {/snippet}
 
-{#snippet option(label: string, on: boolean, pick: () => void, color?: string)}
+{#snippet option(label: string, on: boolean, pick: () => void, color?: string, icon?: IconName)}
 	<button class="menu-item" class:on onclick={pick}>
 		<span class="menu-check">{#if on}<Icon name="check" size={14} strokeWidth={2.5} />{/if}</span>
 		{#if color}<span class="swatch" style="--c: {color}"></span>{/if}
+		{#if icon}<Icon name={icon} size={13} />{/if}
 		<span class="truncate">{label}</span>
 	</button>
 {/snippet}
@@ -426,7 +435,7 @@
 	<!-- svelte-ignore a11y_click_events_have_key_events (only stops the row's click from firing; all actions inside have their own handlers) -->
 	<div class="right" onclick={(e) => e.stopPropagation()}>
 		{#if assignee}
-			<Avatar name={assignee.name} image={assignee.image} size={22} />
+			<Avatar name={assignee.name} image={assignee.image} isAi={assignee.isAi} size={22} />
 		{/if}
 		<div class="actions" class:open={menuOpen}>
 			{#if canEdit && onAddSubtask}

@@ -1,11 +1,14 @@
 <script lang="ts">
+	import Icon from './Icon.svelte';
+
 	interface Props {
 		name?: string | null;
 		email?: string | null;
 		image?: string | null;
 		size?: number;
+		isAi?: boolean;
 	}
-	let { name, email, image, size = 28 }: Props = $props();
+	let { name, email, image, size = 28, isAi = false }: Props = $props();
 
 	const label = $derived(name?.trim() || email?.trim() || '?');
 	const initials = $derived(
@@ -32,6 +35,10 @@
 		style="--size: {size}px"
 		referrerpolicy="no-referrer"
 	/>
+{:else if isAi}
+	<span class="avatar ai" style="--size: {size}px" aria-label={label} title={label}>
+		<Icon name="sparkles" size={Math.round(size * 0.55)} />
+	</span>
 {:else}
 	<span
 		class="avatar fallback"
@@ -60,5 +67,9 @@
 		font-weight: var(--weight-semibold);
 		letter-spacing: 0.02em;
 		user-select: none;
+	}
+	.ai {
+		background: var(--accent-soft);
+		color: var(--accent-text);
 	}
 </style>

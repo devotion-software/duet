@@ -252,7 +252,7 @@ export interface TodoItem {
 	categoryId: string | null;
 	category: { id: string; name: string; color: string } | null;
 	assigneeId: string | null;
-	assignee: { id: string; name: string; image: string | null } | null;
+	assignee: { id: string; name: string; image: string | null; isAi: boolean } | null;
 	createdAt: Date;
 	updatedAt: Date;
 	tags: TodoTag[];
@@ -269,7 +269,8 @@ export async function listTodos(projectId: string): Promise<TodoItem[]> {
 			catColor: categories.color,
 			asgId: user.id,
 			asgName: user.name,
-			asgImage: user.image
+			asgImage: user.image,
+			asgIsAi: user.isAi
 		})
 		.from(todos)
 		.leftJoin(categories, eq(categories.id, todos.categoryId))
@@ -389,7 +390,7 @@ export async function listTodos(projectId: string): Promise<TodoItem[]> {
 		categoryId: r.todo.categoryId,
 		category: r.catId ? { id: r.catId, name: r.catName!, color: r.catColor! } : null,
 		assigneeId: r.todo.assigneeId,
-		assignee: r.asgId ? { id: r.asgId, name: r.asgName!, image: r.asgImage } : null,
+		assignee: r.asgId ? { id: r.asgId, name: r.asgName!, image: r.asgImage, isAi: r.asgIsAi! } : null,
 		createdAt: r.todo.createdAt,
 		updatedAt: r.todo.updatedAt,
 		tags: tagsByTodo.get(r.todo.id) ?? [],

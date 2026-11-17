@@ -136,7 +136,7 @@ export interface Todo {
 	categoryId: string | null;
 	category: Category | null;
 	assigneeId: string | null;
-	assignee: { id: string; name: string; image: string | null } | null;
+	assignee: { id: string; name: string; image: string | null; isAi: boolean } | null;
 	createdAt: Date;
 	updatedAt: Date;
 	tags: Tag[];
