@@ -176,6 +176,10 @@
 		menuOpen = !menuOpen;
 		submenu = null;
 	}
+	function openMenu() {
+		menuOpen = true;
+		submenu = null;
+	}
 	function closeMenu() {
 		menuOpen = false;
 		submenu = null;
@@ -310,6 +314,11 @@
 	ondragend={() => onDragEnd?.()}
 	onclick={onBodyClick}
 	onmousedown={(e) => e.shiftKey && onSelect && e.preventDefault()}
+	oncontextmenu={(e) => {
+		if (!canEdit || !menuHost) return;
+		e.preventDefault();
+		openMenu();
+	}}
 >
 	{#if tree}
 		{#if subtasks.total}
@@ -355,6 +364,7 @@
 		}}
 		oncontextmenu={(e) => {
 			// Right-click toggles in progress; starting a done task reopens it.
+			e.stopPropagation();
 			if (!onSetInProgress || !canEdit) return;
 			e.preventDefault();
 			onSetInProgress(todo.id, !inProgress);
