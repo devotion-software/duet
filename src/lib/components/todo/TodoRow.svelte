@@ -450,7 +450,7 @@
 		<div class="actions" class:open={menuOpen}>
 			{#if canEdit && onAddSubtask}
 				<button
-					class="act"
+					class="act subtask-btn"
 					title="Add subtask"
 					onclick={() => onAddSubtask(todo)}
 					aria-label="Add subtask"
@@ -831,6 +831,10 @@
 	@media (hover: none) {
 		.actions {
 			display: flex;
+		}
+		/* No room for it on mobile; it's still in the actions menu. */
+		.act.subtask-btn {
+			display: none;
 		}
 	}
 	.act {
