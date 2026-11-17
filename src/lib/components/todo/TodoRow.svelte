@@ -20,7 +20,7 @@
 		type Todo
 	} from '#lib/types';
 	import type { GroupKey } from '#lib/todoView';
-	import type { NewTodoInput } from '#lib/stores/todos.svelte';
+	import type { NewTodoInput, BulkPatchInput } from '#lib/stores/todos.svelte';
 
 	interface Props {
 		todo: Todo;
@@ -68,6 +68,11 @@
 		dragged?: boolean;
 		/** A drag would land just above or below this row. */
 		dropPos?: 'before' | 'after' | null;
+		/** All currently selected tasks; when this row is one of several, menu actions apply to all of them. */
+		selectedTodos?: Todo[];
+		onBulkUpdate?: (patch: BulkPatchInput) => void;
+		onBulkDelete?: () => void;
+		onBulkCopyForAI?: () => void;
 	}
 	let {
 		todo,
@@ -101,7 +106,11 @@
 		onDragStart,
 		onDragEnd,
 		dragged = false,
-		dropPos = null
+		dropPos = null,
+		selectedTodos = [],
+		onBulkUpdate,
+		onBulkDelete,
+		onBulkCopyForAI
 	}: Props = $props();
 
 	const copied = new Copied();
@@ -136,6 +145,12 @@
 	const excerpt = $derived(shows('excerpt') ? markdownExcerpt(todo.description, 400) : '');
 	const inProgress = $derived(isInProgress(todo));
 	const toTest = $derived(isToTest(todo));
+	// Context-menu actions fan out to the whole selection when this row is part of a multi-select.
+	const bulkCount = $derived(selected && selectedTodos.length > 1 ? selectedTodos.length : 0);
+	const bulkMode = $derived(bulkCount > 0);
+	const bulkAllStarted = $derived(bulkMode && selectedTodos.every(isInProgress));
+	const bulkAllToTest = $derived(bulkMode && selectedTodos.every(isToTest));
+	const bulkAllDone = $derived(bulkMode && selectedTodos.every((t) => t.completed));
 	let menuOpen = $state(false);
 
 	type Submenu = 'deadline' | 'assignee' | 'urgency' | 'size' | 'category' | 'tags';
@@ -184,12 +199,18 @@
 		menuOpen = false;
 		submenu = null;
 	}
-	function set(patch: Partial<NewTodoInput>) {
+	function set(patch: Partial<Pick<NewTodoInput, 'categoryId' | 'assigneeId' | 'deadline' | 'urgency' | 'size'>>) {
 		closeMenu();
-		onUpdate?.(todo.id, patch);
+		if (bulkMode) onBulkUpdate?.(patch);
+		else onUpdate?.(todo.id, patch);
 	}
 	// Tags toggle in place so several can be picked in one go.
 	function toggleTag(tagId: string) {
+		if (bulkMode) {
+			const allHave = selectedTodos.every((t) => t.tags.some((tg) => tg.id === tagId));
+			onBulkUpdate?.(allHave ? { removeTagIds: [tagId] } : { addTagIds: [tagId] });
+			return;
+		}
 		const ids = todo.tags.map((t) => t.id);
 		onUpdate?.(todo.id, { tagIds: ids.includes(tagId) ? ids.filter((id) => id !== tagId) : [...ids, tagId] });
 	}
@@ -198,7 +219,9 @@
 		if (!name || !onCreateTag) return;
 		newTagName = '';
 		const tag = await onCreateTag(name);
-		if (tag) onUpdate?.(todo.id, { tagIds: [...todo.tags.map((t) => t.id), tag.id] });
+		if (!tag) return;
+		if (bulkMode) onBulkUpdate?.({ addTagIds: [tag.id] });
+		else onUpdate?.(todo.id, { tagIds: [...todo.tags.map((t) => t.id), tag.id] });
 	}
 	async function addNewCategory() {
 		const name = newCategoryName.trim();
@@ -480,19 +503,24 @@
 					{#if menuOpen}
 						<button class="menu-scrim" aria-label="Close" onclick={closeMenu}></button>
 						<div class="menu" class:up={menuUp} bind:this={menuEl}>
+							{#if bulkMode}
+								<p class="menu-bulk-note">Applies to {bulkCount} selected tasks</p>
+							{/if}
 							{#if submenu}
 								{@render fieldMenu(submenu)}
 							{:else}
-								<button
-									class="menu-item"
-									onclick={() => {
-										menuOpen = false;
-										onOpen(todo);
-									}}
-								>
-									<Icon name="pencil" size={15} /> Edit
-								</button>
-								{#if onUpdate}
+								{#if !bulkMode}
+									<button
+										class="menu-item"
+										onclick={() => {
+											menuOpen = false;
+											onOpen(todo);
+										}}
+									>
+										<Icon name="pencil" size={15} /> Edit
+									</button>
+								{/if}
+								{#if onUpdate || bulkMode}
 									<hr />
 									{#each SUBMENUS as m (m.key)}
 										<button class="menu-item" onclick={() => (submenu = m.key)}>
@@ -503,42 +531,45 @@
 									{/each}
 									<hr />
 								{/if}
-								{#if onSetInProgress && !todo.completed}
+								{#if onSetInProgress && (bulkMode || !todo.completed)}
 									<button
 										class="menu-item"
 										onclick={() => {
 											menuOpen = false;
-											onSetInProgress(todo.id, !inProgress);
+											if (bulkMode) onBulkUpdate?.({ inProgress: !bulkAllStarted });
+											else onSetInProgress(todo.id, !inProgress);
 										}}
 									>
 										<Icon name="clock" size={15} />
-										{inProgress ? 'Stop progress' : 'Mark in progress'}
+										{(bulkMode ? bulkAllStarted : inProgress) ? 'Stop progress' : 'Mark in progress'}
 									</button>
 								{/if}
-								{#if onSetTesting && !todo.completed}
+								{#if onSetTesting && (bulkMode || !todo.completed)}
 									<button
 										class="menu-item"
 										onclick={() => {
 											menuOpen = false;
-											onSetTesting(todo.id, !toTest);
+											if (bulkMode) onBulkUpdate?.({ toTest: !bulkAllToTest });
+											else onSetTesting(todo.id, !toTest);
 										}}
 									>
 										<Icon name="eye" size={15} />
-										{toTest ? 'Clear to test' : 'Mark to test'}
+										{(bulkMode ? bulkAllToTest : toTest) ? 'Clear to test' : 'Mark to test'}
 									</button>
 								{/if}
-								{#if onNotDoing && !todo.completed}
+								{#if onNotDoing && (bulkMode ? !bulkAllDone : !todo.completed)}
 									<button
 										class="menu-item"
 										onclick={() => {
 											menuOpen = false;
-											onNotDoing(todo.id);
+											if (bulkMode) onBulkUpdate?.({ completed: true, notDoing: true });
+											else onNotDoing(todo.id);
 										}}
 									>
 										<Icon name="ban" size={15} /> Not doing
 									</button>
 								{/if}
-								{#if onAddSubtask}
+								{#if onAddSubtask && !bulkMode}
 									<button
 										class="menu-item"
 										onclick={() => {
@@ -549,7 +580,7 @@
 										<Icon name="corner-down-right" size={15} /> Add subtask
 									</button>
 								{/if}
-								{#if onOutdent && todo.parentId}
+								{#if onOutdent && todo.parentId && !bulkMode}
 									<button
 										class="menu-item"
 										onclick={() => {
@@ -564,12 +595,13 @@
 									class="menu-item"
 									onclick={() => {
 										menuOpen = false;
-										onCopy(todo);
+										if (bulkMode) onBulkCopyForAI?.();
+										else onCopy(todo);
 									}}
 								>
 									<Icon name="copy" size={15} /> Copy for AI
 								</button>
-								{#if onDuplicate}
+								{#if onDuplicate && !bulkMode}
 									<button
 										class="menu-item"
 										onclick={() => {
@@ -585,10 +617,11 @@
 									class="menu-item danger"
 									onclick={() => {
 										menuOpen = false;
-										onDelete(todo.id);
+										if (bulkMode) onBulkDelete?.();
+										else onDelete(todo.id);
 									}}
 								>
-									<Icon name="trash" size={15} /> Delete
+									<Icon name="trash" size={15} /> Delete{bulkMode ? ` ${bulkCount} tasks` : ''}
 								</button>
 							{/if}
 						</div>
@@ -927,6 +960,15 @@
 		padding: var(--space-2) var(--space-3);
 		font-size: var(--text-sm);
 		color: var(--text-faint);
+	}
+	.menu-bulk-note {
+		padding: var(--space-2) var(--space-3);
+		font-size: var(--text-xs);
+		font-weight: var(--weight-medium);
+		color: var(--accent-text);
+		background: var(--accent-soft);
+		border-radius: var(--radius-sm);
+		margin-bottom: var(--space-1);
 	}
 	.menu input {
 		display: block;

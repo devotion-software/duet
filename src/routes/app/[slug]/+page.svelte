@@ -453,6 +453,14 @@
 		after?.();
 	}
 
+	// Bulk delete from a task row's context menu, when several rows are selected.
+	async function bulkDeleteFromMenu() {
+		const ids = [...selectedIds];
+		const n = ids.length;
+		if (!confirm(`Delete ${n} task${n === 1 ? '' : 's'}? You can restore them from project settings.`)) return;
+		if (await controller.bulkRemove(ids)) clearSelection();
+	}
+
 	async function refocusAt(at: number) {
 		await tick();
 		focusRow((visibleTodos[at] ?? visibleTodos.at(-1))?.id);
@@ -784,6 +792,10 @@
 		onDragEnd={onRowDragEnd}
 		dragged={dragging?.id === todo.id}
 		dropPos={dropTarget?.id === todo.id ? dropTarget.pos : null}
+		{selectedTodos}
+		onBulkUpdate={canEdit ? (patch) => controller.bulkUpdate([...selectedIds], patch) : undefined}
+		onBulkDelete={canEdit ? bulkDeleteFromMenu : undefined}
+		onBulkCopyForAI={copySelectedForAI}
 	/>
 	{#if (kids.length || addingTo === todo.id) && !isCollapsed(todo.id)}
 		<div class="subtasks" class:capped={depth >= MAX_INDENT} transition:slide={{ duration: 150 }}>
