@@ -3,7 +3,9 @@
 	import { enhance } from '$app/forms';
 	import { authClient } from '#lib/auth-client';
 	import { theme, THEMES, type Theme } from '#lib/theme.svelte';
-	import { APP_STYLE_OPTIONS } from '#lib/palette';
+	import { APP_STYLE_OPTIONS, PROJECT_COLORS } from '#lib/palette';
+	import { sanitizeColor } from '#lib/color';
+	import { FONT_PRESET_OPTIONS, GOOGLE_FONTS, fontStyle, isPreset, isValidFont } from '#lib/font';
 	import type { AppStyle } from '#lib/types';
 	import { confirmDelete } from '#lib/confirmDelete.svelte';
 	import { Copied } from '#lib/copied.svelte';
@@ -102,6 +104,67 @@
 			// Refresh layout data (e.g. the project glass flag) to match the new style.
 			await invalidateAll();
 		}
+	}
+
+	// Personal accent colour for the app chrome (outside any project, which has its own).
+	let accentColor = $state<string | null>(data.user.accentColor ?? null);
+	let savingAccent = $state(false);
+	async function setAccentColor(next: string | null) {
+		if (next === accentColor || savingAccent) return;
+		const prev = accentColor;
+		accentColor = next;
+		savingAccent = true;
+		const { error } = await authClient.updateUser({ accentColor: next ?? '' });
+		savingAccent = false;
+		if (error) {
+			accentColor = prev;
+			toasts.error(error.message ?? 'Could not save');
+		} else await invalidateAll();
+	}
+	let accentText = $state(data.user.accentColor ?? '');
+	const accentValid = $derived(accentText.trim() === '' || !!sanitizeColor(accentText));
+
+	// Task-row density across the app.
+	let density = $state<'comfortable' | 'compact'>(data.user.density === 'compact' ? 'compact' : 'comfortable');
+	let savingDensity = $state(false);
+	async function setDensity(next: 'comfortable' | 'compact') {
+		if (next === density || savingDensity) return;
+		const prev = density;
+		density = next;
+		savingDensity = true;
+		const { error } = await authClient.updateUser({ density: next });
+		savingDensity = false;
+		if (error) {
+			density = prev;
+			toasts.error(error.message ?? 'Could not save');
+		} else await invalidateAll();
+	}
+
+	// Typeface for the app chrome (sidebar, headers) — a preset or a custom family.
+	let chromeFont = $state(data.user.chromeFont ?? 'sans');
+	let chromeFontText = $state(isPreset(data.user.chromeFont ?? 'sans') ? '' : (data.user.chromeFont ?? ''));
+	let savingChromeFont = $state(false);
+	const chromeFontValid = $derived(chromeFontText.trim() === '' || isValidFont(chromeFontText));
+	async function saveChromeFont(next: string) {
+		if (next === chromeFont || savingChromeFont) return;
+		const prev = chromeFont;
+		chromeFont = next;
+		savingChromeFont = true;
+		const { error } = await authClient.updateUser({ chromeFont: next });
+		savingChromeFont = false;
+		if (error) {
+			chromeFont = prev;
+			toasts.error(error.message ?? 'Could not save');
+		} else await invalidateAll();
+	}
+	function pickChromeFontPreset(value: string) {
+		chromeFontText = '';
+		saveChromeFont(value);
+	}
+	function onChromeFontInput(value: string) {
+		chromeFontText = value;
+		const trimmed = value.trim();
+		if (trimmed && isValidFont(trimmed)) saveChromeFont(trimmed.replace(/\s+/g, ' '));
 	}
 
 	async function saveName() {
@@ -383,6 +446,98 @@
 						{s.label}
 					</button>
 				{/each}
+			</div>
+		</div>
+		<div class="field spaced">
+			<span>Accent colour</span>
+			<p class="field-hint">Colours the sidebar and buttons outside of any project.</p>
+			<div class="swatches">
+				{#each PROJECT_COLORS as c (c)}
+					<button
+						type="button"
+						class="swatch"
+						class:sel={accentColor === c}
+						style="background: {c}"
+						disabled={savingAccent}
+						aria-label={c}
+						onclick={() => setAccentColor(c)}
+					></button>
+				{/each}
+				<label class="custom-swatch" title="Current colour · click to pick">
+					<input
+						type="color"
+						value={accentColor && sanitizeColor(accentColor) ? accentColor : '#6366f1'}
+						disabled={savingAccent}
+						oninput={(e) => setAccentColor(e.currentTarget.value)}
+					/>
+					<span style="background: {accentColor || 'var(--accent)'}"></span>
+				</label>
+				<Button variant="ghost" size="sm" disabled={savingAccent || !accentColor} onclick={() => setAccentColor(null)}>
+					Default
+				</Button>
+			</div>
+		</div>
+		<div class="field spaced">
+			<span>App font</span>
+			<p class="field-hint">Typeface for the sidebar and headers, outside of any project.</p>
+			<div class="segmented">
+				{#each FONT_PRESET_OPTIONS as f (f.value)}
+					<button
+						type="button"
+						class="seg"
+						class:sel={chromeFont === f.value}
+						style={fontStyle(f.value)}
+						disabled={savingChromeFont}
+						onclick={() => pickChromeFontPreset(f.value)}
+					>
+						{f.label}
+					</button>
+				{/each}
+			</div>
+			<div class="font-text" class:invalid={!chromeFontValid}>
+				<input
+					type="text"
+					value={chromeFontText}
+					list="settings-google-fonts"
+					spellcheck="false"
+					autocapitalize="off"
+					autocomplete="off"
+					placeholder="Any font name — Google Fonts or one you have installed"
+					aria-label="Custom app font family"
+					oninput={(e) => onChromeFontInput(e.currentTarget.value)}
+				/>
+				{#if chromeFontText.trim()}
+					<span class="font-status">{chromeFontValid ? 'Valid' : 'Invalid'}</span>
+				{/if}
+			</div>
+			<datalist id="settings-google-fonts">
+				{#each GOOGLE_FONTS as g (g)}
+					<option value={g}></option>
+				{/each}
+			</datalist>
+		</div>
+		<div class="field spaced">
+			<span>Density</span>
+			<p class="field-hint">How much breathing room task rows get.</p>
+			<div class="segmented">
+				<button
+					type="button"
+					class="seg"
+					class:sel={density === 'comfortable'}
+					disabled={savingDensity}
+					onclick={() => setDensity('comfortable')}
+				>
+					Comfortable
+				</button>
+				<button
+					type="button"
+					class="seg"
+					class:sel={density === 'compact'}
+					disabled={savingDensity}
+					onclick={() => setDensity('compact')}
+				>
+					Compact
+				</button>
 			</div>
 		</div>
 		<div class="divider"></div>
@@ -921,7 +1076,8 @@
 		);
 		box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 22%, transparent);
 	}
-	.style-field {
+	.style-field,
+	.spaced {
 		margin-top: var(--space-5);
 	}
 	.field-hint {
@@ -929,6 +1085,81 @@
 		font-size: var(--text-xs);
 		color: var(--text-muted);
 		font-weight: var(--weight-normal);
+	}
+	.swatches {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: var(--space-2);
+	}
+	.swatch {
+		width: 26px;
+		height: 26px;
+		border-radius: var(--radius-full);
+		box-shadow: 0 0 0 1px var(--border-strong);
+		transition: transform var(--transition-fast);
+	}
+	.swatch:hover:not(:disabled) {
+		transform: scale(1.12);
+	}
+	.swatch.sel {
+		box-shadow:
+			0 0 0 2px var(--surface),
+			0 0 0 4px var(--accent);
+	}
+	.custom-swatch {
+		position: relative;
+		flex-shrink: 0;
+		width: 26px;
+		height: 26px;
+		cursor: pointer;
+	}
+	.custom-swatch input {
+		position: absolute;
+		inset: 0;
+		opacity: 0;
+		cursor: pointer;
+	}
+	.custom-swatch span {
+		display: block;
+		width: 26px;
+		height: 26px;
+		border-radius: var(--radius-full);
+		box-shadow: 0 0 0 1px var(--border-strong);
+	}
+	.font-text {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		margin-top: var(--space-2);
+	}
+	.font-text input {
+		flex: 1;
+		min-width: 0;
+		background: var(--surface);
+		border: 1px solid var(--border-strong);
+		border-radius: var(--radius-md);
+		padding: var(--space-2) var(--space-3);
+		color: var(--text);
+		font-size: var(--text-sm);
+		box-shadow: var(--shadow-xs);
+	}
+	.font-text input:focus {
+		outline: none;
+		border-color: var(--accent);
+		box-shadow: 0 0 0 3px var(--accent-ring);
+	}
+	.font-text.invalid input {
+		border-color: var(--danger);
+	}
+	.font-status {
+		flex-shrink: 0;
+		font-size: var(--text-xs);
+		font-weight: var(--weight-medium);
+		color: var(--success);
+	}
+	.font-text.invalid .font-status {
+		color: var(--danger);
 	}
 	.check {
 		display: flex;

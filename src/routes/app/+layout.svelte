@@ -33,9 +33,10 @@
 
 	let { data, children } = $props();
 
-	// One stylesheet loading every custom (Google) font any of the user's projects use, so
-	// the sidebar, home cards and the open project all render in their chosen typeface.
-	const fontsHref = $derived(googleFontsHref(data.projects.map((p) => p.font)));
+	// One stylesheet loading every custom (Google) font any of the user's projects use, plus
+	// their personal chrome font, so the sidebar, home cards and the open project all render
+	// in their chosen typeface.
+	const fontsHref = $derived(googleFontsHref([...data.projects.map((p) => p.font), data.user.chromeFont]));
 
 	/** Inline `--accent` (+ `--accent-gradient`) declarations for a project, sanitised so
 	 *  they're safe to drop into a style attribute or a <style> tag. Empty if the colour
@@ -46,6 +47,12 @@
 		const gradient = sanitizeGradient(p.accentGradient);
 		return `--accent: ${color};` + (gradient ? ` --accent-gradient: ${gradient};` : '');
 	}
+
+	/** The user's personal accent for the app chrome, outside any project. */
+	const personalAccentVars = $derived.by(() => {
+		const color = sanitizeColor(data.user.accentColor);
+		return color ? `--accent: ${color};` : '';
+	});
 
 	let createOpen = $state(false);
 	let menuOpen = $state(false);
@@ -75,11 +82,10 @@
 	// The open project's colour themes the whole document, so the page background glow and
 	// anything rendered outside the project subtree (dialogs, bulk bar) match it. The values
 	// are sanitised before they reach this <style> tag.
-	const rootAccentStyle = $derived(
-		activeProject && accentVars(activeProject)
-			? `<style>html:root { ${accentVars(activeProject)} }</style>`
-			: ''
-	);
+	const rootAccentStyle = $derived.by(() => {
+		const vars = (activeProject && accentVars(activeProject)) || personalAccentVars;
+		return vars ? `<style>html:root { ${vars} }</style>` : '';
+	});
 	const projectById = $derived(new Map(data.projects.map((p) => [p.id, p])));
 	const archivedProjects = $derived(data.projects.filter((p) => p.status === 'archived'));
 	// Archived projects stay collapsed unless you're viewing one.
@@ -530,6 +536,8 @@
 
 <div
 	class="shell"
+	data-density={data.user.density === 'compact' ? 'compact' : 'comfortable'}
+	style={fontStyle(data.user.chromeFont)}
 	ontransitionend={(e) => {
 		if (e.target === e.currentTarget) resizing = false;
 	}}

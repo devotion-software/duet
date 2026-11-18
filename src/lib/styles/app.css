@@ -240,6 +240,18 @@ samp {
 	--project-border: color-mix(in oklab, var(--accent) 18%, var(--border));
 }
 
+/* ── Density ──────────────────────────────────────────────────────────────────
+   Personal setting (Appearance settings), applied as data-density on .shell.
+   Scoped to task rows (identified by data-todo-id) so it never touches unrelated
+   `.row` classes elsewhere (dialogs reuse that name for their own layouts). */
+.shell[data-density='compact'] [data-todo-id].row {
+	padding: 6px var(--space-3);
+	gap: var(--space-2);
+}
+.shell[data-density='compact'] [data-todo-id].row .meta {
+	gap: 4px;
+}
+
 /* Respect reduced motion. */
 @media (prefers-reduced-motion: reduce) {
 	*,

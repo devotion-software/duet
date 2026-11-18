@@ -72,6 +72,26 @@ export const auth = betterAuth({
 				required: false,
 				defaultValue: false,
 				input: false
+			},
+			// Personal accent colour for the app chrome outside any project. Unset
+			// (null) means "use the default indigo".
+			accentColor: {
+				type: 'string',
+				required: false,
+				input: true
+			},
+			// Task-row spacing across the app, set in Appearance settings.
+			density: {
+				type: 'string',
+				required: false,
+				defaultValue: 'comfortable',
+				input: true
+			},
+			// Typeface for the app chrome (sidebar, headers), set in Appearance settings.
+			chromeFont: {
+				type: 'string',
+				required: false,
+				input: true
 			}
 		}
 	},

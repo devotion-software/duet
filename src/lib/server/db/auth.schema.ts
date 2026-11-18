@@ -26,6 +26,12 @@ export const user = mysqlTable("user", {
   defaultListWidth: int("default_list_width").default(820).notNull(),
   defaultCountSubtasks: boolean("default_count_subtasks").default(true).notNull(),
   isAi: boolean("is_ai").default(false).notNull(),
+  // Personal accent for the app chrome, used outside any project (which has its own).
+  accentColor: text("accent_color"),
+  // Task-row spacing across the app: 'comfortable' or 'compact'.
+  density: text("density").default("comfortable").notNull(),
+  // Typeface for the app chrome (sidebar, headers); a preset keyword or custom family.
+  chromeFont: text("chrome_font"),
 });
 
 export const session = mysqlTable(
