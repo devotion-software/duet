@@ -175,8 +175,12 @@
 		if (!menuOpen || !menuEl || !menuHost) return;
 		void submenu;
 		const host = menuHost.getBoundingClientRect();
-		const below = window.innerHeight - host.bottom;
-		menuUp = menuEl.offsetHeight + 8 > below && host.top > below;
+		const below = window.innerHeight - host.bottom - 8;
+		const above = host.top - 8;
+		const needed = menuEl.offsetHeight;
+		menuUp = needed > below && above > below;
+		const available = menuUp ? above : below;
+		menuEl.style.maxHeight = needed > available ? `${Math.max(available, 80)}px` : '';
 	});
 
 	function handleCheckClick(id: string, e: MouseEvent) {
@@ -901,6 +905,7 @@
 		border-radius: var(--radius-md);
 		box-shadow: var(--shadow-lg);
 		padding: var(--space-1);
+		overflow-y: auto;
 	}
 	.menu.up {
 		top: auto;
