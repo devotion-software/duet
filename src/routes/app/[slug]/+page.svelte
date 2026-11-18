@@ -1196,6 +1196,7 @@
 	invites={data.invites}
 	currentUserId={data.user.id}
 	{canManage}
+	todos={controller.items}
 	onChanged={() => invalidateAll()}
 />
 <ProjectDialog

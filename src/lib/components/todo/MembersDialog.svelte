@@ -5,7 +5,7 @@
 	import Icon from '#lib/components/ui/Icon.svelte';
 	import Select from '#lib/components/ui/Select.svelte';
 	import { toasts } from '#lib/components/ui/toast.svelte';
-	import { ROLE_DESCRIPTIONS, type Member, type Role } from '#lib/types';
+	import { ROLE_DESCRIPTIONS, type Member, type Role, type Todo } from '#lib/types';
 
 	const ROLE_OPTIONS = [
 		{ value: 'editor', label: 'Editor' },
@@ -25,6 +25,7 @@
 		invites: Invite[];
 		currentUserId: string;
 		canManage: boolean;
+		todos: Todo[];
 		onChanged: () => void;
 	}
 	let {
@@ -34,6 +35,7 @@
 		invites,
 		currentUserId,
 		canManage,
+		todos,
 		onChanged
 	}: Props = $props();
 
@@ -44,6 +46,19 @@
 
 	let aiMember = $derived(members.find((m) => m.isAi));
 	let humanMembers = $derived(members.filter((m) => !m.isAi));
+
+	/** Assigned / completed task counts per member, keyed by userId. */
+	let taskCounts = $derived.by(() => {
+		const counts = new Map<string, { assigned: number; done: number }>();
+		for (const t of todos) {
+			if (!t.assigneeId) continue;
+			const entry = counts.get(t.assigneeId) ?? { assigned: 0, done: 0 };
+			entry.assigned++;
+			if (t.completed && !t.notDoing) entry.done++;
+			counts.set(t.assigneeId, entry);
+		}
+		return counts;
+	});
 
 	async function api(url: string, init: RequestInit) {
 		const res = await fetch(url, {
@@ -147,7 +162,13 @@
 		<div class="ai-icon"><Icon name="sparkles" size={16} /></div>
 		<div class="info">
 			<span class="name">AI</span>
-			<span class="email">Add AI as a member so tasks can be assigned to it</span>
+			<span class="email">
+				{#if aiMember && taskCounts.get(aiMember.userId)}
+					{taskCounts.get(aiMember.userId)!.assigned} assigned · {taskCounts.get(aiMember.userId)!.done} done
+				{:else}
+					Add AI as a member so tasks can be assigned to it
+				{/if}
+			</span>
 		</div>
 		<label class="switch" aria-label="Toggle AI member">
 			<input
@@ -170,6 +191,9 @@
 						{#if m.userId === currentUserId}<span class="you">you</span>{/if}
 					</span>
 					<span class="email">{m.email}</span>
+					<span class="task-counts">
+						{taskCounts.get(m.userId)?.assigned ?? 0} assigned · {taskCounts.get(m.userId)?.done ?? 0} done
+					</span>
 				</div>
 				{#if canManage && m.userId !== currentUserId}
 					<Select
@@ -341,6 +365,10 @@
 	.email {
 		font-size: var(--text-xs);
 		color: var(--text-subtle);
+	}
+	.task-counts {
+		font-size: var(--text-xs);
+		color: var(--text-faint);
 	}
 	:global(.member-role-select) {
 		width: 110px;
