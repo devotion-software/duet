@@ -374,11 +374,12 @@
 				{#each APP_STYLE_OPTIONS as s (s.value)}
 					<button
 						type="button"
-						class="seg"
+						class="seg style-seg"
 						class:sel={appStyle === s.value}
 						disabled={savingStyle}
 						onclick={() => setStyle(s.value)}
 					>
+						<span class="style-swatch {s.value}"></span>
 						{s.label}
 					</button>
 				{/each}
@@ -884,6 +885,41 @@
 		background: var(--surface-raised);
 		color: var(--text);
 		box-shadow: var(--shadow-xs);
+	}
+	.style-seg {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-2);
+	}
+	/* Mirrors the real .project-tile treatment for each style, so the options
+	   are distinguishable at a glance instead of four identical-looking labels. */
+	.style-swatch {
+		width: 16px;
+		height: 16px;
+		flex-shrink: 0;
+		border-radius: var(--radius-sm);
+	}
+	.style-swatch.soft {
+		background: var(--accent-gradient, var(--accent-soft));
+	}
+	.style-swatch.solid {
+		background: var(--accent-gradient, var(--accent));
+		box-shadow: inset 0 -1px 0 rgb(0 0 0 / 0.12);
+	}
+	.style-swatch.outline {
+		background: var(--accent-gradient, var(--surface));
+		box-shadow: inset 0 0 0 1.5px var(--accent);
+	}
+	.style-swatch.glass {
+		background: var(
+			--accent-gradient,
+			linear-gradient(
+				145deg,
+				color-mix(in oklab, var(--accent) 26%, var(--surface)),
+				color-mix(in oklab, var(--accent) 6%, var(--surface))
+			)
+		);
+		box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 22%, transparent);
 	}
 	.style-field {
 		margin-top: var(--space-5);
