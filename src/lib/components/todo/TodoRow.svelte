@@ -471,9 +471,6 @@
 
 	<!-- svelte-ignore a11y_click_events_have_key_events (only stops the row's click from firing; all actions inside have their own handlers) -->
 	<div class="right" onclick={(e) => e.stopPropagation()}>
-		{#if assignee}
-			<Avatar name={assignee.name} image={assignee.image} isAi={assignee.isAi} size={22} />
-		{/if}
 		<div class="actions" class:open={menuOpen}>
 			{#if canEdit && onAddSubtask}
 				<button
@@ -633,6 +630,9 @@
 				</div>
 			{/if}
 		</div>
+		{#if assignee}
+			<Avatar name={assignee.name} image={assignee.image} isAi={assignee.isAi} size={22} />
+		{/if}
 	</div>
 </div>
 
