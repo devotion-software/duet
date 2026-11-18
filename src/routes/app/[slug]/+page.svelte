@@ -790,6 +790,13 @@
 			const host = projectMenuAnchor === 'header' ? projectMenuHost : floatingMenuHost;
 			if (!host?.contains(e.target as Node)) projectMenuOpen = false;
 		}
+		// A click anywhere that isn't an actual control (the viewbar's blank strip, the header,
+		// the sidebar, a done-section's row…) ends an active multi-select.
+		if (selecting && selectedIds.size) {
+			const target = e.target as HTMLElement;
+			if (!target.closest('button, a, input, textarea, select, [role="button"], [role="dialog"], .menu, .pop, .row, .bulk'))
+				clearSelection();
+		}
 	}
 </script>
 
@@ -1007,10 +1014,6 @@
 		ondragover={onListDragOver}
 		ondragleave={onListDragLeave}
 		ondrop={onListDrop}
-		onclick={(e) => {
-			// A click on the background (not a task or control) ends an active multi-select.
-			if (selecting && selectedIds.size && e.target === e.currentTarget) clearSelection();
-		}}
 	>
 		{#if canEdit}
 			<div class="quick" class:glass={data.appStyle === 'glass'}>
