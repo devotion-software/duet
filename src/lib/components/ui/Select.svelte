@@ -1,16 +1,20 @@
 <script lang="ts" module>
+	import type { IconName } from './Icon.svelte';
+
 	export interface SelectOption {
 		value: string;
 		label: string;
 		disabled?: boolean;
 		/** Groups consecutive options under a heading in the dropdown list. */
 		group?: string;
+		/** Shown inline before the label, e.g. to mark the AI member. */
+		icon?: IconName;
 	}
 </script>
 
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import Icon, { type IconName } from './Icon.svelte';
+	import Icon from './Icon.svelte';
 
 	interface Props {
 		options: SelectOption[];
@@ -229,6 +233,8 @@
 		>
 			{#if icon}
 				<Icon name={icon} size={size === 'sm' ? 15 : 17} class="leading-icon" />
+			{:else if selected?.icon}
+				<Icon name={selected.icon} size={size === 'sm' ? 13 : 14} class="leading-icon" />
 			{/if}
 			<span class="value truncate">{selected ? selected.label : placeholder}</span>
 			<Icon name="chevrons-up-down" size={13} class="chevron" />
@@ -275,6 +281,7 @@
 							onmouseenter={() => (active = i)}
 							onclick={() => pick(opt)}
 						>
+							{#if opt.icon}<Icon name={opt.icon} size={13} />{/if}
 							<span class="truncate">{opt.label}</span>
 							{#if opt.value === value}<Icon name="check" size={14} class="tick" />{/if}
 						</button>

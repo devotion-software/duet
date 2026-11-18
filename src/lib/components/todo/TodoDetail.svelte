@@ -634,7 +634,8 @@
 							{ value: '', label: 'Unassigned' },
 							...assigneeOptions.map((m) => ({
 								value: m.userId,
-								label: m.isAi ? `✨ ${m.name}` : m.name || m.email
+								label: m.name || m.email,
+								icon: m.isAi ? 'sparkles' as const : undefined
 							}))
 						]}
 						onvalue={(v) => onUpdate({ assigneeId: v || null })}

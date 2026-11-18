@@ -179,7 +179,14 @@
 			disabled={busy}
 			placeholder="Assignee"
 			aria-label="Set assignee"
-			options={[{ value: '', label: 'Unassigned' }, ...members.map((m) => ({ value: m.userId, label: m.name || m.email }))]}
+			options={[
+				{ value: '', label: 'Unassigned' },
+				...members.map((m) => ({
+					value: m.userId,
+					label: m.name || m.email,
+					icon: m.isAi ? 'sparkles' as const : undefined
+				}))
+			]}
 			onvalue={(v) => apply({ assigneeId: v || null })}
 		/>
 
