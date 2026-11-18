@@ -515,8 +515,8 @@
 	.saved-view {
 		display: flex;
 		align-items: center;
-		gap: 0;
-		padding: 0;
+		gap: 2px;
+		padding: 0 2px 0 0;
 	}
 	.view-apply {
 		display: flex;
@@ -541,8 +541,8 @@
 		display: grid;
 		place-items: center;
 		flex-shrink: 0;
-		width: 24px;
-		height: 24px;
+		width: 20px;
+		height: 20px;
 		border-radius: var(--radius-sm);
 		color: var(--text-faint);
 	}
@@ -554,8 +554,8 @@
 		display: grid;
 		place-items: center;
 		flex-shrink: 0;
-		width: 24px;
-		height: 24px;
+		width: 20px;
+		height: 20px;
 		border-radius: var(--radius-sm);
 		color: var(--text-faint);
 	}
