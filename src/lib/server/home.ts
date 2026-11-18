@@ -9,6 +9,8 @@ export interface ProjectStats {
 	/** Open and done tasks, counting subtasks only if the project summary's `countSubtasks` is set. */
 	open: number;
 	done: number;
+	/** Open tasks marked to test, included in `open` as well. */
+	toTest: number;
 	/** Open urgent tasks at any depth, matching the urgent list. */
 	urgent: number;
 }
@@ -63,6 +65,8 @@ export async function getHomeOverview(projects: ProjectSummary[]) {
 				openRoots: sql<number>`sum(case when ${todos.completed} = false and ${todos.parentId} is null then 1 else 0 end)`,
 				done: sql<number>`sum(case when ${todos.completed} = true then 1 else 0 end)`,
 				doneRoots: sql<number>`sum(case when ${todos.completed} = true and ${todos.parentId} is null then 1 else 0 end)`,
+				toTest: sql<number>`sum(case when ${todos.completed} = false and ${todos.testingAt} is not null then 1 else 0 end)`,
+				toTestRoots: sql<number>`sum(case when ${todos.completed} = false and ${todos.testingAt} is not null and ${todos.parentId} is null then 1 else 0 end)`,
 				urgent: sql<number>`sum(case when ${todos.completed} = false and ${todos.urgency} = 'urgent' then 1 else 0 end)`
 			})
 			.from(todos)
@@ -78,6 +82,7 @@ export async function getHomeOverview(projects: ProjectSummary[]) {
 		stats[p.id] = {
 			open: Number((p.countSubtasks ? c?.open : c?.openRoots) ?? 0),
 			done: Number((p.countSubtasks ? c?.done : c?.doneRoots) ?? 0),
+			toTest: Number((p.countSubtasks ? c?.toTest : c?.toTestRoots) ?? 0),
 			urgent: Number(c?.urgent ?? 0)
 		};
 	}

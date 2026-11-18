@@ -333,9 +333,9 @@
 		projects.reduce(
 			(t, p) => {
 				const s = data.stats[p.id];
-				return { open: t.open + s.open, done: t.done + s.done };
+				return { open: t.open + s.open, done: t.done + s.done, toTest: t.toTest + s.toTest };
 			},
-			{ open: 0, done: 0 }
+			{ open: 0, done: 0, toTest: 0 }
 		)
 	);
 
@@ -372,7 +372,8 @@
 		<header class="home-head">
 			<h1>{greeting}{firstName ? `, ${firstName}` : ''}</h1>
 			<p class="summary">
-				{plural(totals.open, 'open task')} across {plural(projects.length, 'project')}
+				{plural(totals.open - totals.toTest, 'open task')} across {plural(projects.length, 'project')}
+				{#if totals.toTest}· {plural(totals.toTest, 'task')} to test{/if}
 				· {totals.done} done
 				{#if data.urgent.length}· <span class="urgent-text">{data.urgent.length} urgent</span>{/if}
 			</p>
@@ -506,7 +507,10 @@
 										{/if}
 										<div class="c-foot">
 											<div class="stats">
-												<span class="stat"><strong>{s.open}</strong> to do</span>
+												<span class="stat"><strong>{s.open - s.toTest}</strong> to do</span>
+												{#if s.toTest}
+													<span class="stat"><strong>{s.toTest}</strong> to test</span>
+												{/if}
 												<span class="stat"><strong>{s.done}</strong> done</span>
 												{#if s.urgent}
 													<span class="stat urgent"><strong>{s.urgent}</strong> urgent</span>
