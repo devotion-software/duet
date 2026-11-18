@@ -749,6 +749,19 @@
 			toasts.error((e as Error).message);
 		}
 	}
+	async function updateView(id: string) {
+		try {
+			const res = await fetch(`/api/projects/${data.project.id}/views/${id}`, {
+				method: 'PATCH',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ config: view })
+			});
+			if (!res.ok) throw new Error((await res.json()).message);
+			await invalidateAll();
+		} catch (e) {
+			toasts.error((e as Error).message);
+		}
+	}
 	async function deleteView(id: string) {
 		try {
 			const res = await fetch(`/api/projects/${data.project.id}/views/${id}`, { method: 'DELETE' });
@@ -1017,6 +1030,7 @@
 					members={data.members}
 					savedViews={data.savedViews}
 					onSaveView={saveView}
+					onUpdateView={updateView}
 					onDeleteView={deleteView}
 				/>
 				{#if filtering}

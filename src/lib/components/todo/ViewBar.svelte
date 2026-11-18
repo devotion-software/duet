@@ -34,6 +34,7 @@
 		members: Member[];
 		savedViews?: SavedView[];
 		onSaveView?: (name: string) => Promise<unknown>;
+		onUpdateView?: (id: string) => Promise<void>;
 		onDeleteView?: (id: string) => Promise<void>;
 	}
 	let {
@@ -43,6 +44,7 @@
 		members,
 		savedViews = [],
 		onSaveView,
+		onUpdateView,
 		onDeleteView
 	}: Props = $props();
 
@@ -137,6 +139,17 @@
 			deletingId = null;
 		}
 	}
+
+	let updatingId = $state<string | null>(null);
+	async function updateView(sv: SavedView) {
+		if (!onUpdateView) return;
+		updatingId = sv.id;
+		try {
+			await onUpdateView(sv.id);
+		} finally {
+			updatingId = null;
+		}
+	}
 </script>
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && popover && (popover = null)} />
@@ -158,6 +171,16 @@
 									<Icon name="star" size={13} />
 									<span class="truncate">{sv.name}</span>
 								</button>
+								{#if onUpdateView}
+									<button
+										class="view-delete"
+										title="Update view to current settings"
+										disabled={updatingId === sv.id}
+										onclick={() => updateView(sv)}
+									>
+										<Icon name="refresh-cw" size={13} />
+									</button>
+								{/if}
 								{#if onDeleteView}
 									<button
 										class="view-delete"
