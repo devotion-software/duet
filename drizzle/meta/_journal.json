@@ -176,6 +176,13 @@
       "when": 1795004110009,
       "tag": "0024_loose_dragon_man",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "5",
+      "when": 1795009652539,
+      "tag": "0025_even_magus",
+      "breakpoints": true
     }
   ]
 }

@@ -203,6 +203,9 @@ export const savedViews = mysqlTable(
 		name: varchar('name', { length: 80 }).notNull(),
 		// JSON-encoded ViewState; kept as a single blob since it's only ever read/written whole.
 		config: text('config').notNull(),
+		// A global view also shows up on every other project of the owner's; filter
+		// values the target project doesn't recognize (a tag, a category…) are dropped.
+		global: boolean('global').notNull().default(false),
 		sortOrder: int('sort_order').notNull().default(0),
 		createdAt: createdAt(),
 		updatedAt: updatedAt()

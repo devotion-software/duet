@@ -1,0 +1,1 @@
+ALTER TABLE `saved_views` ADD `global` boolean DEFAULT false NOT NULL;

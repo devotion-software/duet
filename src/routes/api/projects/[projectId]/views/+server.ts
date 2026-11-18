@@ -16,7 +16,13 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 	if (!name) throw error(400, 'View name required');
 	if (!body?.config || typeof body.config !== 'object') throw error(400, 'View config required');
 
-	const view = await createSavedView(params.projectId, member.userId, name, JSON.stringify(body.config));
+	const view = await createSavedView(
+		params.projectId,
+		member.userId,
+		name,
+		JSON.stringify(body.config),
+		!!body.global
+	);
 	if (view === 'duplicate') throw error(409, 'A view with that name already exists');
 	return json({ view }, { status: 201 });
 };

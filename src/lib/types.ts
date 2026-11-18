@@ -71,6 +71,8 @@ export interface SavedView {
 	id: string;
 	name: string;
 	config: string;
+	/** Shows up on every project of the owner's, not just the one it was saved from. */
+	global: boolean;
 }
 /** A lightweight, cross-project todo reference, for the "link a task" picker. */
 export interface TodoRef {

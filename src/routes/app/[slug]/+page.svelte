@@ -745,12 +745,25 @@
 			return null;
 		}
 	}
-	async function saveView(name: string) {
+	async function saveView(name: string, global: boolean) {
 		try {
 			const res = await fetch(`/api/projects/${data.project.id}/views`, {
 				method: 'POST',
 				headers: { 'content-type': 'application/json' },
-				body: JSON.stringify({ name, config: view })
+				body: JSON.stringify({ name, config: view, global })
+			});
+			if (!res.ok) throw new Error((await res.json()).message);
+			await invalidateAll();
+		} catch (e) {
+			toasts.error((e as Error).message);
+		}
+	}
+	async function setViewGlobal(id: string, global: boolean) {
+		try {
+			const res = await fetch(`/api/projects/${data.project.id}/views/${id}`, {
+				method: 'PATCH',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ global })
 			});
 			if (!res.ok) throw new Error((await res.json()).message);
 			await invalidateAll();
@@ -1043,6 +1056,7 @@
 					savedViews={data.savedViews}
 					onSaveView={saveView}
 					onUpdateView={updateView}
+					onSetGlobal={setViewGlobal}
 					onDeleteView={deleteView}
 				/>
 				{#if filtering}

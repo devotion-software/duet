@@ -35,8 +35,9 @@
 		tags: Tag[];
 		members: Member[];
 		savedViews?: SavedView[];
-		onSaveView?: (name: string) => Promise<unknown>;
+		onSaveView?: (name: string, global: boolean) => Promise<unknown>;
 		onUpdateView?: (id: string) => Promise<void>;
+		onSetGlobal?: (id: string, global: boolean) => Promise<void>;
 		onDeleteView?: (id: string) => Promise<void>;
 	}
 	let {
@@ -47,6 +48,7 @@
 		savedViews = [],
 		onSaveView,
 		onUpdateView,
+		onSetGlobal,
 		onDeleteView
 	}: Props = $props();
 
@@ -125,22 +127,54 @@
 		popover = null;
 	}
 
+	/** A global view may reference a tag/category/assignee this project doesn't have; drop those rather than filtering everything out. */
+	function forThisProject(v: ViewState): ViewState {
+		const categoryIds = new Set(categories.map((c) => c.id));
+		const tagIds = new Set(tags.map((t) => t.id));
+		const memberIds = new Set(members.map((m) => m.userId));
+		return {
+			...v,
+			filter: {
+				...v.filter,
+				categories: v.filter.categories.filter((id) => id === '' || categoryIds.has(id)),
+				tags: v.filter.tags.filter((id) => id === '' || tagIds.has(id)),
+				assignees: v.filter.assignees.filter((id) => id === '' || memberIds.has(id))
+			}
+		};
+	}
+	function parseViewForProject(sv: SavedView): ViewState {
+		return forThisProject(parseView(sv.config));
+	}
+
 	function applySavedView(sv: SavedView) {
-		view = parseView(sv.config);
+		view = parseViewForProject(sv);
 		popover = null;
 	}
 
 	let newViewName = $state('');
+	let newViewGlobal = $state(false);
 	let saving = $state(false);
 	async function saveCurrentView() {
 		const name = newViewName.trim();
 		if (!name || !onSaveView) return;
 		saving = true;
 		try {
-			await onSaveView(name);
+			await onSaveView(name, newViewGlobal);
 			newViewName = '';
+			newViewGlobal = false;
 		} finally {
 			saving = false;
+		}
+	}
+
+	let togglingGlobalId = $state<string | null>(null);
+	async function toggleGlobal(sv: SavedView) {
+		if (!onSetGlobal) return;
+		togglingGlobalId = sv.id;
+		try {
+			await onSetGlobal(sv.id, !sv.global);
+		} finally {
+			togglingGlobalId = null;
 		}
 	}
 
@@ -171,7 +205,7 @@
 
 <div class="viewbar" role="toolbar" aria-label="Sort, group and filter tasks">
 	{#if savedViews.length || onSaveView}
-		{@const activeView = savedViews.find((sv) => viewsEqual(view, parseView(sv.config)))}
+		{@const activeView = savedViews.find((sv) => viewsEqual(view, parseViewForProject(sv)))}
 		<div class="pop-host">
 			<button class="ctl" class:active={!!activeView} class:on={popover === 'views'} onclick={() => toggle('views')}>
 				<Icon name="star" size={14} />
@@ -182,15 +216,27 @@
 				<div class="pop views">
 					{#if savedViews.length}
 						{#each savedViews as sv (sv.id)}
-							{@const active = viewsEqual(view, parseView(sv.config))}
+							{@const active = viewsEqual(view, parseViewForProject(sv))}
 							<div class="pop-item saved-view">
 								<button class="view-apply" class:active onclick={() => applySavedView(sv)}>
 									<Icon name="star" size={13} />
 									<span class="truncate">{sv.name}</span>
+									{#if sv.global}<Icon name="globe" size={12} /><span class="sr-only">Global</span>{/if}
 								</button>
+								{#if onSetGlobal}
+									<button
+										class="view-action"
+										class:active={sv.global}
+										title={sv.global ? 'Global — shows up on every project' : 'Make this view global'}
+										disabled={togglingGlobalId === sv.id}
+										onclick={() => toggleGlobal(sv)}
+									>
+										<Icon name="globe" size={13} />
+									</button>
+								{/if}
 								{#if onUpdateView}
 									<button
-										class="view-delete"
+										class="view-action"
 										title="Update view to current settings"
 										disabled={updatingId === sv.id}
 										onclick={() => updateView(sv)}
@@ -227,6 +273,10 @@
 								<Icon name="plus" size={14} />
 							</button>
 						</form>
+						<label class="pop-item global-check">
+							<input type="checkbox" bind:checked={newViewGlobal} disabled={saving} />
+							Global — show on every project
+						</label>
 					{/if}
 				</div>
 			{/if}
@@ -500,6 +550,28 @@
 	.view-delete:hover {
 		background: var(--surface-hover);
 		color: var(--danger, #ef4444);
+	}
+	.view-action {
+		display: grid;
+		place-items: center;
+		flex-shrink: 0;
+		width: 24px;
+		height: 24px;
+		margin-right: var(--space-1);
+		border-radius: var(--radius-sm);
+		color: var(--text-faint);
+	}
+	.view-action:hover:not(:disabled) {
+		background: var(--surface-hover);
+		color: var(--text);
+	}
+	.view-action.active {
+		color: var(--accent-text);
+	}
+	.global-check {
+		font-size: var(--text-xs);
+		color: var(--text-subtle);
+		cursor: pointer;
 	}
 	.save-view {
 		display: flex;

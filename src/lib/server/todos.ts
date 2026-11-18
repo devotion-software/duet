@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/mysql-core';
 import { db } from './db';
 import {
@@ -1141,18 +1141,27 @@ export async function deleteCategory(projectId: string, categoryId: string) {
 }
 
 // ─── Saved views (personal to each member) ─────────────────────────────────
+/** This project's own saved views, plus the user's global views from any project. */
 export async function listSavedViews(projectId: string, userId: string) {
 	return db
 		.select()
 		.from(savedViews)
-		.where(and(eq(savedViews.projectId, projectId), eq(savedViews.userId, userId)))
+		.where(
+			and(eq(savedViews.userId, userId), or(eq(savedViews.projectId, projectId), eq(savedViews.global, true)))
+		)
 		.orderBy(asc(savedViews.sortOrder), asc(savedViews.name));
 }
 
-export async function createSavedView(projectId: string, userId: string, name: string, config: string) {
+export async function createSavedView(
+	projectId: string,
+	userId: string,
+	name: string,
+	config: string,
+	global = false
+) {
 	const id = newId();
 	try {
-		await db.insert(savedViews).values({ id, projectId, userId, name: name.trim().slice(0, 80), config });
+		await db.insert(savedViews).values({ id, projectId, userId, name: name.trim().slice(0, 80), config, global });
 	} catch (e) {
 		if (isDuplicateKeyError(e)) return 'duplicate' as const;
 		throw e;
@@ -1161,18 +1170,19 @@ export async function createSavedView(projectId: string, userId: string, name: s
 	return row;
 }
 
-/** Returns `null` if the view doesn't exist (or isn't this user's), or `'duplicate'` if the new name collides. */
+/** Returns `null` if the view doesn't exist (or isn't this user's), or `'duplicate'` if the new name collides.
+ *  Ownership only needs the user to match: a global view is managed from any project, not just its home one. */
 export async function updateSavedView(
-	projectId: string,
 	userId: string,
 	viewId: string,
-	patch: { name?: string; config?: string }
+	patch: { name?: string; config?: string; global?: boolean }
 ) {
-	const set: { name?: string; config?: string } = {};
+	const set: { name?: string; config?: string; global?: boolean } = {};
 	if (patch.name !== undefined) set.name = patch.name.trim().slice(0, 80);
 	if (patch.config !== undefined) set.config = patch.config;
+	if (patch.global !== undefined) set.global = patch.global;
 	if (!Object.keys(set).length) return null;
-	const own = and(eq(savedViews.id, viewId), eq(savedViews.projectId, projectId), eq(savedViews.userId, userId));
+	const own = and(eq(savedViews.id, viewId), eq(savedViews.userId, userId));
 	try {
 		await db.update(savedViews).set(set).where(own);
 	} catch (e) {
@@ -1183,10 +1193,8 @@ export async function updateSavedView(
 	return row ?? null;
 }
 
-export async function deleteSavedView(projectId: string, userId: string, viewId: string) {
-	await db
-		.delete(savedViews)
-		.where(and(eq(savedViews.id, viewId), eq(savedViews.projectId, projectId), eq(savedViews.userId, userId)));
+export async function deleteSavedView(userId: string, viewId: string) {
+	await db.delete(savedViews).where(and(eq(savedViews.id, viewId), eq(savedViews.userId, userId)));
 }
 
 // ─── Attachments ────────────────────────────────────────────────────────────
