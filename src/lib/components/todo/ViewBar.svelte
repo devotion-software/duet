@@ -219,9 +219,7 @@
 							{@const active = viewsEqual(view, parseViewForProject(sv))}
 							<div class="pop-item saved-view">
 								<button class="view-apply" class:active onclick={() => applySavedView(sv)}>
-									<Icon name="star" size={13} />
 									<span class="truncate">{sv.name}</span>
-									{#if sv.global}<Icon name="globe" size={12} /><span class="sr-only">Global</span>{/if}
 								</button>
 								{#if onSetGlobal}
 									<button
@@ -269,14 +267,20 @@
 								bind:value={newViewName}
 								disabled={saving}
 							/>
+							<button
+								type="button"
+								class="view-action"
+								class:active={newViewGlobal}
+								title={newViewGlobal ? 'Global — shows up on every project' : 'Make this view global'}
+								disabled={saving}
+								onclick={() => (newViewGlobal = !newViewGlobal)}
+							>
+								<Icon name="globe" size={14} />
+							</button>
 							<button type="submit" disabled={saving || !newViewName.trim()}>
 								<Icon name="plus" size={14} />
 							</button>
 						</form>
-						<label class="pop-item global-check">
-							<input type="checkbox" bind:checked={newViewGlobal} disabled={saving} />
-							Global — show on every project
-						</label>
 					{/if}
 				</div>
 			{/if}
@@ -511,16 +515,15 @@
 	.saved-view {
 		display: flex;
 		align-items: center;
-		gap: var(--space-1);
+		gap: 0;
 		padding: 0;
 	}
 	.view-apply {
 		display: flex;
 		align-items: center;
-		gap: var(--space-2);
 		flex: 1;
 		min-width: 0;
-		padding: 6px var(--space-3);
+		padding: 6px var(--space-1);
 		border-radius: var(--radius-sm);
 		font-size: var(--text-sm);
 		color: var(--text);
@@ -534,16 +537,12 @@
 		color: var(--accent-text);
 		font-weight: var(--weight-medium);
 	}
-	.view-apply.active :global(svg) {
-		color: var(--accent-text);
-	}
 	.view-delete {
 		display: grid;
 		place-items: center;
 		flex-shrink: 0;
 		width: 24px;
 		height: 24px;
-		margin-right: var(--space-1);
 		border-radius: var(--radius-sm);
 		color: var(--text-faint);
 	}
@@ -557,7 +556,6 @@
 		flex-shrink: 0;
 		width: 24px;
 		height: 24px;
-		margin-right: var(--space-1);
 		border-radius: var(--radius-sm);
 		color: var(--text-faint);
 	}
@@ -567,11 +565,6 @@
 	}
 	.view-action.active {
 		color: var(--accent-text);
-	}
-	.global-check {
-		font-size: var(--text-xs);
-		color: var(--text-subtle);
-		cursor: pointer;
 	}
 	.save-view {
 		display: flex;
@@ -590,7 +583,7 @@
 		color: var(--text);
 		font-size: var(--text-sm);
 	}
-	.save-view button {
+	.save-view button[type='submit'] {
 		display: grid;
 		place-items: center;
 		width: 26px;
@@ -599,10 +592,10 @@
 		border-radius: var(--radius-sm);
 		color: var(--accent-text);
 	}
-	.save-view button:hover:not(:disabled) {
+	.save-view button[type='submit']:hover:not(:disabled) {
 		background: var(--surface-hover);
 	}
-	.save-view button:disabled {
+	.save-view button[type='submit']:disabled {
 		color: var(--text-faint);
 		cursor: default;
 	}
