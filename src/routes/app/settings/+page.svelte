@@ -15,6 +15,7 @@
 	import Icon, { type IconName } from '#lib/components/ui/Icon.svelte';
 	import ListWidthField from '#lib/components/ListWidthField.svelte';
 	import Select from '#lib/components/ui/Select.svelte';
+	import { compressImage } from '#lib/compressImage';
 
 	let { data, form } = $props();
 
@@ -182,16 +183,25 @@
 
 	async function onAvatarFile(e: Event) {
 		const input = e.currentTarget as HTMLInputElement;
-		const file = input.files?.[0];
+		let file = input.files?.[0];
 		input.value = '';
 		if (!file) return;
 		if (!file.type.startsWith('image/')) {
 			toasts.error('Choose an image file');
 			return;
 		}
-		if (file.size > 2 * 1024 * 1024) {
-			toasts.error('Images must be under 2MB');
-			return;
+		const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+		if (file.size > MAX_AVATAR_BYTES) {
+			try {
+				file = await compressImage(file, MAX_AVATAR_BYTES);
+			} catch {
+				toasts.error('Could not shrink that image — try a smaller one');
+				return;
+			}
+			if (file.size > MAX_AVATAR_BYTES) {
+				toasts.error('Images must be under 2MB');
+				return;
+			}
 		}
 		uploadingAvatar = true;
 		avatarPreview = URL.createObjectURL(file);
