@@ -8,7 +8,16 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import { TodosController } from '#lib/stores/todos.svelte';
 	import { flattenTree } from '#lib/todoTree';
-	import { filterCount, groupTodos, matchesFilter, parseView, viewComparator, type GroupKey, type ViewState } from '#lib/todoView';
+	import {
+		filterCount,
+		groupTodos,
+		isManualSort,
+		matchesFilter,
+		parseView,
+		viewComparator,
+		type GroupKey,
+		type ViewState
+	} from '#lib/todoView';
 	import { formatTodoForCopy, formatTodosAsChecklist, formatTodosAsJson } from '#lib/todoFormat';
 	import { toasts } from '#lib/components/ui/toast.svelte';
 	import { onControl, shortcutAllowed } from '#lib/shortcuts';
@@ -188,11 +197,11 @@
 		return ids;
 	});
 	const shown = (list: Todo[]) => (matches ? list.filter((t) => matches.has(t.id)) : list);
-	const sorted = (list: Todo[]) => (view.sort === 'manual' && !view.reverse ? list : [...list].sort(compare));
+	const sorted = (list: Todo[]) => (isManualSort(view.sort) && !view.reverse ? list : [...list].sort(compare));
 	const childrenShown = (id: string) => sorted(shown(controller.childrenOf(id)));
 	const openTodos = $derived(sorted(shown(controller.openRoots)));
 	// Completed tasks keep most-recently-done first unless a sort is chosen.
-	const doneTodos = $derived(view.sort === 'manual' ? shown(controller.doneRoots) : sorted(shown(controller.doneRoots)));
+	const doneTodos = $derived(isManualSort(view.sort) ? shown(controller.doneRoots) : sorted(shown(controller.doneRoots)));
 	const completedTodos = $derived(doneTodos.filter((t) => !t.notDoing));
 	const notDoingTodos = $derived(doneTodos.filter((t) => t.notDoing));
 	// Grouping applies to top-level open tasks; subtasks stay with their parent.
@@ -282,7 +291,7 @@
 
 	// ── Reordering (manual sort only) ──
 	// Open tasks move among their open siblings; under a grouping, only within their group.
-	const canReorder = $derived(canEdit && view.sort === 'manual' && !view.reverse);
+	const canReorder = $derived(canEdit && isManualSort(view.sort) && !view.reverse);
 	// Grouped by category or tag: dragging a task into another group's section
 	// re-tags/re-categorizes it, independent of the current sort.
 	const canRegroup = $derived(canEdit && (view.group === 'category' || view.group === 'tag'));

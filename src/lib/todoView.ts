@@ -33,11 +33,16 @@ export type FilterField = 'statuses' | 'categories' | 'tags' | 'assignees' | 'de
 export type ViewFilter = Record<FilterField, string[]>;
 
 export interface ViewState {
-	sort: SortKey;
+	/** Sort keys in priority order; ties on the first key fall through to the next. `['manual']` means drag order. */
+	sort: SortKey[];
 	/** Flip the sort's natural direction (empty values still sink to the bottom). */
 	reverse: boolean;
 	group: GroupKey;
 	filter: ViewFilter;
+}
+
+export function isManualSort(sort: SortKey[]): boolean {
+	return sort.length === 0 || sort[0] === 'manual';
 }
 
 export const SORT_LABELS: Record<SortKey, string> = {
@@ -82,7 +87,7 @@ export function emptyFilter(): ViewFilter {
 	return { statuses: [], categories: [], tags: [], assignees: [], deadlines: [], urgencies: [], sizes: [] };
 }
 export function defaultView(): ViewState {
-	return { sort: 'manual', reverse: false, group: 'none', filter: emptyFilter() };
+	return { sort: ['manual'], reverse: false, group: 'none', filter: emptyFilter() };
 }
 export function filterCount(f: ViewFilter): number {
 	return Object.values(f).reduce((n, v) => n + v.length, 0);
@@ -94,7 +99,10 @@ export function parseView(raw: string | null): ViewState {
 	if (!raw) return view;
 	try {
 		const v = JSON.parse(raw);
-		if (v.sort in SORT_LABELS) view.sort = v.sort;
+		// Legacy views stored a single sort key; current ones store a priority list.
+		const sorts = Array.isArray(v.sort) ? v.sort : [v.sort];
+		const valid = sorts.filter((s: unknown): s is SortKey => typeof s === 'string' && s in SORT_LABELS);
+		if (valid.length) view.sort = valid.includes('manual') ? ['manual'] : valid;
 		if (v.group in GROUP_LABELS) view.group = v.group;
 		view.reverse = !!v.reverse;
 		for (const k of Object.keys(view.filter) as FilterField[])
@@ -161,14 +169,15 @@ function sortValue(t: Todo, key: SortKey): number | string | null {
 	}
 }
 
-/** Comparator for siblings: open before done, then the chosen key, then manual order. */
-export function viewComparator(sort: SortKey, reverse: boolean) {
+/** Comparator for siblings: open before done, then each sort key in turn (ties falling through to the next), then manual order. */
+export function viewComparator(sort: SortKey[], reverse: boolean) {
 	return (a: Todo, b: Todo): number => {
 		if (a.completed !== b.completed) return Number(a.completed) - Number(b.completed);
-		if (sort === 'manual') return reverse ? -compareSiblings(a, b) : compareSiblings(a, b);
-		const va = sortValue(a, sort);
-		const vb = sortValue(b, sort);
-		if (va !== vb) {
+		if (isManualSort(sort)) return reverse ? -compareSiblings(a, b) : compareSiblings(a, b);
+		for (const key of sort) {
+			const va = sortValue(a, key);
+			const vb = sortValue(b, key);
+			if (va === vb) continue;
 			if (va === null) return 1;
 			if (vb === null) return -1;
 			const c = typeof va === 'string' ? va.localeCompare(vb as string) : va - (vb as number);

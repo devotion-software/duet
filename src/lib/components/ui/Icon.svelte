@@ -37,6 +37,7 @@
 		archive: 'M21 8v13H3V8|M1 3h22v5H1z|M10 12h4',
 		logout: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4|M16 17l5-5-5-5|M21 12H9',
 		'chevron-down': 'M6 9l6 6 6-6',
+		'chevron-up': 'M18 15l-6-6-6 6',
 		'chevron-right': 'M9 18l6-6-6-6',
 		'chevron-left': 'M15 18l-6-6 6-6',
 		'chevrons-up-down': 'M7 15l5 5 5-5|M7 9l5-5 5 5',

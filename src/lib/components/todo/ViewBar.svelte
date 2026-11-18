@@ -8,6 +8,7 @@
 		defaultView,
 		emptyFilter,
 		filterCount,
+		isManualSort,
 		parseView,
 		type FilterField,
 		type GroupKey,
@@ -86,16 +87,29 @@
 		)
 	);
 	const customised = $derived(
-		view.sort !== 'manual' || view.reverse || view.group !== 'none' || activeFilters > 0
+		!isManualSort(view.sort) || view.reverse || view.group !== 'none' || activeFilters > 0
 	);
+	// "Urgency, then Size" — the active sort keys in priority order.
+	const sortSummary = $derived(view.sort.map((k) => SORT_LABELS[k]).join(', '));
 
-	function setSort(sort: SortKey) {
-		// Picking the active sort again flips its direction.
-		if (view.sort === sort && sort !== 'manual') view.reverse = !view.reverse;
-		else {
-			view.sort = sort;
+	/** Toggling a key adds it to the end of the priority list, or removes it if already there. */
+	function toggleSort(key: SortKey) {
+		if (key === 'manual') {
+			view.sort = ['manual'];
 			view.reverse = false;
+			return;
 		}
+		const rest = view.sort.filter((k) => k !== 'manual' && k !== key);
+		view.sort = view.sort.includes(key) ? rest : [...rest, key];
+		if (!view.sort.length) view.sort = ['manual'];
+	}
+	function moveSort(key: SortKey, dir: -1 | 1) {
+		const i = view.sort.indexOf(key);
+		const j = i + dir;
+		if (i < 0 || j < 0 || j >= view.sort.length) return;
+		const next = [...view.sort];
+		[next[i], next[j]] = [next[j], next[i]];
+		view.sort = next;
 	}
 	function setGroup(group: GroupKey) {
 		view.group = group;
@@ -217,18 +231,39 @@
 	{/if}
 
 	<div class="pop-host">
-		<button class="ctl" class:active={view.sort !== 'manual'} class:on={popover === 'sort'} onclick={() => toggle('sort')}>
+		<button class="ctl" class:active={!isManualSort(view.sort)} class:on={popover === 'sort'} onclick={() => toggle('sort')}>
 			<Icon name="chevrons-up-down" size={14} />
-			Sort{#if view.sort !== 'manual'}: <strong>{SORT_LABELS[view.sort]}{view.reverse ? ' ↑' : ''}</strong>{/if}
+			Sort{#if !isManualSort(view.sort)}: <strong>{sortSummary}{view.reverse ? ' ↑' : ''}</strong>{/if}
 		</button>
 		{#if popover === 'sort'}
 			<button class="scrim" aria-label="Close" onclick={() => (popover = null)}></button>
 			<div class="pop">
-				{#each Object.keys(SORT_LABELS) as SortKey[] as key (key)}
-					<button class="pop-item" class:current={view.sort === key} onclick={() => setSort(key)}>
-						<span class="tick">{#if view.sort === key}<Icon name="check" size={13} strokeWidth={2.5} />{/if}</span>
-						{SORT_LABELS[key]}
-					</button>
+				<button class="pop-item" class:current={isManualSort(view.sort)} onclick={() => toggleSort('manual')}>
+					<span class="tick">{#if isManualSort(view.sort)}<Icon name="check" size={13} strokeWidth={2.5} />{/if}</span>
+					Manual
+				</button>
+				<hr />
+				{#each Object.keys(SORT_LABELS).filter((k) => k !== 'manual') as SortKey[] as key (key)}
+					{@const i = view.sort.indexOf(key)}
+					<div class="pop-item sort-item" class:current={i >= 0}>
+						<button class="sort-toggle" onclick={() => toggleSort(key)}>
+							<span class="tick">{#if i >= 0}{i + 1}{/if}</span>
+							{SORT_LABELS[key]}
+						</button>
+						{#if i >= 0}
+							<button class="sort-move" title="Move up" disabled={i === 0} onclick={() => moveSort(key, -1)}>
+								<Icon name="chevron-up" size={13} />
+							</button>
+							<button
+								class="sort-move"
+								title="Move down"
+								disabled={i === view.sort.length - 1}
+								onclick={() => moveSort(key, 1)}
+							>
+								<Icon name="chevron-down" size={13} />
+							</button>
+						{/if}
+					</div>
 				{/each}
 				<hr />
 				<label class="pop-item">
@@ -531,6 +566,45 @@
 	}
 	.pop-item.current {
 		font-weight: var(--weight-medium);
+	}
+	.sort-item {
+		padding: 0;
+		cursor: default;
+	}
+	.sort-item:hover {
+		background: none;
+	}
+	.sort-toggle {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		flex: 1;
+		min-width: 0;
+		padding: 6px var(--space-3);
+		border-radius: var(--radius-sm);
+		text-align: left;
+		cursor: pointer;
+	}
+	.sort-toggle:hover {
+		background: var(--surface-hover);
+	}
+	.sort-move {
+		display: grid;
+		place-items: center;
+		width: 22px;
+		height: 22px;
+		flex-shrink: 0;
+		margin-right: 2px;
+		border-radius: var(--radius-sm);
+		color: var(--text-faint);
+	}
+	.sort-move:hover:not(:disabled) {
+		background: var(--surface-hover);
+		color: var(--text);
+	}
+	.sort-move:disabled {
+		opacity: 0.3;
+		cursor: default;
 	}
 	.tick {
 		display: inline-flex;
