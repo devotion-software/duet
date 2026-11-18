@@ -187,6 +187,32 @@ export const tags = mysqlTable(
 	(t) => [uniqueIndex('tags_unique').on(t.projectId, t.name)]
 );
 
+// A saved sort/group/filter combination (see ViewState in #lib/todoView), so a
+// project's task list can be returned to a particular arrangement later.
+// Personal to the member who created it; not shared with the rest of the project.
+export const savedViews = mysqlTable(
+	'saved_views',
+	{
+		id: id(),
+		projectId: varchar('project_id', { length: 36 })
+			.notNull()
+			.references(() => projects.id, { onDelete: 'cascade' }),
+		userId: varchar('user_id', { length: 36 })
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		name: varchar('name', { length: 80 }).notNull(),
+		// JSON-encoded ViewState; kept as a single blob since it's only ever read/written whole.
+		config: text('config').notNull(),
+		sortOrder: int('sort_order').notNull().default(0),
+		createdAt: createdAt(),
+		updatedAt: updatedAt()
+	},
+	(t) => [
+		uniqueIndex('saved_views_unique').on(t.projectId, t.userId, t.name),
+		index('saved_views_project_user_idx').on(t.projectId, t.userId)
+	]
+);
+
 // ─── Todos ─────────────────────────────────────────────────────────────────
 export const todos = mysqlTable(
 	'todos',
@@ -365,7 +391,13 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
 	todos: many(todos),
 	categories: many(categories),
 	tags: many(tags),
-	invites: many(projectInvites)
+	invites: many(projectInvites),
+	savedViews: many(savedViews)
+}));
+
+export const savedViewsRelations = relations(savedViews, ({ one }) => ({
+	project: one(projects, { fields: [savedViews.projectId], references: [projects.id] }),
+	user: one(user, { fields: [savedViews.userId], references: [user.id] })
 }));
 
 export const projectMembersRelations = relations(projectMembers, ({ one }) => ({

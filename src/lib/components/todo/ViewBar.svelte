@@ -8,6 +8,7 @@
 		defaultView,
 		emptyFilter,
 		filterCount,
+		parseView,
 		type FilterField,
 		type GroupKey,
 		type SortKey,
@@ -22,6 +23,7 @@
 		URGENCY_META,
 		type Category,
 		type Member,
+		type SavedView,
 		type Tag
 	} from '#lib/types';
 
@@ -30,10 +32,21 @@
 		categories: Category[];
 		tags: Tag[];
 		members: Member[];
+		savedViews?: SavedView[];
+		onSaveView?: (name: string) => Promise<unknown>;
+		onDeleteView?: (id: string) => Promise<void>;
 	}
-	let { view = $bindable(), categories, tags, members }: Props = $props();
+	let {
+		view = $bindable(),
+		categories,
+		tags,
+		members,
+		savedViews = [],
+		onSaveView,
+		onDeleteView
+	}: Props = $props();
 
-	let popover = $state<'sort' | 'group' | 'filter' | null>(null);
+	let popover = $state<'sort' | 'group' | 'filter' | 'views' | null>(null);
 	function toggle(p: typeof popover) {
 		popover = popover === p ? null : p;
 	}
@@ -94,11 +107,92 @@
 		view = defaultView();
 		popover = null;
 	}
+
+	function applySavedView(sv: SavedView) {
+		view = parseView(sv.config);
+		popover = null;
+	}
+
+	let newViewName = $state('');
+	let saving = $state(false);
+	async function saveCurrentView() {
+		const name = newViewName.trim();
+		if (!name || !onSaveView) return;
+		saving = true;
+		try {
+			await onSaveView(name);
+			newViewName = '';
+		} finally {
+			saving = false;
+		}
+	}
+
+	let deletingId = $state<string | null>(null);
+	async function removeView(sv: SavedView) {
+		if (!onDeleteView || !confirm(`Delete the “${sv.name}” view?`)) return;
+		deletingId = sv.id;
+		try {
+			await onDeleteView(sv.id);
+		} finally {
+			deletingId = null;
+		}
+	}
 </script>
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && popover && (popover = null)} />
 
 <div class="viewbar" role="toolbar" aria-label="Sort, group and filter tasks">
+	{#if savedViews.length || onSaveView}
+		<div class="pop-host">
+			<button class="ctl" class:on={popover === 'views'} onclick={() => toggle('views')}>
+				<Icon name="star" size={14} />
+				Views
+			</button>
+			{#if popover === 'views'}
+				<button class="scrim" aria-label="Close" onclick={() => (popover = null)}></button>
+				<div class="pop views">
+					{#if savedViews.length}
+						{#each savedViews as sv (sv.id)}
+							<div class="pop-item saved-view">
+								<button class="view-apply" onclick={() => applySavedView(sv)}>
+									<Icon name="star" size={13} />
+									<span class="truncate">{sv.name}</span>
+								</button>
+								{#if onDeleteView}
+									<button
+										class="view-delete"
+										title="Delete view"
+										disabled={deletingId === sv.id}
+										onclick={() => removeView(sv)}
+									>
+										<Icon name="trash" size={13} />
+									</button>
+								{/if}
+							</div>
+						{/each}
+					{:else}
+						<div class="pop-empty">No saved views yet</div>
+					{/if}
+					{#if onSaveView}
+						<hr />
+						<form class="save-view" onsubmit={(e) => (e.preventDefault(), saveCurrentView())}>
+							<input
+								type="text"
+								placeholder="Save current view as…"
+								maxlength="80"
+								bind:value={newViewName}
+								disabled={saving}
+							/>
+							<button type="submit" disabled={saving || !newViewName.trim()}>
+								<Icon name="plus" size={14} />
+							</button>
+						</form>
+					{/if}
+				</div>
+			{/if}
+		</div>
+	{/if}
+
 	<div class="pop-host">
 		<button class="ctl" class:active={view.sort !== 'manual'} class:on={popover === 'sort'} onclick={() => toggle('sort')}>
 			<Icon name="chevrons-up-down" size={14} />
@@ -294,6 +388,83 @@
 	}
 	.pop.filter {
 		min-width: 230px;
+	}
+	.pop.views {
+		min-width: 220px;
+	}
+	.pop-empty {
+		padding: var(--space-2) var(--space-3);
+		color: var(--text-faint);
+		font-size: var(--text-sm);
+	}
+	.saved-view {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+		padding: 0;
+	}
+	.view-apply {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
+		flex: 1;
+		min-width: 0;
+		padding: 6px var(--space-3);
+		border-radius: var(--radius-sm);
+		font-size: var(--text-sm);
+		color: var(--text);
+		text-align: left;
+		cursor: pointer;
+	}
+	.view-apply:hover {
+		background: var(--surface-hover);
+	}
+	.view-delete {
+		display: grid;
+		place-items: center;
+		flex-shrink: 0;
+		width: 24px;
+		height: 24px;
+		margin-right: var(--space-1);
+		border-radius: var(--radius-sm);
+		color: var(--text-faint);
+	}
+	.view-delete:hover {
+		background: var(--surface-hover);
+		color: var(--danger, #ef4444);
+	}
+	.save-view {
+		display: flex;
+		align-items: center;
+		gap: var(--space-1);
+		padding: var(--space-1) var(--space-2);
+	}
+	.save-view input {
+		flex: 1;
+		min-width: 0;
+		height: 26px;
+		padding: 0 var(--space-2);
+		border: 1px solid var(--border);
+		border-radius: var(--radius-sm);
+		background: var(--surface);
+		color: var(--text);
+		font-size: var(--text-sm);
+	}
+	.save-view button {
+		display: grid;
+		place-items: center;
+		width: 26px;
+		height: 26px;
+		flex-shrink: 0;
+		border-radius: var(--radius-sm);
+		color: var(--accent-text);
+	}
+	.save-view button:hover:not(:disabled) {
+		background: var(--surface-hover);
+	}
+	.save-view button:disabled {
+		color: var(--text-faint);
+		cursor: default;
 	}
 	.pop hr {
 		margin: var(--space-1) 0;

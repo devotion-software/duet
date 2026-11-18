@@ -66,6 +66,12 @@ export interface Category {
 	name: string;
 	color: string;
 }
+/** A saved sort/group/filter combination; `config` is JSON-encoded ViewState. */
+export interface SavedView {
+	id: string;
+	name: string;
+	config: string;
+}
 /** A lightweight, cross-project todo reference, for the "link a task" picker. */
 export interface TodoRef {
 	id: string;

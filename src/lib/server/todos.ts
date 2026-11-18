@@ -6,6 +6,7 @@ import {
 	todoTags,
 	tags,
 	categories,
+	savedViews,
 	attachments,
 	todoLinks,
 	projects,
@@ -1137,6 +1138,55 @@ export async function updateCategory(
 
 export async function deleteCategory(projectId: string, categoryId: string) {
 	await db.delete(categories).where(and(eq(categories.id, categoryId), eq(categories.projectId, projectId)));
+}
+
+// ─── Saved views (personal to each member) ─────────────────────────────────
+export async function listSavedViews(projectId: string, userId: string) {
+	return db
+		.select()
+		.from(savedViews)
+		.where(and(eq(savedViews.projectId, projectId), eq(savedViews.userId, userId)))
+		.orderBy(asc(savedViews.sortOrder), asc(savedViews.name));
+}
+
+export async function createSavedView(projectId: string, userId: string, name: string, config: string) {
+	const id = newId();
+	try {
+		await db.insert(savedViews).values({ id, projectId, userId, name: name.trim().slice(0, 80), config });
+	} catch (e) {
+		if (isDuplicateKeyError(e)) return 'duplicate' as const;
+		throw e;
+	}
+	const [row] = await db.select().from(savedViews).where(eq(savedViews.id, id)).limit(1);
+	return row;
+}
+
+/** Returns `null` if the view doesn't exist (or isn't this user's), or `'duplicate'` if the new name collides. */
+export async function updateSavedView(
+	projectId: string,
+	userId: string,
+	viewId: string,
+	patch: { name?: string; config?: string }
+) {
+	const set: { name?: string; config?: string } = {};
+	if (patch.name !== undefined) set.name = patch.name.trim().slice(0, 80);
+	if (patch.config !== undefined) set.config = patch.config;
+	if (!Object.keys(set).length) return null;
+	const own = and(eq(savedViews.id, viewId), eq(savedViews.projectId, projectId), eq(savedViews.userId, userId));
+	try {
+		await db.update(savedViews).set(set).where(own);
+	} catch (e) {
+		if (isDuplicateKeyError(e)) return 'duplicate';
+		throw e;
+	}
+	const [row] = await db.select().from(savedViews).where(own).limit(1);
+	return row ?? null;
+}
+
+export async function deleteSavedView(projectId: string, userId: string, viewId: string) {
+	await db
+		.delete(savedViews)
+		.where(and(eq(savedViews.id, viewId), eq(savedViews.projectId, projectId), eq(savedViews.userId, userId)));
 }
 
 // ─── Attachments ────────────────────────────────────────────────────────────

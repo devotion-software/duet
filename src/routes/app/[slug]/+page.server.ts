@@ -5,7 +5,7 @@ import {
 	listInvites,
 	projectDefaultsFor
 } from '#lib/server/projects';
-import { listTodos, listTags, listCategories } from '#lib/server/todos';
+import { listTodos, listTags, listCategories, listSavedViews } from '#lib/server/todos';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
@@ -18,13 +18,14 @@ export const load: PageServerLoad = async ({ params, locals }) => {
 	);
 	if (!project) error(404, 'Project not found');
 
-	const [todos, tags, categories, members, invites] = await Promise.all([
+	const [todos, tags, categories, members, invites, savedViews] = await Promise.all([
 		listTodos(project.id),
 		listTags(project.id),
 		listCategories(project.id),
 		listMembers(project.id),
-		listInvites(project.id)
+		listInvites(project.id),
+		listSavedViews(project.id, locals.user.id)
 	]);
 
-	return { project, todos, tags, categories, members, invites };
+	return { project, todos, tags, categories, members, invites, savedViews };
 };

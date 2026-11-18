@@ -169,6 +169,13 @@
       "when": 1795000023799,
       "tag": "0023_reflective_network",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "5",
+      "when": 1795004110009,
+      "tag": "0024_loose_dragon_man",
+      "breakpoints": true
     }
   ]
 }

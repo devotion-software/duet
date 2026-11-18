@@ -736,6 +736,28 @@
 			return null;
 		}
 	}
+	async function saveView(name: string) {
+		try {
+			const res = await fetch(`/api/projects/${data.project.id}/views`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ name, config: view })
+			});
+			if (!res.ok) throw new Error((await res.json()).message);
+			await invalidateAll();
+		} catch (e) {
+			toasts.error((e as Error).message);
+		}
+	}
+	async function deleteView(id: string) {
+		try {
+			const res = await fetch(`/api/projects/${data.project.id}/views/${id}`, { method: 'DELETE' });
+			if (!res.ok) throw new Error((await res.json()).message);
+			await invalidateAll();
+		} catch (e) {
+			toasts.error((e as Error).message);
+		}
+	}
 	function randomColor() {
 		const colors = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#8b5cf6', '#ef4444'];
 		return colors[Math.floor(Math.random() * colors.length)];
@@ -987,7 +1009,15 @@
 
 		{#if controller.items.length}
 			<div class="toolbar-row">
-				<ViewBar bind:view categories={data.categories} tags={data.tags} members={data.members} />
+				<ViewBar
+					bind:view
+					categories={data.categories}
+					tags={data.tags}
+					members={data.members}
+					savedViews={data.savedViews}
+					onSaveView={saveView}
+					onDeleteView={deleteView}
+				/>
 				{#if filtering}
 					<span class="filtered-count">{matches?.size ?? 0} of {controller.items.length} tasks</span>
 				{/if}
