@@ -1,4 +1,4 @@
-import { hydrateTodo, type Todo } from '#lib/types';
+import { hydrateTodo, isToTest, type Todo } from '#lib/types';
 import { ancestorsOf, buildChildren, withDescendants } from '#lib/todoTree';
 import { toasts } from '#lib/components/ui/toast.svelte';
 import type { GroupAs } from '#lib/parseImport';
@@ -62,6 +62,10 @@ export class TodosController {
 	/** Every open / completed task, at any depth. */
 	get open() {
 		return this.items.filter((t) => !t.completed).sort(sortOpen);
+	}
+	/** Open tasks awaiting testing. */
+	get toTest() {
+		return this.items.filter(isToTest).sort(sortOpen);
 	}
 	get done() {
 		return this.items.filter((t) => t.completed).sort(sortDone);

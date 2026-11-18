@@ -892,7 +892,8 @@
 					<p class="desc" title={data.project.description}>{data.project.description}</p>
 				{/if}
 				<p class="counts">
-					{controller.open.length} open · {controller.done.length} done
+					{controller.open.length - controller.toTest.length} open · {controller.toTest.length} to test · {controller.done.length}
+					done
 					{#if humanMemberCount > 1}· {humanMemberCount} members{/if}
 				</p>
 			</div>
