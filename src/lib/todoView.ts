@@ -93,6 +93,18 @@ export function filterCount(f: ViewFilter): number {
 	return Object.values(f).reduce((n, v) => n + v.length, 0);
 }
 
+/** True when two views represent the same sort/group/filter (filter values compared as sets). */
+export function viewsEqual(a: ViewState, b: ViewState): boolean {
+	if (a.reverse !== b.reverse || a.group !== b.group) return false;
+	if (a.sort.length !== b.sort.length || a.sort.some((k, i) => k !== b.sort[i])) return false;
+	for (const key of Object.keys(a.filter) as FilterField[]) {
+		const x = [...a.filter[key]].sort();
+		const y = [...b.filter[key]].sort();
+		if (x.length !== y.length || x.some((v, i) => v !== y[i])) return false;
+	}
+	return true;
+}
+
 /** Parse a stored view, falling back to defaults for anything missing or stale. */
 export function parseView(raw: string | null): ViewState {
 	const view = defaultView();

@@ -10,6 +10,7 @@
 		filterCount,
 		isManualSort,
 		parseView,
+		viewsEqual,
 		type FilterField,
 		type GroupKey,
 		type SortKey,
@@ -170,18 +171,20 @@
 
 <div class="viewbar" role="toolbar" aria-label="Sort, group and filter tasks">
 	{#if savedViews.length || onSaveView}
+		{@const activeView = savedViews.find((sv) => viewsEqual(view, parseView(sv.config)))}
 		<div class="pop-host">
-			<button class="ctl" class:on={popover === 'views'} onclick={() => toggle('views')}>
+			<button class="ctl" class:active={!!activeView} class:on={popover === 'views'} onclick={() => toggle('views')}>
 				<Icon name="star" size={14} />
-				Views
+				Views{#if activeView}: <strong>{activeView.name}</strong>{/if}
 			</button>
 			{#if popover === 'views'}
 				<button class="scrim" aria-label="Close" onclick={() => (popover = null)}></button>
 				<div class="pop views">
 					{#if savedViews.length}
 						{#each savedViews as sv (sv.id)}
+							{@const active = viewsEqual(view, parseView(sv.config))}
 							<div class="pop-item saved-view">
-								<button class="view-apply" onclick={() => applySavedView(sv)}>
+								<button class="view-apply" class:active onclick={() => applySavedView(sv)}>
 									<Icon name="star" size={13} />
 									<span class="truncate">{sv.name}</span>
 								</button>
@@ -476,6 +479,13 @@
 	}
 	.view-apply:hover {
 		background: var(--surface-hover);
+	}
+	.view-apply.active {
+		color: var(--accent-text);
+		font-weight: var(--weight-medium);
+	}
+	.view-apply.active :global(svg) {
+		color: var(--accent-text);
 	}
 	.view-delete {
 		display: grid;
