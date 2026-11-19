@@ -515,7 +515,7 @@
 						title={inProgress ? 'Stop progress' : 'Mark as in progress'}
 					>
 						<Icon name="clock" size={13} />
-						<span>{inProgress ? 'In progress' : 'Start'}</span>
+						<span>{inProgress ? 'In progress' : 'Mark in progress'}</span>
 					</button>
 					<button
 						class="check testing"
