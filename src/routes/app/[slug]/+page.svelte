@@ -180,6 +180,20 @@
 		const json = JSON.stringify(taskDefaults);
 		if (browser && taskDefaultsLoadedFor === taskDefaultsKey) localStorage.setItem(taskDefaultsKey, json);
 	});
+	// Drop defaults pointing at tags or categories that have since been deleted.
+	$effect(() => {
+		const tagIds = new Set(data.tags.map((t) => t.id));
+		const categoryIds = new Set(data.categories.map((c) => c.id));
+		const keptTags = taskDefaults.tagIds.filter((id) => tagIds.has(id));
+		const staleCategory = !!taskDefaults.categoryId && !categoryIds.has(taskDefaults.categoryId);
+		if (keptTags.length !== taskDefaults.tagIds.length || staleCategory) {
+			taskDefaults = {
+				...taskDefaults,
+				tagIds: keptTags,
+				categoryId: staleCategory ? null : taskDefaults.categoryId
+			};
+		}
+	});
 	const filtering = $derived(filterCount(view.filter) > 0);
 	const narrowed = $derived(!!query || filtering);
 	const compare = $derived(viewComparator(view.sort, view.reverse));
