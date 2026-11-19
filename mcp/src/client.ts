@@ -57,6 +57,15 @@ export interface Todo {
 	assignee: { id: string; name: string } | null;
 	category: { id: string; name: string } | null;
 	tags: { id: string; name: string }[];
+	attachments?: Attachment[];
+}
+
+export interface Attachment {
+	id: string;
+	name: string | null;
+	mime: string | null;
+	size: number | null;
+	url: string;
 }
 
 export interface Label {
@@ -113,6 +122,30 @@ export const duet = {
 		const todo = todos.find((t) => t.id === todoId);
 		if (!todo) throw new DuetApiError(404, `Task ${todoId} not found in project ${projectId}`);
 		return todo;
+	},
+
+	/** Downloads an attachment's bytes (following the redirect to object storage, if any). */
+	getAttachmentFile: async (projectId: string, attachmentId: string) => {
+		const path = `/api/projects/${encodeURIComponent(projectId)}/attachments/${encodeURIComponent(attachmentId)}/raw`;
+		const res = await fetch(`${BASE_URL}${path}`, { headers: { 'x-api-key': API_KEY! } });
+		if (!res.ok) {
+			const text = await res.text().catch(() => '');
+			throw new DuetApiError(res.status, `GET ${path} → ${res.status}: ${text || res.statusText}`);
+		}
+		const disposition = res.headers.get('content-disposition') ?? '';
+		const encoded = /filename="?([^";]+)"?/.exec(disposition)?.[1];
+		let name: string | null = null;
+		try {
+			name = encoded ? decodeURIComponent(encoded) : null;
+		} catch {
+			name = encoded ?? null;
+		}
+		return {
+			id: attachmentId,
+			name,
+			mime: res.headers.get('content-type')?.split(';')[0].trim() || 'application/octet-stream',
+			bytes: new Uint8Array(await res.arrayBuffer())
+		};
 	},
 
 	createTask: (

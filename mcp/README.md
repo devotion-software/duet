@@ -43,7 +43,9 @@ an agent.
 | --- | --- |
 | `list_projects` | Projects the key's owner is a member of |
 | `list_tasks` | Tasks in a project, optionally filtered by status |
-| `get_task` | One task's full details |
+| `get_task` | One task's full details, including its attachments |
+| `get_attachment` | One attachment: images (PNG/JPEG/GIF/WebP, up to 5MB) come back viewable and text/CSV/Markdown as text; any other file is saved locally and its path returned |
+| `download_task_attachments` | Save every attachment on a task, of any type, to a local folder and return the paths |
 | `create_task` | Create a task or subtask, optionally with urgency, size, deadline, category and tags |
 | `update_task_status` | Move a task between open/in_progress/to_test/done/not_doing |
 | `update_task` | Edit title/description/urgency/size/deadline/category, and replace (`tags`), add (`addTags`) or remove (`removeTags`) tags |

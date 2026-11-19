@@ -1,9 +1,12 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { duet, statusOf, DuetApiError, type Todo, type Label } from './client.js';
 
-const server = new McpServer({ name: 'duet', version: '0.2.0' });
+const server = new McpServer({ name: 'duet', version: '0.3.0' });
 
 function summarize(t: Todo) {
 	return {
@@ -17,8 +20,29 @@ function summarize(t: Todo) {
 		assignee: t.assignee?.name ?? null,
 		category: t.category?.name ?? null,
 		tags: t.tags.map((tag) => tag.name),
-		parentId: t.parentId
+		parentId: t.parentId,
+		attachmentCount: t.attachments?.length ?? 0
 	};
+}
+
+/** Image types Claude can view directly; anything else is described instead. */
+const VIEWABLE_IMAGES = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
+const TEXT_TYPES = new Set(['text/plain', 'text/csv', 'text/markdown']);
+// Bigger images are rejected by the model, and big text floods the context; both get saved to disk instead.
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_TEXT_BYTES = 200 * 1024;
+
+function defaultAttachmentDir(projectId: string, taskId?: string) {
+	return join(tmpdir(), 'duet-attachments', projectId, ...(taskId ? [taskId] : []));
+}
+
+/** Writes an attachment into `directory`, prefixing the id so same-named files don't collide. */
+async function saveAttachment(file: { id: string; name: string | null; bytes: Uint8Array }, directory: string) {
+	const safe = (file.name ?? 'file').replace(/[^a-zA-Z0-9._-]/g, '_').replace(/^\.+/, '').slice(0, 120) || 'file';
+	await mkdir(directory, { recursive: true });
+	const path = join(resolve(directory), `${file.id}-${safe}`);
+	await writeFile(path, file.bytes);
+	return path;
 }
 
 function label(l: Label) {
@@ -130,7 +154,77 @@ server.registerTool(
 	},
 	async ({ projectId, taskId }) => {
 		try {
-			return text(summarize(await duet.getTask(projectId, taskId)));
+			const task = await duet.getTask(projectId, taskId);
+			const { attachmentCount: _, ...rest } = summarize(task);
+			return text({
+				...rest,
+				attachments: (task.attachments ?? []).map((a) => ({ id: a.id, name: a.name, mime: a.mime, size: a.size }))
+			});
+		} catch (e) {
+			return toolError(e);
+		}
+	}
+);
+
+server.registerTool(
+	'get_attachment',
+	{
+		title: 'Get a task attachment',
+		description:
+			"Fetch one of a task's attachments (ids come from get_task). PNG, JPEG, GIF and WebP images (up to 5MB) are returned as images you can see; plain text, CSV and Markdown as text. Any other file (PDF, Office documents, video, zip, ...) is saved to a local folder and its path returned, so you can open it with your own file tools.",
+		inputSchema: {
+			projectId: z.string(),
+			attachmentId: z.string(),
+			directory: z
+				.string()
+				.optional()
+				.describe('Folder to save non-inline files into; defaults to a temp folder')
+		}
+	},
+	async ({ projectId, attachmentId, directory }) => {
+		try {
+			const file = await duet.getAttachmentFile(projectId, attachmentId);
+			const { bytes, mime } = file;
+			if (VIEWABLE_IMAGES.has(mime) && bytes.length <= MAX_IMAGE_BYTES) {
+				return { content: [{ type: 'image' as const, data: Buffer.from(bytes).toString('base64'), mimeType: mime }] };
+			}
+			if (TEXT_TYPES.has(mime) && bytes.length <= MAX_TEXT_BYTES) {
+				return { content: [{ type: 'text' as const, text: new TextDecoder().decode(bytes) }] };
+			}
+			const path = await saveAttachment(file, directory ?? defaultAttachmentDir(projectId));
+			return text({ attachmentId, name: file.name, mime, size: bytes.length, savedTo: path });
+		} catch (e) {
+			return toolError(e);
+		}
+	}
+);
+
+server.registerTool(
+	'download_task_attachments',
+	{
+		title: "Download all of a task's attachments",
+		description:
+			"Save every attachment on a task, of any file type, to a local folder and return each file's path. Open them with your own file tools.",
+		inputSchema: {
+			projectId: z.string(),
+			taskId: z.string(),
+			directory: z.string().optional().describe('Folder to save into; defaults to a temp folder')
+		}
+	},
+	async ({ projectId, taskId, directory }) => {
+		try {
+			const task = await duet.getTask(projectId, taskId);
+			const dir = directory ?? defaultAttachmentDir(projectId, taskId);
+			const files = [];
+			for (const a of task.attachments ?? []) {
+				try {
+					const file = await duet.getAttachmentFile(projectId, a.id);
+					files.push({ attachmentId: a.id, name: a.name ?? file.name, mime: file.mime, size: file.bytes.length, savedTo: await saveAttachment({ ...file, name: a.name ?? file.name }, dir) });
+				} catch (e) {
+					files.push({ attachmentId: a.id, name: a.name, error: e instanceof Error ? e.message : String(e) });
+				}
+			}
+			return text({ taskId, directory: dir, files });
 		} catch (e) {
 			return toolError(e);
 		}
