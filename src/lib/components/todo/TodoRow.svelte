@@ -633,7 +633,9 @@
 			{/if}
 		</div>
 		{#if assignee}
-			<Avatar name={assignee.name} image={assignee.image} isAi={assignee.isAi} size={22} />
+			<span class="assignee">
+				<Avatar name={assignee.name} image={assignee.image} isAi={assignee.isAi} size={22} />
+			</span>
 		{/if}
 	</div>
 </div>
@@ -861,6 +863,9 @@
 		gap: var(--space-2);
 		flex-shrink: 0;
 	}
+	.assignee {
+		display: inline-flex;
+	}
 	/* Out of the layout until wanted, so the title gets the full width. */
 	.actions {
 		display: none;
@@ -878,6 +883,10 @@
 	@media (hover: none) {
 		.actions {
 			display: flex;
+		}
+		/* With the buttons always showing, keep the assignee beside the title rather than past them. */
+		.assignee {
+			order: -1;
 		}
 		/* No room for it on mobile; it's still in the actions menu. */
 		.act.subtask-btn {
