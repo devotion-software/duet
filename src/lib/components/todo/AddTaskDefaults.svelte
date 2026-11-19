@@ -130,7 +130,7 @@
 	</button>
 
 	{#if menuOpen}
-		<div class="menu">
+		<div class="menu" class:calendar={submenu === 'deadline'}>
 			{#if submenu}
 				{@const meta = FIELDS.find((m) => m.key === submenu)!}
 				<button class="menu-item menu-back" onclick={() => (submenu = null)}>
@@ -267,6 +267,15 @@
 		border-radius: var(--radius-md);
 		box-shadow: var(--shadow-lg);
 		padding: var(--space-1);
+	}
+	/* The inline calendar needs room to lay out its grid, and should never scroll. */
+	.menu.calendar {
+		width: 260px;
+		max-width: calc(100vw - 16px);
+	}
+	.menu.calendar .menu-list {
+		max-height: none;
+		overflow: visible;
 	}
 	.menu hr {
 		margin: var(--space-1) 0;

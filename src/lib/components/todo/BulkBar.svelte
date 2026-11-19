@@ -201,7 +201,7 @@
 			</button>
 			{#if popover === 'deadline'}
 				<button class="scrim" aria-label="Close" onclick={() => (popover = null)}></button>
-				<div class="pop">
+				<div class="pop calendar">
 					<DateField inline clearable={false} aria-label="Pick a date" onvalue={(v: string | null) => setDeadline(v)} />
 					<hr />
 					<button class="pop-item danger" onclick={() => setDeadline(null)}>
@@ -451,6 +451,13 @@
 		border-radius: var(--radius-md);
 		box-shadow: var(--shadow-lg);
 		padding: var(--space-1);
+	}
+	/* The inline calendar needs room to lay out its grid, and should never scroll. */
+	.pop.calendar {
+		width: 260px;
+		max-width: calc(100vw - 16px);
+		max-height: none;
+		overflow: visible;
 	}
 	.pop hr {
 		margin: var(--space-1) 0;
