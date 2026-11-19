@@ -57,14 +57,16 @@
 
 	// AI goes first in the assignee list, ahead of human members.
 	const assigneeOptions = $derived([...members].sort((a, b) => Number(b.isAi) - Number(a.isAi)));
-	const activeCount = $derived(
-		(value.categoryId ? 1 : 0) +
-			(value.assigneeId ? 1 : 0) +
-			(value.deadline ? 1 : 0) +
-			(value.urgency ? 1 : 0) +
-			(value.size ? 1 : 0) +
-			value.tagIds.length
-	);
+	// How many defaults each field contributes, shown beside it in the menu.
+	const fieldCounts = $derived<Record<Field, number>>({
+		deadline: value.deadline ? 1 : 0,
+		assignee: value.assigneeId ? 1 : 0,
+		urgency: value.urgency ? 1 : 0,
+		size: value.size ? 1 : 0,
+		category: value.categoryId ? 1 : 0,
+		tags: value.tagIds.length
+	});
+	const activeCount = $derived(Object.values(fieldCounts).reduce((a, b) => a + b, 0));
 	function set(patch: Partial<TaskDefaults>) {
 		onChange({ ...value, ...patch });
 	}
@@ -207,10 +209,13 @@
 				</div>
 			{:else}
 				{#each FIELDS as f (f.key)}
-					<button class="menu-item" onclick={() => (submenu = f.key)}>
+					<button class="menu-item" class:set={fieldCounts[f.key] > 0} onclick={() => (submenu = f.key)}>
 						<Icon name={f.icon} size={15} />
 						{f.label}
-						<span class="menu-trail"><Icon name="chevron-right" size={14} /></span>
+						<span class="menu-trail">
+							{#if fieldCounts[f.key]}<span class="field-count">{fieldCounts[f.key]}</span>{/if}
+							<Icon name="chevron-right" size={14} />
+						</span>
 					</button>
 				{/each}
 				{#if activeCount}
@@ -287,7 +292,24 @@
 	.menu-trail {
 		margin-left: auto;
 		display: inline-flex;
+		align-items: center;
+		gap: var(--space-1);
 		color: var(--text-faint);
+	}
+	.menu-item.set {
+		color: var(--accent-text);
+		font-weight: var(--weight-medium);
+	}
+	.field-count {
+		min-width: 18px;
+		padding: 0 5px;
+		border-radius: var(--radius-full);
+		background: var(--accent-soft);
+		color: var(--accent-text);
+		font-size: var(--text-xs);
+		font-weight: var(--weight-semibold);
+		line-height: 18px;
+		text-align: center;
 	}
 	.menu-back {
 		color: var(--text-muted);
