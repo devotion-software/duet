@@ -407,11 +407,13 @@
 	<div class="body">
 		<div class="title-line">
 			{#if urgency && !todo.completed}
-				<span
-					class="urgency-dot"
-					style="--u: {URGENCY_META[urgency].color}"
-					title="{URGENCY_META[urgency].label} urgency"
-				></span>
+				<span class="urgency">
+					<span
+						class="urgency-dot"
+						style="--u: {URGENCY_META[urgency].color}"
+						title="{URGENCY_META[urgency].label} urgency"
+					></span>
+				</span>
 			{/if}
 			<span class="title"><TitleText text={todo.title} /></span>
 		</div>
@@ -749,10 +751,18 @@
 		flex-direction: column;
 		gap: var(--space-1);
 	}
+	/* Inline flow, so a wrapped title runs back underneath the urgency dot. */
 	.title-line {
-		display: flex;
+		font-size: var(--text-base);
+		line-height: var(--leading-snug);
+	}
+	/* One line tall, so the dot centres on the first line whatever the title's length. */
+	.urgency {
+		display: inline-flex;
 		align-items: center;
-		gap: var(--space-2);
+		height: 1lh;
+		margin-right: var(--space-2);
+		vertical-align: top;
 	}
 	.urgency-dot {
 		width: 7px;
